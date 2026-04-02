@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#dc2626"/>
+      <stop offset="100%" style="stop-color:#991b1b"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Shopping bag body -->
+  <path d="M16 24 C16 22 18 20 20 20 L44 20 C46 20 48 22 48 24 L46 52 C46 54 44 56 42 56 L22 56 C20 56 18 54 18 52 Z" fill="rgba(255,255,255,0.2)" stroke="white" stroke-width="2"/>
+  <!-- Bag handle -->
+  <path d="M24 20 C24 14 28 10 32 10 C36 10 40 14 40 20" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- H letter -->
+  <text x="32" y="45" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="22" fill="white">H</text>
+</svg>

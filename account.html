@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Account — Hilgod Online Store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Manage your Hilgod account, orders, addresses and profile settings.">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/header.css"><link rel="stylesheet" href="css/footer.css"><link rel="stylesheet" href="css/pages.css">
+</head>
+<body>
+<div class="topbar"><div class="container"><div class="topbar-left"><a href="seller-zone.html"><i class="fas fa-store"></i> Sell on Hilgod</a><div class="topbar-divider"></div><a href="track-order.html"><i class="fas fa-location-dot"></i> Track Order</a></div></div></div>
+<header class="main-header" id="main-header"><div class="header-top"><div class="container"><a href="index.html" class="header-logo"><img src="assets/logo.png" alt="Hilgod" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:8px;color:#fff"><i class="fas fa-shopping-bag" style="font-size:1.8rem;color:var(--primary)"></i><div style="font-family:var(--font-display);font-size:1.4rem;font-weight:900;color:var(--primary)">HILGOD</div></div></a><div class="header-search-wrap"><form class="header-search" id="search-form"><input type="text" id="search-input" class="search-input" placeholder="Search products..."><button type="submit" class="search-btn"><i class="fas fa-magnifying-glass"></i></button></form><div class="search-suggestions" id="search-suggestions"></div></div><div class="header-actions"><div style="display:flex;align-items:center;gap:var(--space-3)"><a href="wishlist.html" class="header-action-btn" style="position:relative"><i class="fas fa-heart"></i><span>Wishlist</span><span class="badge-count wishlist-badge" style="display:none">0</span></a><a href="cart.html" class="header-action-btn" style="position:relative"><i class="fas fa-shopping-cart"></i><span>Cart</span><span class="badge-count cart-badge" style="display:none">0</span></a></div><button class="menu-toggle" id="menu-toggle"><span></span><span></span><span></span></button></div></div></div>
+<nav class="category-nav"><div class="container"><a href="index.html" class="cat-nav-item"><i class="fas fa-house"></i> Home</a><a href="products.html" class="cat-nav-item">Shop</a></div></nav></header>
+<div class="mobile-menu-overlay" id="mobile-menu-overlay"></div><nav class="mobile-menu" id="mobile-menu"><div class="mobile-menu-header"><span>Menu</span><button class="mobile-menu-close" id="mobile-menu-close"><i class="fas fa-xmark"></i></button></div><div class="mobile-menu-body"><a href="index.html" class="mobile-nav-link"><span><i class="fas fa-house icon"></i>Home</span><i class="fas fa-chevron-right"></i></a><a href="products.html" class="mobile-nav-link"><span><i class="fas fa-box icon"></i>Shop</span><i class="fas fa-chevron-right"></i></a><a href="cart.html" class="mobile-nav-link"><span><i class="fas fa-shopping-cart icon"></i>Cart</span><i class="fas fa-chevron-right"></i></a></div></nav>
+
+<main class="page-wrapper">
+  <div class="container">
+    <nav class="breadcrumb"><a href="index.html">Home</a><i class="fas fa-chevron-right sep"></i><span class="current">My Account</span></nav>
+    <div class="account-layout">
+      <!-- Sidebar -->
+      <aside class="account-sidebar">
+        <div class="account-user-card">
+          <div class="account-avatar"><i class="fas fa-user"></i></div>
+          <div class="account-name account-user-name">User</div>
+          <div class="account-email account-user-email">user@email.com</div>
+        </div>
+        <nav>
+          <div class="account-nav-item active" data-panel="panel-dashboard"><i class="fas fa-tachometer-alt"></i>Dashboard</div>
+          <div class="account-nav-item" data-panel="panel-orders"><i class="fas fa-box"></i>My Orders</div>
+          <div class="account-nav-item" data-panel="panel-wishlist"><i class="fas fa-heart"></i>Wishlist</div>
+          <div class="account-nav-item" data-panel="panel-addresses"><i class="fas fa-map-marker-alt"></i>Addresses</div>
+          <div class="account-nav-item" data-panel="panel-profile"><i class="fas fa-user-pen"></i>Edit Profile</div>
+          <div class="account-nav-item" data-panel="panel-settings"><i class="fas fa-gear"></i>Settings</div>
+          <div class="account-nav-item" style="color:var(--danger)" onclick="logout()"><i class="fas fa-right-from-bracket" style="color:var(--danger)"></i>Logout</div>
+        </nav>
+      </aside>
+
+      <!-- Main Content -->
+      <div class="account-main">
+        <!-- Dashboard -->
+        <div class="account-panel active" id="panel-dashboard">
+          <h2><i class="fas fa-tachometer-alt" style="color:var(--primary)"></i> Dashboard</h2>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);margin-bottom:var(--space-6)">
+            <a href="#" onclick="document.querySelector('[data-panel=panel-orders]').click();return false" style="background:var(--primary-xlight);border-radius:var(--radius-md);padding:var(--space-4);text-align:center;border:2px solid rgba(227,28,28,.1);cursor:pointer;display:block"><div style="font-size:2rem;font-weight:800;color:var(--primary)">2</div><div style="font-size:.85rem;color:var(--gray-1)"><i class="fas fa-box"></i> Orders</div></a>
+            <a href="wishlist.html" style="background:var(--warning-light);border-radius:var(--radius-md);padding:var(--space-4);text-align:center;border:2px solid rgba(217,119,6,.1);display:block"><div style="font-size:2rem;font-weight:800;color:var(--warning)" id="dash-wish-count">0</div><div style="font-size:.85rem;color:var(--gray-1)"><i class="fas fa-heart"></i> Wishlist</div></a>
+            <a href="cart.html" style="background:var(--success-light);border-radius:var(--radius-md);padding:var(--space-4);text-align:center;border:2px solid rgba(22,163,74,.1);display:block"><div style="font-size:2rem;font-weight:800;color:var(--success)" id="dash-cart-count">0</div><div style="font-size:.85rem;color:var(--gray-1)"><i class="fas fa-shopping-cart"></i> Cart</div></a>
+            <a href="track-order.html" style="background:var(--info-light);border-radius:var(--radius-md);padding:var(--space-4);text-align:center;border:2px solid rgba(3,105,161,.1);display:block"><div style="font-size:2rem;font-weight:800;color:var(--info)">1</div><div style="font-size:.85rem;color:var(--gray-1)"><i class="fas fa-truck"></i> Tracking</div></a>
+          </div>
+          <div style="background:linear-gradient(135deg,var(--primary),#ff3a3a);border-radius:var(--radius-md);padding:var(--space-6);color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+            <div><h3 style="font-size:1.1rem;font-weight:700">Invite Friends & Earn!</h3><p style="font-size:.88rem;opacity:.85;margin-top:4px">Share your referral link and earn ₦2,000 for every friend who shops.</p></div>
+            <button class="btn" style="background:rgba(255,255,255,.2);color:#fff;backdrop-filter:blur(4px)" onclick="showToast('Referral link copied! 🔗','success')"><i class="fas fa-share-nodes"></i> Share & Earn</button>
+          </div>
+        </div>
+
+        <!-- Orders -->
+        <div class="account-panel" id="panel-orders">
+          <h2><i class="fas fa-box" style="color:var(--primary)"></i> My Orders</h2>
+          <div id="orders-list"><!-- Rendered by JS --></div>
+        </div>
+
+        <!-- Wishlist -->
+        <div class="account-panel" id="panel-wishlist">
+          <h2><i class="fas fa-heart" style="color:var(--primary)"></i> My Wishlist</h2>
+          <div id="account-wishlist-grid" class="wishlist-grid"></div>
+          <div class="empty-state" id="account-wishlist-empty" style="display:none"><i class="fas fa-heart-crack"></i><h3>No saved items</h3><a href="products.html" class="btn btn-primary">Start Shopping</a></div>
+        </div>
+
+        <!-- Addresses -->
+        <div class="account-panel" id="panel-addresses">
+          <h2><i class="fas fa-map-marker-alt" style="color:var(--primary)"></i> My Addresses</h2>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
+            <div style="border:2px solid var(--primary);border-radius:var(--radius-md);padding:var(--space-4);position:relative">
+              <span class="badge badge-primary" style="position:absolute;top:12px;right:12px;font-size:.65rem">Default</span>
+              <div style="font-weight:700;margin-bottom:8px"><i class="fas fa-house" style="color:var(--primary)"></i> Home</div>
+              <div style="font-size:.88rem;color:var(--gray-1);line-height:1.7">14 Commerce Road<br>Victoria Island, Lagos<br>Nigeria<br>+234 800 HILGOD</div>
+              <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-sm btn-outline" onclick="showToast('Edit address coming soon','info')"><i class="fas fa-pen"></i> Edit</button><button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger)" onclick="showToast('Address removed','warning')"><i class="fas fa-trash"></i></button></div>
+            </div>
+            <div style="border:2px dashed var(--gray-3);border-radius:var(--radius-md);padding:var(--space-4);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px" onclick="showToast('Add address form coming soon','info')">
+              <i class="fas fa-plus-circle" style="font-size:2rem;color:var(--gray-3)"></i>
+              <span style="font-size:.88rem;color:var(--gray-2)">Add New Address</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile -->
+        <div class="account-panel" id="panel-profile">
+          <h2><i class="fas fa-user-pen" style="color:var(--primary)"></i> Edit Profile</h2>
+          <form onsubmit="event.preventDefault();showToast('Profile updated! ✓','success')">
+            <div class="form-row"><div class="form-group"><label class="form-label">First Name</label><input type="text" class="form-input account-first-name" placeholder="First name"></div><div class="form-group"><label class="form-label">Last Name</label><input type="text" class="form-input" placeholder="Last name"></div></div>
+            <div class="form-group"><label class="form-label">Email Address</label><input type="email" class="form-input account-email-field" placeholder="email@example.com"></div>
+            <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" class="form-input" placeholder="+234 800 0000000"></div>
+            <div class="form-group"><label class="form-label">Gender</label><select class="form-select form-input"><option>Prefer not to say</option><option>Male</option><option>Female</option></select></div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+          </form>
+        </div>
+
+        <!-- Settings -->
+        <div class="account-panel" id="panel-settings">
+          <h2><i class="fas fa-gear" style="color:var(--primary)"></i> Settings</h2>
+          <div style="display:flex;flex-direction:column;gap:var(--space-4)">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4);border:1px solid var(--gray-4);border-radius:var(--radius)"><div><div style="font-weight:600">Email Notifications</div><div style="font-size:.82rem;color:var(--gray-1)">Receive order updates and deals</div></div><input type="checkbox" checked style="width:20px;height:20px;accent-color:var(--primary)"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4);border:1px solid var(--gray-4);border-radius:var(--radius)"><div><div style="font-weight:600">SMS Notifications</div><div style="font-size:.82rem;color:var(--gray-1)">Delivery updates via SMS</div></div><input type="checkbox" checked style="width:20px;height:20px;accent-color:var(--primary)"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4);border:1px solid var(--gray-4);border-radius:var(--radius)"><div><div style="font-weight:600">Two-Factor Authentication</div><div style="font-size:.82rem;color:var(--gray-1)">Add extra security to your account</div></div><button class="btn btn-sm btn-outline" onclick="showToast('2FA setup coming soon','info')">Enable</button></div>
+            <div style="padding:var(--space-4);border:2px solid var(--danger-light);border-radius:var(--radius)"><div style="font-weight:600;color:var(--danger);margin-bottom:8px">Danger Zone</div><button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger)" onclick="showToast('Account deletion request sent','warning')"><i class="fas fa-user-xmark"></i> Delete Account</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+<button id="back-to-top" class="back-to-top"><i class="fas fa-arrow-up"></i></button>
+<script src="js/products-data.js"></script><script src="js/wishlist.js"></script><script src="js/cart.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/slider.js"></script><script src="js/main.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const dashWish = document.getElementById('dash-wish-count');
+  const dashCart = document.getElementById('dash-cart-count');
+  if (dashWish) dashWish.textContent = getWishlist().length;
+  if (dashCart) dashCart.textContent = getCartCount();
+  const wlGrid = document.getElementById('account-wishlist-grid');
+  const wlEmpty = document.getElementById('account-wishlist-empty');
+  if (wlGrid) {
+    const list = getWishlist().map(id => getProductById(id)).filter(Boolean);
+    if (list.length === 0) { if (wlEmpty) wlEmpty.style.display = 'flex'; }
+    else { wlGrid.innerHTML = list.map(p => renderProductCard(p)).join(''); }
+  }
+});
+</script>
+</body>
+</html>

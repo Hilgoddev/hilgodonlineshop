@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Hilgod Online Store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Login to your Hilgod account to track orders, manage your wishlist and more.">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/pages.css">
+  <style>body{background:linear-gradient(135deg,#1a1a1a 0%,#2d1a1a 50%,var(--primary-dark) 100%);min-height:100vh}</style>
+</head>
+<body>
+<!-- Simple header -->
+<div style="background:rgba(0,0,0,.3);padding:14px;text-align:center;position:sticky;top:0;z-index:100">
+  <a href="index.html"><img src="assets/logo.png" alt="Hilgod" style="height:42px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;justify-content:center;gap:8px;color:#fff"><i class="fas fa-shopping-bag" style="font-size:1.5rem;color:var(--primary)"></i><div style="font-family:var(--font-display);font-size:1.2rem;font-weight:900;color:var(--primary)">HILGOD</div></div></a>
+</div>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1><i class="fas fa-user-circle"></i> Welcome Back</h1>
+      <p>Login to access your Hilgod account</p>
+    </div>
+    <div class="auth-body">
+      <!-- Error msg -->
+      <div id="login-error" style="display:none;background:var(--danger-light);color:var(--danger);padding:10px 14px;border-radius:var(--radius);font-size:.87rem;margin-bottom:var(--space-4);border-left:4px solid var(--danger)"></div>
+
+      <!-- Social Login -->
+      <div class="social-auth">
+        <button class="social-btn google" onclick="showToast('Google login coming soon!','info')"><i class="fab fa-google"></i> Google</button>
+        <button class="social-btn facebook" onclick="showToast('Facebook login coming soon!','info')"><i class="fab fa-facebook-f"></i> Facebook</button>
+      </div>
+      <div class="auth-divider"><span>or login with email</span></div>
+
+      <!-- Login Form -->
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label" for="login-email"><i class="fas fa-envelope"></i> Email Address</label>
+          <div class="input-with-icon">
+            <i class="fas fa-envelope input-icon"></i>
+            <input type="email" name="email" id="login-email" class="form-input" placeholder="Enter your email" required autocomplete="email">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="login-password"><i class="fas fa-lock"></i> Password</label>
+          <div class="input-with-icon" style="position:relative">
+            <i class="fas fa-lock input-icon"></i>
+            <input type="password" name="password" id="login-password" class="form-input" placeholder="Enter your password" required autocomplete="current-password" style="padding-right:42px">
+            <i class="fas fa-eye password-toggle" onclick="togglePasswordVisibility('login-password')"></i>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:var(--space-4)">
+          <a href="#" style="font-size:.85rem;color:var(--primary);font-weight:600">Forgot Password?</a>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full btn-lg"><i class="fas fa-right-to-bracket"></i> Login to My Account</button>
+      </form>
+
+      <div class="auth-footer">Don't have an account? <a href="signup.html">Create Account</a></div>
+
+      <!-- Demo hint -->
+      <div style="margin-top:var(--space-4);background:var(--primary-xlight);border-radius:var(--radius);padding:10px 14px;font-size:.8rem;color:var(--primary)">
+        <i class="fas fa-circle-info"></i> <strong>Demo:</strong> Register first, then use your credentials to login.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/products-data.js"></script><script src="js/wishlist.js"></script><script src="js/cart.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/slider.js"></script><script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Your Order — Hilgod Online Store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Track your Hilgod order in real-time. Enter your order ID to see delivery status.">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/header.css"><link rel="stylesheet" href="css/footer.css"><link rel="stylesheet" href="css/pages.css">
+</head>
+<body>
+<div class="topbar"><div class="container"><div class="topbar-left"><a href="seller-zone.html"><i class="fas fa-store"></i> Sell on Hilgod</a><div class="topbar-divider"></div><a href="delivery.html"><i class="fas fa-motorcycle"></i> Become a Rider</a></div></div></div>
+<header class="main-header" id="main-header"><div class="header-top"><div class="container"><a href="index.html" class="header-logo"><img src="assets/logo.png" alt="Hilgod" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;gap:8px;color:#fff"><i class="fas fa-shopping-bag" style="font-size:1.8rem;color:var(--primary)"></i><div style="font-family:var(--font-display);font-size:1.4rem;font-weight:900;color:var(--primary)">HILGOD</div></div></a><div class="header-search-wrap"><form class="header-search" id="search-form"><input type="text" id="search-input" class="search-input" placeholder="Search products..."><button type="submit" class="search-btn"><i class="fas fa-magnifying-glass"></i></button></form><div class="search-suggestions" id="search-suggestions"></div></div><div class="header-actions"><div style="display:flex;align-items:center;gap:var(--space-3)"><a href="account.html" class="header-action-btn"><i class="fas fa-user-circle"></i><span>Account</span></a><a href="cart.html" class="header-action-btn" style="position:relative"><i class="fas fa-shopping-cart"></i><span>Cart</span><span class="badge-count cart-badge" style="display:none">0</span></a></div><button class="menu-toggle" id="menu-toggle"><span></span><span></span><span></span></button></div></div></div>
+<nav class="category-nav"><div class="container"><a href="index.html" class="cat-nav-item"><i class="fas fa-house"></i> Home</a><a href="products.html" class="cat-nav-item">Shop</a></div></nav></header>
+<div class="mobile-menu-overlay" id="mobile-menu-overlay"></div><nav class="mobile-menu" id="mobile-menu"><div class="mobile-menu-header"><span>Menu</span><button class="mobile-menu-close" id="mobile-menu-close"><i class="fas fa-xmark"></i></button></div><div class="mobile-menu-body"><a href="index.html" class="mobile-nav-link"><span><i class="fas fa-house icon"></i>Home</span><i class="fas fa-chevron-right"></i></a><a href="products.html" class="mobile-nav-link"><span><i class="fas fa-box icon"></i>Shop</span><i class="fas fa-chevron-right"></i></a></div></nav>
+
+<main class="page-wrapper">
+  <div class="container">
+    <nav class="breadcrumb"><a href="index.html">Home</a><i class="fas fa-chevron-right sep"></i><span class="current">Track Order</span></nav>
+    <div class="track-page" style="padding:var(--space-8) 0">
+      <div class="track-input-card">
+        <i class="fas fa-location-dot" style="font-size:3rem;color:var(--primary);margin-bottom:var(--space-4)"></i>
+        <h2>Track Your Order</h2>
+        <p>Enter your order ID to see real-time delivery status and estimated arrival.</p>
+        <div class="track-input-wrap">
+          <input type="text" class="track-input" id="track-input" placeholder="e.g. HGD-20248821" autocomplete="off">
+          <button class="track-btn" onclick="trackOrder()"><i class="fas fa-search"></i> Track</button>
+        </div>
+        <p style="font-size:.78rem;color:var(--gray-2);margin-top:10px">Your order ID can be found in your confirmation email or account dashboard.</p>
+      </div>
+
+      <!-- Result -->
+      <div class="track-result" id="track-result">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:var(--space-6)">
+          <div><div style="font-size:.82rem;color:var(--gray-1)">Order ID</div><div style="font-size:1.1rem;font-weight:700" id="tracked-order-id">HGD-XXXX</div></div>
+          <div><div style="font-size:.82rem;color:var(--gray-1)">Estimated Delivery</div><div style="font-weight:600;color:var(--success)">Today, 4:00 PM – 6:00 PM</div></div>
+          <span class="order-status status-shipped" style="padding:6px 16px;border-radius:var(--radius-full);font-size:.85rem;font-weight:700">Shipped</span>
+        </div>
+
+        <div style="background:var(--info-light);border-radius:var(--radius);padding:var(--space-3) var(--space-4);display:flex;gap:10px;align-items:center;margin-bottom:var(--space-6);font-size:.88rem;color:var(--info)">
+          <i class="fas fa-circle-info"></i>
+          <span>Your package is with our delivery partner and on its way to you. Call <strong>+234 800 HILGOD</strong> for assistance.</span>
+        </div>
+
+        <!-- Progress Steps -->
+        <div class="order-progress" style="flex-direction:column">
+          <div class="progress-step done">
+            <div class="progress-icon"><i class="fas fa-check"></i></div>
+            <div class="progress-text"><h4>Order Placed</h4><p>Your order was confirmed and payment received.</p><div class="time">Yesterday, 10:23 AM</div></div>
+          </div>
+          <div class="progress-step done">
+            <div class="progress-icon"><i class="fas fa-check"></i></div>
+            <div class="progress-text"><h4>Order Confirmed</h4><p>Seller has confirmed and is preparing your item.</p><div class="time">Yesterday, 12:45 PM</div></div>
+          </div>
+          <div class="progress-step done">
+            <div class="progress-icon"><i class="fas fa-check"></i></div>
+            <div class="progress-text"><h4>Dispatched from Warehouse</h4><p>Order left our fulfillment center.</p><div class="time">Today, 8:00 AM</div></div>
+          </div>
+          <div class="progress-step current">
+            <div class="progress-icon"><i class="fas fa-motorcycle"></i></div>
+            <div class="progress-text"><h4>Out for Delivery</h4><p>Your rider Ade is on the way to your address.</p><div class="time">Today, 2:30 PM</div></div>
+          </div>
+          <div class="progress-step">
+            <div class="progress-icon"><i class="fas fa-house"></i></div>
+            <div class="progress-text"><h4>Delivered</h4><p>Estimated: Today between 4:00–6:00 PM</p></div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-6);flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="showToast('Rider contacted!','success')"><i class="fas fa-phone"></i> Contact Rider</button>
+          <button class="btn btn-outline" onclick="showToast('Support ticket created','info')"><i class="fas fa-headset"></i> Get Help</button>
+          <a href="account.html" class="btn btn-primary"><i class="fas fa-box"></i> All Orders</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast-container"></div>
+<button id="back-to-top" class="back-to-top"><i class="fas fa-arrow-up"></i></button>
+<footer class="site-footer" style="margin-top:var(--space-8)"><div class="footer-bottom"><div class="container"><div class="footer-copyright">&copy; 2026 <span>Hilgod Online Store</span>. All Rights Reserved.</div><div class="footer-bottom-links"><a href="seller-zone.html">Seller Zone</a><a href="delivery.html">Delivery Partner</a><a href="#">Privacy</a></div></div></div></footer>
+<script src="js/products-data.js"></script><script src="js/wishlist.js"></script><script src="js/cart.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/slider.js"></script><script src="js/main.js"></script>
+</body>
+</html>

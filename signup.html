@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — Hilgod Online Store</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <meta name="description" content="Create a free Hilgod account to start shopping, track orders and save your favourites.">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/pages.css">
+  <style>body{background:linear-gradient(135deg,#1a1a1a 0%,#2d1a1a 50%,var(--primary-dark) 100%);min-height:100vh}</style>
+</head>
+<body>
+<div style="background:rgba(0,0,0,.3);padding:14px;text-align:center;position:sticky;top:0;z-index:100">
+  <a href="index.html"><img src="assets/logo.png" alt="Hilgod" style="height:42px" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;align-items:center;justify-content:center;gap:8px;color:#fff"><i class="fas fa-shopping-bag" style="font-size:1.5rem;color:var(--primary)"></i><div style="font-family:var(--font-display);font-size:1.2rem;font-weight:900;color:var(--primary)">HILGOD</div></div></a>
+</div>
+
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1><i class="fas fa-user-plus"></i> Create Account</h1>
+      <p>Join millions of happy Hilgod shoppers</p>
+    </div>
+    <div class="auth-body">
+      <div id="signup-error" style="display:none;background:var(--danger-light);color:var(--danger);padding:10px 14px;border-radius:var(--radius);font-size:.87rem;margin-bottom:var(--space-4);border-left:4px solid var(--danger)"></div>
+
+      <div class="social-auth">
+        <button class="social-btn google" onclick="showToast('Google signup coming soon!','info')"><i class="fab fa-google"></i> Google</button>
+        <button class="social-btn facebook" onclick="showToast('Facebook signup coming soon!','info')"><i class="fab fa-facebook-f"></i> Facebook</button>
+      </div>
+      <div class="auth-divider"><span>or register with email</span></div>
+
+      <form id="signup-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="signup-name"><i class="fas fa-user"></i> Full Name</label>
+            <div class="input-with-icon"><i class="fas fa-user input-icon"></i><input type="text" name="name" id="signup-name" class="form-input" placeholder="Your full name" required></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="signup-phone"><i class="fas fa-phone"></i> Phone Number</label>
+            <div class="input-with-icon"><i class="fas fa-phone input-icon"></i><input type="tel" name="phone" id="signup-phone" class="form-input" placeholder="+234 800 0000000"></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="signup-email"><i class="fas fa-envelope"></i> Email Address</label>
+          <div class="input-with-icon"><i class="fas fa-envelope input-icon"></i><input type="email" name="email" id="signup-email" class="form-input" placeholder="Enter your email" required autocomplete="email"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="signup-password"><i class="fas fa-lock"></i> Password</label>
+          <div class="input-with-icon" style="position:relative"><i class="fas fa-lock input-icon"></i><input type="password" name="password" id="signup-password" class="form-input" placeholder="Create a strong password" required style="padding-right:42px"><i class="fas fa-eye password-toggle" onclick="togglePasswordVisibility('signup-password')"></i></div>
+          <div class="strength-bar-wrap" style="margin-top:8px"><div class="strength-bar" id="pw-strength-bar"></div></div>
+          <div class="strength-label" id="pw-strength-label" style="font-size:.75rem;margin-top:4px"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="signup-confirm"><i class="fas fa-lock"></i> Confirm Password</label>
+          <div class="input-with-icon" style="position:relative"><i class="fas fa-lock input-icon"></i><input type="password" name="confirm" id="signup-confirm" class="form-input" placeholder="Repeat your password" required style="padding-right:42px"><i class="fas fa-eye password-toggle" onclick="togglePasswordVisibility('signup-confirm')"></i></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:var(--space-4)">
+          <input type="checkbox" id="terms" required style="margin-top:3px;accent-color:var(--primary)">
+          <label for="terms" style="font-size:.84rem;color:var(--gray-1)">I agree to the <a href="#" style="color:var(--primary)">Terms of Service</a> and <a href="#" style="color:var(--primary)">Privacy Policy</a></label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full btn-lg"><i class="fas fa-user-plus"></i> Create My Account</button>
+      </form>
+
+      <div class="auth-footer">Already have an account? <a href="login.html">Login Here</a></div>
+
+      <!-- Perks -->
+      <div style="margin-top:var(--space-4);display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--gray-1)"><i class="fas fa-check-circle" style="color:var(--success)"></i>Track your orders in real-time</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--gray-1)"><i class="fas fa-check-circle" style="color:var(--success)"></i>Save items to your wishlist</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--gray-1)"><i class="fas fa-check-circle" style="color:var(--success)"></i>Get exclusive member deals</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--gray-1)"><i class="fas fa-check-circle" style="color:var(--success)"></i>Fast checkout experience</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+<script src="js/products-data.js"></script><script src="js/wishlist.js"></script><script src="js/cart.js"></script><script src="js/auth.js"></script><script src="js/ui.js"></script><script src="js/slider.js"></script><script src="js/main.js"></script>
+</body>
+</html>
