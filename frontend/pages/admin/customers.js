@@ -1,0 +1,142 @@
+import { useState, useEffect } from 'react';
+import { useSession } from '../../contexts/AuthContext';
+import Layout from '@/components/Layout';
+import AdminGuard from '@/components/AdminGuard';
+
+export default function AdminCustomers() {
+  const { data: session } = useSession();
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [promotingId, setPromotingId] = useState(null);
+
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch('/api/admin/customers');
+      const data = await res.json();
+      if (data.success) setCustomers(data.data || []);
+    } catch (err) { console.error('Error:', err); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchCustomers(); }, []);
+
+  const handleRoleChange = async (userId, newRole) => {
+    if (!confirm(`Are you sure you want to ${newRole === 'admin' ? 'promote this user to Admin' : 'remove Admin access for this user'}?`)) return;
+    setPromotingId(userId);
+    try {
+      const res = await fetch('/api/admin/promote', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, newRole }) });
+      const data = await res.json();
+      if (data.success) { setMessage({ type: 'success', text: data.message }); fetchCustomers(); }
+      else { setMessage({ type: 'error', text: data.error || 'Failed' }); }
+    } catch (err) { setMessage({ type: 'error', text: 'Network error' }); }
+    finally { setPromotingId(null); setTimeout(() => setMessage({ type: '', text: '' }), 3000); }
+  };
+
+  const filtered = customers.filter(c => {
+    const name = `${c.firstName} ${c.lastName}`.toLowerCase();
+    const q = searchTerm.toLowerCase();
+    return name.includes(q) || c.email.toLowerCase().includes(q);
+  });
+
+  return (
+    <Layout title="Customers — Admin Panel">
+      <div style={{ padding: 'var(--space-8) 0', maxWidth: '1400px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
+          <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}><i className="fas fa-users" style={{ color: 'var(--primary)' }}></i> Customers <span style={{ fontSize: '.9rem', fontWeight: '500', color: 'var(--gray-1)' }}>({filtered.length})</span></h1>
+        </div>
+
+        {message.text && (
+          <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '16px', background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#16a34a' : '#ef4444', fontSize: '.9rem', fontWeight: '600' }}>
+            <i className={`fas ${message.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i> {message.text}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 'var(--space-5)' }}>
+          <input type="text" placeholder="Search by name or email..." className="form-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', maxWidth: '400px' }} />
+        </div>
+
+        <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}><i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)' }}></i></div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}><i className="fas fa-users-slash" style={{ fontSize: '3rem', color: 'var(--gray-3)', marginBottom: '15px', display: 'block' }}></i><h3>No customers found</h3></div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '.88rem' }}>
+                <thead>
+                  <tr style={{ background: 'var(--gray-5)', color: 'var(--gray-1)', fontSize: '0.82rem' }}>
+                    <th style={{ padding: '14px 16px' }}>Customer</th>
+                    <th style={{ padding: '14px 16px' }}>Email</th>
+                    <th style={{ padding: '14px 16px' }}>Joined</th>
+                    <th style={{ padding: '14px 16px' }}>Orders</th>
+                    <th style={{ padding: '14px 16px' }}>Total Spent</th>
+                    <th style={{ padding: '14px 16px' }}>Account</th>
+                    <th style={{ padding: '14px 16px' }}>Role</th>
+                    <th style={{ padding: '14px 16px', textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(customer => {
+                    const isSelf = customer._id === session?.user?.id;
+                    const isAdmin = customer.role === 'admin';
+                    return (
+                      <tr key={customer._id} style={{ borderBottom: '1px solid var(--gray-4)' }}>
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {customer.image ? (
+                              <img src={customer.image} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
+                            ) : (
+                              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '.85rem' }}>
+                                {customer.firstName?.charAt(0)}{customer.lastName?.charAt(0)}
+                              </div>
+                            )}
+                            <div style={{ fontWeight: '600' }}>{customer.firstName} {customer.lastName}</div>
+                          </div>
+                        </td>
+                        <td style={{ padding: '14px 16px', color: 'var(--gray-1)' }}>{customer.email}</td>
+                        <td style={{ padding: '14px 16px', fontSize: '.82rem', color: 'var(--gray-1)' }}>{new Date(customer.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                        <td style={{ padding: '14px 16px', fontWeight: '700' }}>{customer.orderCount}</td>
+                        <td style={{ padding: '14px 16px', fontWeight: '700' }}>₦{customer.totalSpent?.toLocaleString()}</td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '.78rem', fontWeight: '600', background: customer.provider === 'google' ? '#e8f0fe' : '#f1f5f9', color: customer.provider === 'google' ? '#4285f4' : '#64748b' }}>
+                            <i className={`fa${customer.provider === 'google' ? 'b' : 's'} fa-${customer.provider === 'google' ? 'google' : 'envelope'}`} style={{ marginRight: '4px' }}></i>
+                            {customer.provider === 'google' ? 'Google' : 'Email'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '.78rem', fontWeight: '700', background: isAdmin ? '#ede9fe' : '#f1f5f9', color: isAdmin ? '#7c3aed' : '#64748b' }}>
+                            {isAdmin ? '🛡️ Admin' : 'User'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                          {!isSelf && (
+                            isAdmin ? (
+                              <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#ef4444', borderColor: '#fee2e2' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'user')}>
+                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Remove Admin'}
+                              </button>
+                            ) : (
+                              <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#7c3aed', borderColor: '#ede9fe' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'admin')}>
+                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Make Admin'}
+                              </button>
+                            )
+                          )}
+                          {isSelf && <span style={{ fontSize: '.78rem', color: 'var(--gray-2)' }}>You</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+AdminCustomers.getLayout = function getLayout(page) {
+  return <AdminGuard>{page}</AdminGuard>;
+};
