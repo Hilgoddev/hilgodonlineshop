@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from '../../contexts/AuthContext';
 import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import { apiFetch } from '../../lib/apiClient';
 
 export default function AdminCustomers() {
   const { data: session } = useSession();
@@ -13,7 +14,7 @@ export default function AdminCustomers() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await fetch('/api/admin/customers');
+      const res = await apiFetch('/api/admin/customers');
       const data = await res.json();
       if (data.success) setCustomers(data.data || []);
     } catch (err) { console.error('Error:', err); }
@@ -26,7 +27,7 @@ export default function AdminCustomers() {
     if (!confirm(`Are you sure you want to ${newRole === 'admin' ? 'promote this user to Admin' : 'remove Admin access for this user'}?`)) return;
     setPromotingId(userId);
     try {
-      const res = await fetch('/api/admin/promote', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, newRole }) });
+      const res = await apiFetch('/api/admin/promote', { method: 'PUT', body: JSON.stringify({ userId, newRole }) });
       const data = await res.json();
       if (data.success) { setMessage({ type: 'success', text: data.message }); fetchCustomers(); }
       else { setMessage({ type: 'error', text: data.error || 'Failed' }); }

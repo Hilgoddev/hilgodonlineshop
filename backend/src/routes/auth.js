@@ -37,19 +37,20 @@ router.post('/sync-profile', verifyToken, async (req, res, next) => {
             throw fetchError;
         }
 
-        if (!profile) {
-            // Profile trigger might have missed, or we need to update it
-            const { error: insertError } = await supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    username: user.email.split('@')[0],
-                    full_name: full_name || user.user_metadata?.full_name,
-                    avatar_url: avatar_url || user.user_metadata?.avatar_url,
-                });
-                
-            if (insertError) throw insertError;
-        }
+        const payload = {
+            id: user.id,
+            username: profile?.username || user.email.split('@')[0],
+            full_name:
+                full_name ||
+                user.user_metadata?.full_name ||
+                user.user_metadata?.name ||
+                profile?.full_name ||
+                null,
+            avatar_url: avatar_url || user.user_metadata?.avatar_url || profile?.avatar_url || null,
+        };
+
+        const { error: upsertError } = await supabase.from('profiles').upsert(payload);
+        if (upsertError) throw upsertError;
 
         res.status(200).json({ success: true, message: 'Profile synced successfully' });
     } catch (err) {

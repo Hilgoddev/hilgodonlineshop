@@ -1,0 +1,97 @@
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Layout from '@/components/Layout';
+import SellerGuard from '@/components/SellerGuard';
+import { apiFetch } from '../../lib/apiClient';
+
+export default function SellerDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState({ metrics: {}, products: [] });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await apiFetch('/api/seller/dashboard');
+        const json = await res.json();
+        if (json.success) setData(json.data);
+      } catch (err) {
+        console.error('Seller dashboard load failed', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  return (
+    <Layout title="Seller Dashboard - Hilgod">
+      <div style={{ padding: 'var(--space-8) 0' }}>
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: 'var(--space-4)' }}>
+          <i className="fas fa-store" style={{ color: 'var(--primary)' }}></i> Seller Dashboard
+        </h1>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)' }}></i>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px', marginBottom: '24px' }}>
+              <div className="card" style={{ padding: '20px' }}>
+                <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Products</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{data.metrics.productCount || 0}</div>
+              </div>
+              <div className="card" style={{ padding: '20px' }}>
+                <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Units Sold</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{data.metrics.totalUnits || 0}</div>
+              </div>
+              <div className="card" style={{ padding: '20px' }}>
+                <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Sales</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>N{Number(data.metrics.totalSales || 0).toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontWeight: 700 }}>My Products</h3>
+                <Link href="/admin/products" className="btn btn-primary btn-sm">
+                  Manage Products
+                </Link>
+              </div>
+              {data.products?.length ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--gray-5)' }}>
+                        <th style={{ textAlign: 'left', padding: '10px' }}>Name</th>
+                        <th style={{ textAlign: 'left', padding: '10px' }}>Category</th>
+                        <th style={{ textAlign: 'left', padding: '10px' }}>Price</th>
+                        <th style={{ textAlign: 'left', padding: '10px' }}>Stock</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.products.map((p) => (
+                        <tr key={p._id} style={{ borderBottom: '1px solid var(--gray-4)' }}>
+                          <td style={{ padding: '10px' }}>{p.name}</td>
+                          <td style={{ padding: '10px' }}>{p.category}</td>
+                          <td style={{ padding: '10px' }}>N{Number(p.price || 0).toLocaleString()}</td>
+                          <td style={{ padding: '10px' }}>{p.stock}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ color: 'var(--gray-1)' }}>No products yet.</p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </Layout>
+  );
+}
+
+SellerDashboard.getLayout = function getLayout(page) {
+  return <SellerGuard>{page}</SellerGuard>;
+};

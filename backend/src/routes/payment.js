@@ -5,10 +5,15 @@ const supabase = require('../config/supabase');
 const paystack = require('../config/paystack');
 const { verifyToken } = require('./auth');
 
-// Initialize Payment
-router.post('/initialize', verifyToken, async (req, res, next) => {
+const initializePayment = async (req, res, next) => {
     try {
-        const { order_id, email, amount } = req.body; // Amount should be in kobo/cents depending on currency
+        const order_id = req.body.order_id || req.body.orderId;
+        const email = req.body.email;
+        const amount = Number(req.body.amount); // major units from frontend; convert below
+
+        if (!order_id || !email || !Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'order_id/orderId, email, and valid amount are required' });
+        }
         
         // Ensure order belongs to user
         const { data: order, error: orderError } = await supabase
@@ -43,7 +48,13 @@ router.post('/initialize', verifyToken, async (req, res, next) => {
     } catch (err) {
         next(err);
     }
-});
+};
+
+// Initialize Payment (canonical)
+router.post('/initialize', verifyToken, initializePayment);
+
+// Backward-compatible alias used by current frontend
+router.post('/initiate', verifyToken, initializePayment);
 
 // Paystack Webhook endpoint
 // Note: In index.js, we need to ensure this route uses express.raw({ type: 'application/json' }) 

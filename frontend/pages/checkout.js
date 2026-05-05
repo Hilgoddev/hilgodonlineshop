@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import AuthGuard from '@/components/AuthGuard';
 import { useShop } from '@/components/ShopProvider';
+import { apiFetch } from '../lib/apiClient';
 
 export default function Checkout() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -56,9 +57,8 @@ export default function Checkout() {
         paymentMethod: selectedPayment
       };
 
-      const response = await fetch('/api/orders', {
+      const response = await apiFetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(orderData),
       });
 
@@ -68,9 +68,8 @@ export default function Checkout() {
         clearCart();
 
         if (selectedPayment === 'paystack') {
-          const paymentResponse = await fetch('/api/payment/initiate', {
+          const paymentResponse = await apiFetch('/api/payment/initiate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               orderId: result.data._id,
               amount: totals.total,

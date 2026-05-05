@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import { apiFetch } from '../../lib/apiClient';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -94,11 +95,8 @@ export default function AdminProducts() {
         stock: Number(formData.stock),
       };
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(payload),
       });
 
@@ -123,7 +121,7 @@ export default function AdminProducts() {
   const handleDelete = async (productId) => {
     if (confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
       try {
-        const res = await fetch(`/api/products/${productId}`, {
+        const res = await apiFetch(`/api/products/${productId}`, {
           method: 'DELETE',
         });
         

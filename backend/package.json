@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "verify:supabase": "node scripts/verify-supabase-setup.js",
+    "seed:static-products": "node scripts/seed-products-from-static.js"
   },
   "keywords": [],
   "author": "",

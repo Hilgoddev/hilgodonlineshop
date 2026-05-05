@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
+import { syncProfile } from '../../lib/apiClient';
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -60,6 +61,9 @@ export default function Signup() {
       if (signUpError) {
         setError(signUpError.message || 'Registration failed. Please try again.');
       } else {
+        try {
+          await syncProfile({ full_name: `${formData.firstName} ${formData.lastName}`.trim() });
+        } catch (_) {}
         // Redirect to account or verify email page
         router.push('/account');
       }

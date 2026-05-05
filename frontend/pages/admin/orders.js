@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import { apiFetch } from '../../lib/apiClient';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
@@ -15,7 +16,7 @@ export default function AdminOrders() {
 
   const fetchOrders = async () => {
     try {
-      const res = await fetch('/api/orders/all');
+      const res = await apiFetch('/api/orders/all');
       const data = await res.json();
       if (data.success) {
         setOrders(data.data || []);
@@ -34,7 +35,7 @@ export default function AdminOrders() {
   const handleSaveStatus = async (orderId) => {
     setUpdatingId(orderId);
     try {
-      const res = await fetch(`/api/orders/${orderId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: localStatuses[orderId] }) });
+      const res = await apiFetch(`/api/orders/${orderId}`, { method: 'PUT', body: JSON.stringify({ status: localStatuses[orderId] }) });
       const data = await res.json();
       if (data.success) { setMessage({ type: 'success', text: 'Status updated!' }); fetchOrders(); }
       else { setMessage({ type: 'error', text: data.error || 'Failed to update' }); }

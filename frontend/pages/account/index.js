@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { signOut, useSession } from '../../contexts/AuthContext';
 import Layout from '@/components/Layout';
 import AuthGuard from '@/components/AuthGuard';
+import { apiFetch } from '../../lib/apiClient';
 
 export default function Account() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -31,7 +32,7 @@ export default function Account() {
   const fetchUserData = async () => {
     try {
       if (session?.user?.id) {
-        const userRes = await fetch(`/api/user/profile`);
+        const userRes = await apiFetch(`/api/user/profile`);
         const userData = await userRes.json();
         if (userData.success) {
           setUser(userData.data);
@@ -43,13 +44,13 @@ export default function Account() {
         }
       }
 
-      const ordersRes = await fetch('/api/orders');
+      const ordersRes = await apiFetch('/api/orders');
       const ordersData = await ordersRes.json();
       if (ordersData.success) {
         setOrders(ordersData.data || []);
       }
 
-      const wishlistRes = await fetch('/api/wishlist');
+      const wishlistRes = await apiFetch('/api/wishlist');
       const wishlistData = await wishlistRes.json();
       if (wishlistData.success) {
         // limit wishlist to 4 items
@@ -85,9 +86,8 @@ export default function Account() {
     setProfileMsg({ type: '', text: '' });
 
     try {
-      const res = await fetch('/api/user/profile', {
+      const res = await apiFetch('/api/user/profile', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profileData)
       });
       const data = await res.json();
@@ -127,9 +127,8 @@ export default function Account() {
     setPassMsg({ type: '', text: '' });
 
     try {
-      const res = await fetch('/api/user/password', {
+      const res = await apiFetch('/api/user/password', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           currentPassword: passData.currentPassword,
           newPassword: passData.newPassword
@@ -153,7 +152,7 @@ export default function Account() {
 
   const removeWishlistItem = async (id) => {
     try {
-      const res = await fetch(`/api/wishlist?productId=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/wishlist?productId=${id}`, { method: 'DELETE' });
       if (res.ok) {
         setWishlist(wishlist.filter(item => item._id !== id));
       }

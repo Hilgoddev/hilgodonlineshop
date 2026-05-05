@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
+import { apiFetch } from '../lib/apiClient';
 
 export default function SellerZone() {
   const [formData, setFormData] = useState({
@@ -17,10 +18,23 @@ export default function SellerZone() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Implement actual form submission to backend
-    alert('Application submitted! We will contact you shortly. 🎉');
+    try {
+      const res = await apiFetch('/api/seller/apply', {
+        method: 'POST',
+        body: JSON.stringify(formData)
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Application submitted successfully. Redirecting to seller dashboard.');
+        window.location.href = '/seller/dashboard';
+      } else {
+        alert(data.error || 'Failed to submit application');
+      }
+    } catch (err) {
+      alert('Failed to submit application. Please login and try again.');
+    }
   };
 
   return (

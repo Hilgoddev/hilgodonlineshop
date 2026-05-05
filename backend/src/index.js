@@ -15,7 +15,7 @@ app.use(cors({
     credentials: true
 }));
 // Note: for Paystack webhooks, we need raw body parsing before JSON parsing.
-// We'll configure that specifically on the webhook route later.
+app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -27,17 +27,37 @@ app.get('/api/health', (req, res) => {
 
 // Import Routes
 const productRoutes = require('./routes/products');
-// const orderRoutes = require('./routes/orders');
+const orderRoutes = require('./routes/orders');
 const paymentRoutes = require('./routes/payment');
 const { router: authRoutes } = require('./routes/auth');
-// const adminRoutes = require('./routes/admin');
+const userRoutes = require('./routes/user');
+const wishlistRoutes = require('./routes/wishlist');
+const cartRoutes = require('./routes/cart');
+const adminRoutes = require('./routes/admin');
+const sellerRoutes = require('./routes/seller');
+const supabase = require('./config/supabase');
 
 // Apply Routes
 app.use('/api/products', productRoutes);
-// app.use('/api/orders', orderRoutes);
+app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/auth', authRoutes);
-// app.use('/api/admin', adminRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/seller', sellerRoutes);
+
+// Basic DB connectivity route used by frontend system test page
+app.get('/api/db-test', async (req, res, next) => {
+    try {
+        const { error } = await supabase.from('products').select('id').limit(1);
+        if (error) throw error;
+        res.status(200).json({ success: true, message: 'Database connection successful' });
+    } catch (err) {
+        next(err);
+    }
+});
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {

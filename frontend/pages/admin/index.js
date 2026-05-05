@@ -3,6 +3,7 @@ import { useSession } from '../../contexts/AuthContext';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import { apiFetch } from '../../lib/apiClient';
 
 export default function AdminDashboard() {
   const { data: session } = useSession();
@@ -12,9 +13,9 @@ export default function AdminDashboard() {
     const fetchData = async () => {
       try {
         const [prodRes, ordRes, custRes] = await Promise.all([
-          fetch('/api/products?limit=100'),
-          fetch('/api/orders/all'),
-          fetch('/api/admin/customers'),
+          apiFetch('/api/products?limit=100'),
+          apiFetch('/api/orders/all'),
+          apiFetch('/api/admin/customers'),
         ]);
         const prodData = await prodRes.json();
         const ordData = await ordRes.json();

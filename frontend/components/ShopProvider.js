@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useSession } from '../contexts/AuthContext';
+import { apiFetch } from '../lib/apiClient';
 
 const ShopContext = createContext();
 
@@ -8,102 +9,191 @@ export function useShop() {
   return useContext(ShopContext);
 }
 
+const GUEST_CART_KEY = 'hilgod_cart';
+const GUEST_WISHLIST_KEY = 'hilgod_wishlist';
+
 export default function ShopProvider({ children }) {
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
-  const router = useRouter();
-
-  // Initialize from localStorage
-  useEffect(() => {
-    try {
-      // Get user-specific cart key if logged in
-      let cartKey = 'hilgod_cart';
-      const sessionData = document.querySelector('meta[name="user-id"]');
-      if (sessionData) {
-        cartKey = `hilgod_cart_${sessionData.getAttribute('content')}`;
-      }
-      
-      const savedCart = localStorage.getItem(cartKey);
-      const savedWishlist = localStorage.getItem('hilgod_wishlist');
-      if (savedCart) setCart(JSON.parse(savedCart));
-      if (savedWishlist) setWishlist(JSON.parse(savedWishlist));
-    } catch (err) {
-      console.error('Failed to load local storage data', err);
-    }
-  }, []);
-
-  // Save to localStorage when changed
-  useEffect(() => {
-    // Get user-specific cart key if logged in
-    let cartKey = 'hilgod_cart';
-    const sessionData = document.querySelector('meta[name="user-id"]');
-    if (sessionData) {
-      cartKey = `hilgod_cart_${sessionData.getAttribute('content')}`;
-    }
-    localStorage.setItem(cartKey, JSON.stringify(cart));
-  }, [cart]);
-
-  useEffect(() => {
-    localStorage.setItem('hilgod_wishlist', JSON.stringify(wishlist));
-  }, [wishlist]);
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === 'authenticated' && !!session?.user?.id;
 
   const showToast = (message, type = 'info', duration = 3500) => {
     const id = Date.now().toString();
-    setToasts(prev => [...prev, { id, message, type, duration }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, duration);
+    setToasts((prev) => [...prev, { id, message, type, duration }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
   };
 
-  const addToCart = (product, quantity = 1) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product._id === product._id);
-      if (existing) {
-        return prev.map(item => 
-          item.product._id === product._id 
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
+  const loadGuestData = useCallback(() => {
+    try {
+      const savedCart = localStorage.getItem(GUEST_CART_KEY);
+      const savedWishlist = localStorage.getItem(GUEST_WISHLIST_KEY);
+      setCart(savedCart ? JSON.parse(savedCart) : []);
+      setWishlist(savedWishlist ? JSON.parse(savedWishlist) : []);
+    } catch (err) {
+      console.error('Failed to load guest local storage data', err);
+      setCart([]);
+      setWishlist([]);
+    }
+  }, []);
+
+  const loadServerData = useCallback(async () => {
+    try {
+      const [cartRes, wishRes] = await Promise.all([apiFetch('/api/cart'), apiFetch('/api/wishlist')]);
+      const cartData = await cartRes.json();
+      const wishData = await wishRes.json();
+
+      if (cartData.success) setCart(cartData.data || []);
+      if (wishData.success) setWishlist(wishData.data || []);
+    } catch (err) {
+      console.error('Failed to load server cart/wishlist', err);
+    }
+  }, []);
+
+  const mergeGuestDataToServer = useCallback(async () => {
+    try {
+      const guestCart = JSON.parse(localStorage.getItem(GUEST_CART_KEY) || '[]');
+      const guestWishlist = JSON.parse(localStorage.getItem(GUEST_WISHLIST_KEY) || '[]');
+
+      for (const item of guestCart) {
+        if (item?.product?._id) {
+          await apiFetch('/api/cart', {
+            method: 'POST',
+            body: JSON.stringify({ productId: item.product._id, quantity: item.quantity || 1 }),
+          });
+        }
       }
-      return [...prev, { product, quantity }];
-    });
-    showToast('Added to cart! 🛒', 'success');
+
+      for (const product of guestWishlist) {
+        if (product?._id) {
+          await apiFetch('/api/wishlist', {
+            method: 'POST',
+            body: JSON.stringify({ productId: product._id }),
+          });
+        }
+      }
+
+      localStorage.removeItem(GUEST_CART_KEY);
+      localStorage.removeItem(GUEST_WISHLIST_KEY);
+    } catch (err) {
+      console.error('Failed to merge guest data into server', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (isAuthenticated) {
+      mergeGuestDataToServer().then(loadServerData);
+    } else {
+      loadGuestData();
+    }
+  }, [status, isAuthenticated, loadGuestData, loadServerData, mergeGuestDataToServer]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart));
+    }
+  }, [cart, isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(wishlist));
+    }
+  }, [wishlist, isAuthenticated]);
+
+  const addToCart = async (product, quantity = 1) => {
+    if (isAuthenticated) {
+      try {
+        await apiFetch('/api/cart', {
+          method: 'POST',
+          body: JSON.stringify({ productId: product._id, quantity }),
+        });
+        await loadServerData();
+      } catch (err) {
+        console.error('Failed to add to cart', err);
+      }
+    } else {
+      setCart((prev) => {
+        const existing = prev.find((item) => item.product._id === product._id);
+        if (existing) {
+          return prev.map((item) =>
+            item.product._id === product._id ? { ...item, quantity: item.quantity + quantity } : item
+          );
+        }
+        return [...prev, { product, quantity }];
+      });
+    }
+    showToast('Added to cart!', 'success');
   };
 
-  const removeFromCart = (productId) => {
-    setCart(prev => prev.filter(item => item.product._id !== productId));
+  const removeFromCart = async (productId) => {
+    if (isAuthenticated) {
+      await apiFetch(`/api/cart?productId=${productId}`, { method: 'DELETE' });
+      await loadServerData();
+      return;
+    }
+    setCart((prev) => prev.filter((item) => item.product._id !== productId));
   };
 
-  const updateCartQty = (productId, quantity) => {
-    setCart(prev => prev.map(item => 
-      item.product._id === productId 
-        ? { ...item, quantity: Math.max(1, quantity) }
-        : item
-    ));
+  const updateCartQty = async (productId, quantity) => {
+    const safeQty = Math.max(1, quantity);
+    if (isAuthenticated) {
+      await apiFetch('/api/cart', {
+        method: 'PUT',
+        body: JSON.stringify({ productId, quantity: safeQty }),
+      });
+      await loadServerData();
+      return;
+    }
+    setCart((prev) =>
+      prev.map((item) => (item.product._id === productId ? { ...item, quantity: safeQty } : item))
+    );
   };
 
-  const clearCart = () => {
+  const clearCart = async () => {
+    if (isAuthenticated) {
+      await apiFetch('/api/cart/clear', { method: 'DELETE' });
+      setCart([]);
+      return;
+    }
     setCart([]);
   };
 
-  const toggleWishlist = (product) => {
-    setWishlist(prev => {
-      const exists = prev.find(p => p._id === (product._id || product));
+  const toggleWishlist = async (product) => {
+    const productId = product?._id || product;
+    if (!productId) return;
+
+    const exists = wishlist.some((p) => p._id === productId);
+
+    if (isAuthenticated) {
       if (exists) {
+        await apiFetch(`/api/wishlist?productId=${productId}`, { method: 'DELETE' });
         showToast('Removed from wishlist', 'info');
-        return prev.filter(p => p._id !== (product._id || product));
+      } else {
+        await apiFetch('/api/wishlist', {
+          method: 'POST',
+          body: JSON.stringify({ productId }),
+        });
+        showToast('Added to wishlist', 'success');
       }
-      showToast('Added to wishlist ❤️', 'success');
-      // If product is just an ID, we can't save it fully, but handleAddToWishlist passes full product now.
+      await loadServerData();
+      return;
+    }
+
+    setWishlist((prev) => {
+      const present = prev.find((p) => p._id === productId);
+      if (present) {
+        showToast('Removed from wishlist', 'info');
+        return prev.filter((p) => p._id !== productId);
+      }
+      showToast('Added to wishlist', 'success');
       return [...prev, product];
     });
   };
 
-  const isInWishlist = (productId) => {
-    return wishlist.some(p => p._id === productId);
-  };
+  const isInWishlist = (productId) => wishlist.some((p) => p._id === productId);
 
   const openQuickView = (product) => {
     setQuickViewProduct(product);
@@ -115,21 +205,35 @@ export default function ShopProvider({ children }) {
     document.body.style.overflow = '';
   };
 
-  const discount = quickViewProduct?.originalPrice && quickViewProduct?.price < quickViewProduct?.originalPrice 
-    ? Math.round(((quickViewProduct.originalPrice - quickViewProduct.price) / quickViewProduct.originalPrice) * 100) 
-    : 0;
+  const discount =
+    quickViewProduct?.originalPrice && quickViewProduct?.price < quickViewProduct?.originalPrice
+      ? Math.round(
+          ((quickViewProduct.originalPrice - quickViewProduct.price) / quickViewProduct.originalPrice) * 100
+        )
+      : 0;
 
   return (
-    <ShopContext.Provider value={{
-      cart, addToCart, removeFromCart, updateCartQty, clearCart,
-      wishlist, toggleWishlist, isInWishlist,
-      showToast, openQuickView
-    }}>
+    <ShopContext.Provider
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        updateCartQty,
+        clearCart,
+        wishlist,
+        toggleWishlist,
+        isInWishlist,
+        showToast,
+        openQuickView,
+      }}
+    >
       {children}
-      
-      {/* Toast Container */}
-      <div id="toast-container" style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {toasts.map(toast => {
+
+      <div
+        id="toast-container"
+        style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '10px' }}
+      >
+        {toasts.map((toast) => {
           const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', warning: 'fa-triangle-exclamation', info: 'fa-circle-info' };
           return (
             <div key={toast.id} className={`toast ${toast.type}`} style={{ animation: `fadein 0.3s, fadeout 0.3s ${toast.duration / 1000 - 0.3}s forwards` }}>
@@ -140,7 +244,6 @@ export default function ShopProvider({ children }) {
         })}
       </div>
 
-      {/* Quick View Modal */}
       {quickViewProduct && (
         <div className="modal-overlay open" onClick={(e) => { if (e.target.className.includes('modal-overlay')) closeQuickView(); }}>
           <div className="modal" style={{ maxWidth: '750px' }}>
@@ -151,10 +254,10 @@ export default function ShopProvider({ children }) {
             <div className="modal__body">
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div style={{ background: 'var(--gray-6)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '280px', padding: '20px' }}>
-                  <img 
-                    src={quickViewProduct.images && quickViewProduct.images[0] ? quickViewProduct.images[0] : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'} 
-                    alt={quickViewProduct.name} 
-                    style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }} 
+                  <img
+                    src={quickViewProduct.images && quickViewProduct.images[0] ? quickViewProduct.images[0] : 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
+                    alt={quickViewProduct.name}
+                    style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
                   />
                 </div>
                 <div>
@@ -167,10 +270,7 @@ export default function ShopProvider({ children }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <div style={{ color: '#fbbf24', fontSize: '0.9rem' }}>
                       {[...Array(5)].map((_, i) => (
-                        <i 
-                          key={i} 
-                          className={`fas ${i < Math.floor(quickViewProduct.ratings?.average || 0) ? 'fa-star' : i < (quickViewProduct.ratings?.average || 0) ? 'fa-star-half-alt' : 'far fa-star'}`}
-                        ></i>
+                        <i key={i} className={`fas ${i < Math.floor(quickViewProduct.ratings?.average || 0) ? 'fa-star' : i < (quickViewProduct.ratings?.average || 0) ? 'fa-star-half-alt' : 'far fa-star'}`}></i>
                       ))}
                     </div>
                     <span style={{ fontSize: '.8rem', color: 'var(--gray-1)' }}>
@@ -179,12 +279,12 @@ export default function ShopProvider({ children }) {
                   </div>
                   <div style={{ marginBottom: '14px' }}>
                     <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>
-                      ₦{quickViewProduct.price?.toLocaleString()}
+                      N{quickViewProduct.price?.toLocaleString()}
                     </span>
                     {discount > 0 && (
                       <>
                         <span style={{ fontSize: '.9rem', color: 'var(--gray-2)', textDecoration: 'line-through', marginLeft: '8px' }}>
-                          ₦{quickViewProduct.originalPrice?.toLocaleString()}
+                          N{quickViewProduct.originalPrice?.toLocaleString()}
                         </span>
                         <span style={{ fontSize: '.85rem', color: 'var(--success)', fontWeight: '700', marginLeft: '4px' }}>
                           -{discount}%
@@ -196,11 +296,7 @@ export default function ShopProvider({ children }) {
                     {quickViewProduct.description?.substring(0, 150)}{quickViewProduct.description?.length > 150 ? '...' : ''}
                   </p>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button 
-                      className="btn btn-primary btn-full" 
-                      onClick={() => { addToCart(quickViewProduct, 1); closeQuickView(); }}
-                      disabled={quickViewProduct.stock === 0}
-                    >
+                    <button className="btn btn-primary btn-full" onClick={() => { addToCart(quickViewProduct, 1); closeQuickView(); }} disabled={quickViewProduct.stock === 0}>
                       <i className="fas fa-cart-plus"></i> {quickViewProduct.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                     </button>
                     <Link href={`/products/${quickViewProduct._id}`} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }} onClick={closeQuickView}>

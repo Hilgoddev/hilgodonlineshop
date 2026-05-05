@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
+import { syncProfile } from '../../lib/apiClient';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -24,6 +25,7 @@ export default function Login() {
       if (authError) {
         setError(authError.message || 'Invalid email or password');
       } else {
+        try { await syncProfile(); } catch (_) {}
         // Merge anonymous cart with user cart on login
         if (typeof window !== 'undefined' && typeof mergeCartsOnLogin === 'function') {
           mergeCartsOnLogin();
