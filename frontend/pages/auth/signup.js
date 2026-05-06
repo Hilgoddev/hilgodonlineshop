@@ -300,7 +300,7 @@ export default function Signup() {
         </div>
 
         <button type="button" className="google-auth-btn" onClick={handleGoogleLogin} disabled={loading}>
-          <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google" width="20" height="20" />
+          <img src="/google-logo.svg" alt="Google" width="20" height="20" />
           Continue with Google
         </button>
 
