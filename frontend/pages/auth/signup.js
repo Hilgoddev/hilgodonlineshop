@@ -67,12 +67,15 @@ export default function Signup() {
 
       if (signUpError) {
         setError(signUpError.message || 'Registration failed. Please try again.');
-      } else {
+      } else if (data.session) {
+        // Email confirmation is disabled — user is immediately signed in
         try {
           await syncProfile({ full_name: `${formData.firstName} ${formData.lastName}`.trim() });
         } catch (_) {}
-        // Redirect to account or verify email page
-        router.push('/auth/login');
+        router.push('/account');
+      } else {
+        // Email confirmation is required — show the verification modal
+        setShowModal(true);
       }
     } catch (err) {
       console.error('Registration frontend error:', err);
@@ -287,11 +290,19 @@ export default function Signup() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <h3>Email Verification Required</h3>
-            <p>Please check your email inbox and click the verification link to activate your account.</p>
-            <button className="btn btn-primary" onClick={() => setShowModal(false)}>OK</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '40px 30px', maxWidth: '400px', width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📧</div>
+            <h3 style={{ color: '#1e293b', marginBottom: '12px', fontSize: '1.3rem' }}>Check Your Email</h3>
+            <p style={{ color: '#64748b', marginBottom: '24px', lineHeight: '1.6' }}>
+              We sent a verification link to <strong>{formData.email}</strong>. Click the link to activate your account, then sign in.
+            </p>
+            <Link href="/auth/login" style={{ display: 'block', padding: '12px', background: 'var(--primary)', color: '#fff', borderRadius: '10px', textDecoration: 'none', fontWeight: '600', marginBottom: '12px' }}>
+              Go to Login
+            </Link>
+            <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '0.9rem' }}>
+              Dismiss
+            </button>
           </div>
         </div>
       )}
