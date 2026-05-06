@@ -68,14 +68,34 @@ export default function Signup() {
       if (signUpError) {
         setError(signUpError.message || 'Registration failed. Please try again.');
       } else if (data.session) {
-        // Email confirmation is disabled — user is immediately signed in
-        try {
-          await syncProfile({ full_name: `${formData.firstName} ${formData.lastName}`.trim() });
-        } catch (_) {}
+        // Supabase email confirmation is off — already signed in
+        try { await syncProfile({ full_name: `${formData.firstName} ${formData.lastName}`.trim() }); } catch (_) {}
         router.push('/account');
       } else {
-        // Email confirmation is required — show the verification modal
-        setShowModal(true);
+        // Email confirmation required — try backend auto-confirm (works when EMAIL_VERIFICATION_ENABLED=false)
+        try {
+          const confirmRes = await fetch('/api/auth/auto-confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: formData.email }),
+          });
+
+          if (confirmRes.ok) {
+            // Confirmed — sign in immediately
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: formData.email,
+              password: formData.password,
+            });
+            if (signInError) throw signInError;
+            try { await syncProfile({ full_name: `${formData.firstName} ${formData.lastName}`.trim() }); } catch (_) {}
+            router.push('/account');
+          } else {
+            // Email verification is enabled — show modal
+            setShowModal(true);
+          }
+        } catch (_) {
+          setShowModal(true);
+        }
       }
     } catch (err) {
       console.error('Registration frontend error:', err);
