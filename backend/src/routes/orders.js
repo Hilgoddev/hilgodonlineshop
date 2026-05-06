@@ -60,41 +60,156 @@ router.get('/', verifyToken, async (req, res, next) => {
 router.post('/', verifyToken, async (req, res, next) => {
     try {
         const { items = [], shippingAddress, paymentMethod } = req.body;
+
         if (!Array.isArray(items) || !items.length || !shippingAddress) {
             return res.status(400).json({ success: false, error: 'items and shippingAddress are required' });
         }
 
-        const total_amount = items.reduce((sum, it) => sum + (Number(it.price || 0) * Number(it.quantity || 0)), 0);
+        const allowedPaymentMethods = ['stripe', 'paystack', 'opay', 'card', 'pod'];
+        if (!allowedPaymentMethods.includes(paymentMethod)) {
+            return res.status(400).json({ success: false, error: 'Invalid paymentMethod' });
+        }
+
+        // Normalize payload:
+        // - aggregate duplicate productIds
+        // - cap per-line quantity
+        // - require client-provided price to match DB price (tamper resistance)
+        const maxDistinctItems = 100;
+        const maxQuantityPerLine = 20;
+        const EPS = 0.01;
+
+        const productQuantityMap = new Map(); // productId -> quantity (aggregated)
+        const productClientPriceMap = new Map(); // productId -> price provided by client (major units)
+
+        for (const it of items) {
+            const productId = it?.productId || it?.product_id;
+            const quantity = Number(it?.quantity);
+            const clientPrice = Number(it?.price);
+
+            if (!productId) return res.status(400).json({ success: false, error: 'Each item must include productId' });
+            if (!Number.isFinite(quantity) || quantity <= 0) {
+                return res.status(400).json({ success: false, error: 'Each item must include a valid quantity' });
+            }
+            if (!Number.isInteger(quantity)) {
+                return res.status(400).json({ success: false, error: 'quantity must be an integer' });
+            }
+            if (!Number.isFinite(clientPrice) || clientPrice < 0) {
+                return res.status(400).json({ success: false, error: 'Each item must include a valid price' });
+            }
+            if (quantity > maxQuantityPerLine) {
+                return res.status(400).json({ success: false, error: `Max quantity per line is ${maxQuantityPerLine}` });
+            }
+
+            productQuantityMap.set(productId, (productQuantityMap.get(productId) || 0) + quantity);
+
+            // If duplicates come in with different unit prices, reject (ambiguous tamper attempt).
+            if (productClientPriceMap.has(productId) && productClientPriceMap.get(productId) !== clientPrice) {
+                return res.status(400).json({ success: false, error: 'Client price mismatch for duplicate item' });
+            }
+            productClientPriceMap.set(productId, clientPrice);
+        }
+
+        if (productQuantityMap.size > maxDistinctItems) {
+            return res.status(400).json({ success: false, error: `Max distinct items per order is ${maxDistinctItems}` });
+        }
+
+        const productIds = [...productQuantityMap.keys()];
+        const { data: products, error: productsErr } = await supabase
+            .from('products')
+            .select('id, name, images, price, stock, is_active')
+            .in('id', productIds);
+        if (productsErr) throw productsErr;
+
+        if (!products || products.length !== productIds.length) {
+            return res.status(400).json({ success: false, error: 'One or more products are invalid' });
+        }
+
+        const productMap = new Map((products || []).map((p) => [p.id, p]));
+
+        // Recompute totals from DB and validate stock.
+        let total_amount = 0;
+        const orderItems = [];
+        const responseItems = [];
+
+        for (const [productId, quantity] of productQuantityMap.entries()) {
+            const p = productMap.get(productId);
+            if (!p || p.is_active !== true) {
+                return res.status(400).json({ success: false, error: `Product not available: ${productId}` });
+            }
+            if (quantity > maxQuantityPerLine) {
+                // Aggregated duplicates can exceed the per-line cap.
+                return res.status(400).json({ success: false, error: `Max quantity per line is ${maxQuantityPerLine}` });
+            }
+            if (!Number.isFinite(Number(p.stock)) || Number(p.stock) < quantity) {
+                return res.status(409).json({ success: false, error: `Insufficient stock for product ${productId}` });
+            }
+
+            const serverUnitPrice = Number(p.price || 0);
+            const clientUnitPrice = Number(productClientPriceMap.get(productId));
+
+            if (!Number.isFinite(clientUnitPrice)) {
+                return res.status(400).json({ success: false, error: `Missing/invalid price for product ${productId}` });
+            }
+
+            // Reject price tampering (major units). DB stores DECIMAL so rounding differences can exist.
+            if (Math.abs(serverUnitPrice - clientUnitPrice) > EPS) {
+                console.warn('[PRICE_TAMPERING] price mismatch', {
+                    user_id: req.user.id,
+                    product_id: productId,
+                    serverUnitPrice,
+                    clientUnitPrice,
+                });
+                return res.status(400).json({ success: false, error: 'Price mismatch detected' });
+            }
+
+            total_amount += serverUnitPrice * quantity;
+
+            orderItems.push({
+                product_id: productId,
+                quantity,
+                unit_price: serverUnitPrice,
+            });
+
+            responseItems.push({
+                productId,
+                name: p.name || 'Product',
+                image: p.images?.[0] || null,
+                price: serverUnitPrice,
+                quantity,
+            });
+        }
+
+        // Create order with server-computed total.
+        const initialStatus = paymentMethod === 'pod' ? 'processing' : 'pending';
         const { data: orderRows, error: orderErr } = await supabase
             .from('orders')
-            .insert([{
-                user_id: req.user.id,
-                total_amount,
-                currency: 'NGN',
-                status: paymentMethod === 'pod' ? 'processing' : 'pending',
-                shipping_address: shippingAddress
-            }])
+            .insert([
+                {
+                    user_id: req.user.id,
+                    total_amount,
+                    currency: 'NGN',
+                    status: initialStatus,
+                    shipping_address: shippingAddress,
+                },
+            ])
             .select('*');
         if (orderErr) throw orderErr;
 
         const order = orderRows[0];
-        const orderItems = items.map((it) => ({
-            order_id: order.id,
-            product_id: it.productId || null,
-            quantity: Number(it.quantity || 1),
-            unit_price: Number(it.price || 0)
-        }));
-        const { error: itemErr } = await supabase.from('order_items').insert(orderItems);
+
+        const { error: itemErr } = await supabase
+            .from('order_items')
+            .insert(
+                orderItems.map((it) => ({
+                    order_id: order.id,
+                    product_id: it.product_id,
+                    quantity: it.quantity,
+                    unit_price: it.unit_price,
+                })),
+            );
         if (itemErr) throw itemErr;
 
-        const response = mapOrder(order, items.map((it) => ({
-            productId: it.productId || null,
-            name: it.name || 'Product',
-            image: it.image || null,
-            price: Number(it.price || 0),
-            quantity: Number(it.quantity || 1)
-        })));
-
+        const response = mapOrder(order, responseItems);
         res.status(201).json({ success: true, data: response });
     } catch (err) {
         next(err);

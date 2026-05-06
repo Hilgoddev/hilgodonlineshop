@@ -28,6 +28,37 @@ export default function Account() {
   const { data: session } = useSession();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const redirectByAuthoritativeRole = async () => {
+      try {
+        const meRes = await apiFetch('/api/auth/me');
+        const meData = await meRes.json();
+        const role = meData?.data?.role || session?.user?.role;
+
+        if (role === 'admin') {
+          router.replace('/admin');
+          return;
+        }
+        if (role === 'seller') {
+          router.replace('/seller/dashboard');
+        }
+      } catch (_) {
+        const fallbackRole = session?.user?.role;
+        if (fallbackRole === 'admin') {
+          router.replace('/admin');
+          return;
+        }
+        if (fallbackRole === 'seller') {
+          router.replace('/seller/dashboard');
+        }
+      }
+    };
+
+    redirectByAuthoritativeRole();
+  }, [session?.user?.id, session?.user?.role, router]);
+
   // Load data
   const fetchUserData = async () => {
     try {

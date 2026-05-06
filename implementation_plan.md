@@ -1,97 +1,94 @@
-# Goal Description
-
-The objective is to deliver a fully functional, dynamic e-commerce web platform by transforming the existing static website into a server-powered architecture. The platform will feature robust e-commerce capabilities, an admin dashboard, user authentication, automatic currency detection, and secure payment processing. 
-
-We will cleanly separate the frontend and backend architectures, utilizing **Supabase** for the database and authentication, and **Paystack** for payments.
-
-## User Review Required
-
-> [!WARNING]
-> **Dynamic Rendering Framework**
-> The scope of work requires "converting all hardcoded static pages to server-driven, dynamically loaded content." Since you currently have a mix of static HTML and some Next.js pages, I propose we migrate the frontend fully to **Next.js**. This perfectly aligns with the requirement for dynamic, server-driven rendering. The backend will be a separate **Node.js (Express)** service. 
-
-> [!IMPORTANT]
-> **Currency Detection Implementation**
-> Automatic currency detection based on the user's region will require a geolocation service (e.g., using a free IP geolocation API or relying on Cloudflare/Vercel headers if deployed there) and a currency conversion API (like ExchangeRate-API) to fetch live rates.
-
-## Open Questions
-
-> [!CAUTION]
-> 1. **CI/CD & Hosting Preference**: For the CI/CD pipeline and server setup, do you have a preferred hosting provider (e.g., Vercel for Frontend, Render/Heroku for Backend)?
-> 2. **Currency Conversion Rates**: Should we fetch live conversion rates dynamically, or do you want to define static base exchange rates in the admin panel?
-
-## Proposed Changes
-
+---
+goal: "Transform static e-commerce platform into a dynamic, server-powered architecture"
+version: 1.1
+date_created: 2026-05-05
+last_updated: 2026-05-05
+owner: "Development Team"
+status: "In progress"
+tags: ["feature", "upgrade", "architecture"]
 ---
 
-### Phase 1: Architecture & Project Restructuring
+# Introduction
 
-We will restructure the project to strictly separate frontend and backend, setting up the foundation for CI/CD.
+![Status: In progress](https://img.shields.io/badge/status-In%20progress-yellow)
 
-#### [NEW] `frontend/` (Next.js)
-Migrate the existing static HTML/CSS to Next.js pages/components for full dynamic rendering.
-- `src/pages/` or `src/app/` (Dynamic product pages, cart, checkout, seller zone).
-- Implement server-side rendering (SSR) for SEO and dynamic data fetching.
-- **Currency Context**: A global state that detects user location via IP API on initial load, setting the store currency (USD, EUR, local) accordingly.
+This plan outlines the steps to transform the static e-commerce platform into a dynamic, server-powered architecture using Next.js, Supabase, and Paystack.
 
-#### [NEW] `backend/` (Node.js & Express)
-Create a standalone API server to handle business logic, payments, and admin operations.
-- `src/routes/` (Auth, Products, Orders, Admin, Webhooks).
-- CI/CD Configuration: Add GitHub Actions workflows for automated testing and deployment.
+## 1. Requirements & Constraints
 
-#### [DELETE] Old Monolithic Files
-- Remove old MongoDB connections (`lib/mongodb.js`), Mongoose `models/`, and mixed Next.js API routes.
+- **REQ-001**: Migrate static HTML to Next.js for dynamic rendering.
+- **REQ-002**: Implement Supabase for database and authentication.
+- **REQ-003**: Integrate Paystack for secure payment processing.
+- **REQ-004**: Build an admin dashboard for product and seller management.
+- **REQ-005**: Implement automatic currency detection.
+- **CON-001**: Ensure backward compatibility during migration.
+- **CON-002**: Use free-tier services where possible.
 
----
+## 2. Implementation Steps
 
-### Phase 2: Database & Authentication (Supabase)
+### Implementation Phase 1: Architecture & Project Restructuring
 
-We will use the Supabase free tier for the database and authentication provider.
+- **GOAL-001**: Restructure the project for modularity.
 
-#### Backend Database Schema (`backend/supabase/schema.sql`)
-- **Users**: Profile data, preferences.
-- **Products**: Detailed listings.
-- **Orders & Order_Items**: Order history tracking.
-- **Cart & Wishlist**: Persistent per-user data.
-- **Sellers**: Store details, verification status.
+| Task       | Description                                      | Completed | Date       |
+|------------|--------------------------------------------------|-----------|------------|
+| TASK-001   | Set up Next.js in `frontend/`.                   | ✅         | 2026-05-01 |
+| TASK-002   | Configure Express in `backend/`.                 |           |            |
+| TASK-003   | Remove old monolithic files.                     |           |            |
 
-#### Authentication
-- Implement Supabase Auth for **Email/Password** and **Google OAuth**.
-- Secure session handling via HttpOnly cookies or secure JWT storage.
+### Implementation Phase 2: Database & Authentication
 
----
+- **GOAL-002**: Implement Supabase for database and authentication.
 
-### Phase 3: E-Commerce Features & Dynamic Rendering
+| Task       | Description                                      | Completed | Date       |
+|------------|--------------------------------------------------|-----------|------------|
+| TASK-004   | Define schema in `backend/supabase/schema.sql`.  | ✅         | 2026-05-02 |
+| TASK-005   | Integrate Supabase Auth in `frontend/`.          |           |            |
 
-#### Frontend Dynamic Integration
-- Connect Next.js frontend to the Express backend APIs.
-- Replace all static product grids with dynamic database calls.
-- Implement persistent cart and wishlist tied to the authenticated user's Supabase ID.
+### Implementation Phase 3: E-Commerce Features
 
-#### Checkout & Payment Integration
-- Implement the checkout flow collecting shipping details.
-- **Paystack Webhooks**: Build secure endpoints in the backend to receive Paystack payment confirmations (using credentials to be provided later).
-- Update order tracking statuses dynamically based on webhook events.
+- **GOAL-003**: Implement dynamic rendering and e-commerce features.
 
----
+| Task       | Description                                      | Completed | Date       |
+|------------|--------------------------------------------------|-----------|------------|
+| TASK-006   | Replace static product grids with dynamic calls. |           |            |
+| TASK-007   | Implement persistent cart and wishlist.          |           |            |
 
-### Phase 4: Admin Dashboard & Seller Management
+### Implementation Phase 4: Admin Dashboard
 
-#### Admin Panel Interface
-- Build an authenticated dashboard restricted to `admin` roles.
-- Features:
-  - **Product Management**: Add, edit, and delete products dynamically.
-  - **Seller Onboarding**: Manage, approve, and onboard third-party sellers.
-  - **Business Metrics**: View sales analytics, order volumes, and platform metrics.
+- **GOAL-004**: Build an admin dashboard for product and seller management.
 
----
+| Task       | Description                                      | Completed | Date       |
+|------------|--------------------------------------------------|-----------|------------|
+| TASK-008   | Create admin dashboard in `frontend/pages/admin`. |           |            |
 
-## Verification Plan
+## 3. Alternatives
 
-### Automated Tests
-- Build test suites for the Express endpoints to verify data consistency with Supabase.
-- Test the automatic currency detection logic using mocked IP addresses.
-- Verify role-based access control (RBAC) to ensure standard users cannot access the Admin Dashboard.
+- **ALT-001**: Use Firebase instead of Supabase (rejected due to cost).
+- **ALT-002**: Use Stripe instead of Paystack (rejected due to regional limitations).
 
-### CI/CD Pipeline
-- Configure a staging environment. The pipeline will automatically deploy to staging when code is pushed, allowing you to review the dynamic rendering, currency switching, and admin features before moving to production.
+## 4. Dependencies
+
+- **DEP-001**: Supabase free tier.
+- **DEP-002**: Paystack API.
+
+## 5. Files
+
+- **FILE-001**: `frontend/package.json`
+- **FILE-002**: `backend/package.json`
+- **FILE-003**: `backend/supabase/schema.sql`
+
+## 6. Testing
+
+- **TEST-001**: Verify Supabase integration with mock data.
+- **TEST-002**: Test Paystack webhooks.
+
+## 7. Risks & Assumptions
+
+- **RISK-001**: Downtime during migration.
+- **ASSUMPTION-001**: Supabase free tier will meet requirements.
+
+## 8. Related Specifications / Further Reading
+
+- [Supabase Documentation](https://supabase.com/docs)
+- [Paystack Documentation](https://paystack.com/docs)

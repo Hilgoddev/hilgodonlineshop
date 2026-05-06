@@ -34,7 +34,7 @@ CREATE TABLE public.stores (
   slug TEXT UNIQUE NOT NULL,
   description TEXT,
   logo_url TEXT,
-  is_approved BOOLEAN DEFAULT false,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -54,6 +54,7 @@ CREATE TABLE public.products (
   brand TEXT,
   images TEXT[] DEFAULT '{}',
   stock INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -230,3 +231,95 @@ CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON public.products FOR E
 
 DROP TRIGGER IF EXISTS update_orders_updated_at ON public.orders;
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- ==========================================
+-- 8. REVIEWS TABLE
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id TEXT NOT NULL,
+    product_name TEXT,
+    user_name TEXT NOT NULL,
+    user_email TEXT,
+    rating INTEGER CHECK (rating >= 1 AND rating <= 5) NOT NULL,
+    title TEXT,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Enable RLS for Reviews
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+-- Review Policies
+CREATE POLICY "Reviews are viewable by everyone" ON public.reviews FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can create reviews" ON public.reviews FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Admins can manage all reviews" ON public.reviews FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP TRIGGER IF EXISTS update_reviews_updated_at ON public.reviews;
+CREATE TRIGGER update_reviews_updated_at BEFORE UPDATE ON public.reviews FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+-- ==========================================
+-- 9. PAYMENT EVENTS (Webhook Idempotency/Audit)
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.payment_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL DEFAULT 'paystack',
+    event_name TEXT NOT NULL,
+    event_key TEXT NOT NULL UNIQUE,
+    reference TEXT,
+    order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+    payload JSONB NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+);
+
+ALTER TABLE public.payment_events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can read payment events" ON public.payment_events
+FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- ==========================================
+-- 10. SELLER APPLICATIONS
+-- ==========================================
+CREATE TABLE IF NOT EXISTS public.seller_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE UNIQUE,
+    full_name TEXT NOT NULL,
+    business_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    business_category TEXT,
+    monthly_revenue TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    admin_notes TEXT,
+    reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.seller_applications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own seller application" ON public.seller_applications
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can submit own seller application" ON public.seller_applications
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own pending seller application" ON public.seller_applications
+FOR UPDATE USING (auth.uid() = user_id AND status = 'pending');
+
+CREATE POLICY "Admins can manage seller applications" ON public.seller_applications
+FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+);
+
+DROP TRIGGER IF EXISTS update_seller_applications_updated_at ON public.seller_applications;
+CREATE TRIGGER update_seller_applications_updated_at
+BEFORE UPDATE ON public.seller_applications
+FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();

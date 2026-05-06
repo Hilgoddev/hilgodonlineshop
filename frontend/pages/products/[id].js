@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { useShop } from '@/components/ShopProvider';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { HILGOD_PRODUCTS } from '@/lib/products-data';
 
 export default function ProductDetail({ product, relatedProducts }) {
@@ -38,6 +39,7 @@ export default function ProductDetail({ product, relatedProducts }) {
   }
 
   const { addToCart, toggleWishlist, isInWishlist, showToast } = useShop();
+  const { formatPrice } = useCurrency();
 
   const handleAddToCart = () => {
     addToCart(product, quantity);
@@ -73,25 +75,34 @@ export default function ProductDetail({ product, relatedProducts }) {
     }
     setReviewSubmitting(true);
     
-    // This will be connected to Web3Forms later
     try {
-      const formBody = new FormData();
-      formBody.append('access_key', 'YOUR_WEB3FORMS_KEY');
-      formBody.append('subject', `Product Review: ${product.name}`);
-      formBody.append('from_name', reviewForm.name);
-      formBody.append('email', reviewForm.email);
-      formBody.append('rating', reviewForm.rating);
-      formBody.append('review_title', reviewForm.title);
-      formBody.append('message', reviewForm.message);
-      formBody.append('product_id', product._id);
-      formBody.append('product_name', product.name);
-
-      // Placeholder for Web3Forms integration
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          product_id: product._id,
+          product_name: product.name,
+          name: reviewForm.name,
+          email: reviewForm.email,
+          rating: reviewForm.rating,
+          title: reviewForm.title,
+          message: reviewForm.message
+        })
+      });
       
-      showToast('Thank you! Your review has been submitted.', 'success');
-      setReviewForm({ name: '', email: '', rating: 5, title: '', message: '' });
+      const data = await res.json();
+      
+      if (data.success) {
+        showToast('Thank you! Your review has been submitted.', 'success');
+        setReviewForm({ name: '', email: '', rating: 5, title: '', message: '' });
+        // Optionally, we could fetch reviews again here to update the UI
+      } else {
+        throw new Error(data.error || 'Failed to submit review');
+      }
     } catch (error) {
+      console.error(error);
       showToast('Failed to submit review. Please try again.', 'error');
     } finally {
       setReviewSubmitting(false);
@@ -203,16 +214,16 @@ export default function ProductDetail({ product, relatedProducts }) {
 
             {/* Pricing */}
             <div className="pdp-pricing">
-              <span className="pdp-price">₦{product.price?.toLocaleString()}</span>
+              <span className="pdp-price">{formatPrice(product.price || 0)}</span>
               {product.originalPrice && (
-                <span className="pdp-original">₦{product.originalPrice?.toLocaleString()}</span>
+                <span className="pdp-original">{formatPrice(product.originalPrice || 0)}</span>
               )}
               {discount > 0 && (
                 <span className="pdp-discount">Save {discount}%</span>
               )}
               {product.price >= 10000 && (
                 <div className="pdp-installment">
-                  Or pay ₦{Math.round(product.price / 4).toLocaleString()}/month × 4 months
+                  Or pay {formatPrice((product.price / 4) || 0)}/month × 4 months
                 </div>
               )}
             </div>
@@ -311,7 +322,7 @@ export default function ProductDetail({ product, relatedProducts }) {
                 </tr>
                 <tr>
                   <td>Price</td>
-                  <td>₦{product.price?.toLocaleString()}</td>
+                  <td>{formatPrice(product.price || 0)}</td>
                 </tr>
                 <tr>
                   <td>Stock</td>

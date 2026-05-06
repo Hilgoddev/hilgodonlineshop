@@ -54,9 +54,14 @@ export default function SellerDashboard() {
             <div className="card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h3 style={{ fontWeight: 700 }}>My Products</h3>
-                <Link href="/admin/products" className="btn btn-primary btn-sm">
-                  Manage Products
-                </Link>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Link href="/seller/products" className="btn btn-primary btn-sm">
+                    Upload Product
+                  </Link>
+                  <Link href="/seller/store" className="btn btn-outline btn-sm">
+                    Manage Store
+                  </Link>
+                </div>
               </div>
               {data.products?.length ? (
                 <div style={{ overflowX: 'auto' }}>

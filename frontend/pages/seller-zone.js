@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { apiFetch } from '../lib/apiClient';
 
 export default function SellerZone() {
+  const router = useRouter();
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [applicationStatus, setApplicationStatus] = useState(null);
   const [formData, setFormData] = useState({
     fullName: '',
     businessName: '',
@@ -12,14 +17,37 @@ export default function SellerZone() {
     businessCategory: 'Electronics & Gadgets',
     monthlyRevenue: 'Just starting'
   });
+  const canSubmit = !applicationStatus || applicationStatus.status === 'rejected';
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  useEffect(() => {
+    const loadStatus = async () => {
+      try {
+        const res = await apiFetch('/api/seller/application-status');
+        if (!res.ok) {
+          setStatusLoading(false);
+          return;
+        }
+        const data = await res.json();
+        if (data.success) {
+          setApplicationStatus(data.data);
+        }
+      } catch (_) {
+        // Ignore unauthenticated/network status checks for this public page.
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+    loadStatus();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitLoading(true);
     try {
       const res = await apiFetch('/api/seller/apply', {
         method: 'POST',
@@ -27,13 +55,15 @@ export default function SellerZone() {
       });
       const data = await res.json();
       if (data.success) {
-        alert('Application submitted successfully. Redirecting to seller dashboard.');
-        window.location.href = '/seller/dashboard';
+        alert('Application submitted successfully. It is now pending admin approval.');
+        router.replace('/account');
       } else {
         alert(data.error || 'Failed to submit application');
       }
     } catch (err) {
       alert('Failed to submit application. Please login and try again.');
+    } finally {
+      setSubmitLoading(false);
     }
   };
 
@@ -379,6 +409,33 @@ export default function SellerZone() {
       {/* Seller Form */}
       <div id="seller-form" style={{ padding: 'var(--space-16) 0', background: 'var(--gray-6)' }}>
         <div className="container" style={{ maxWidth: '640px' }}>
+          {!statusLoading && applicationStatus ? (
+            <div
+              className="card"
+              style={{
+                padding: 'var(--space-5)',
+                marginBottom: 'var(--space-5)',
+                border: '1px solid var(--gray-4)',
+                background:
+                  applicationStatus.status === 'approved'
+                    ? '#dcfce7'
+                    : applicationStatus.status === 'rejected'
+                      ? '#fee2e2'
+                      : '#fef3c7',
+              }}
+            >
+              <strong style={{ textTransform: 'capitalize' }}>
+                Current application status: {applicationStatus.status}
+              </strong>
+              <p style={{ marginTop: '8px', marginBottom: 0 }}>
+                {applicationStatus.status === 'approved'
+                  ? 'Your seller account is approved. You can now upload products from the seller dashboard.'
+                  : applicationStatus.status === 'rejected'
+                    ? 'Your application was rejected. You can update details and submit again.'
+                    : 'Your application is pending admin review. We will notify you once reviewed.'}
+              </p>
+            </div>
+          ) : null}
           <h2 style={{ textAlign: 'center', fontSize: '1.8rem', fontWeight: '800', marginBottom: 'var(--space-2)' }}>
             Register as a Seller
           </h2>
@@ -475,8 +532,9 @@ export default function SellerZone() {
                   <option>₦10M+</option>
                 </select>
               </div>
-              <button type="submit" className="btn btn-primary btn-full btn-lg">
-                <i className="fas fa-store"></i> Submit Application
+              <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={submitLoading || !canSubmit}>
+                <i className="fas fa-store"></i>{' '}
+                {!canSubmit ? 'Application already submitted' : submitLoading ? 'Submitting...' : 'Submit Application'}
               </button>
             </form>
           </div>

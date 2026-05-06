@@ -65,7 +65,7 @@ export default function Signup() {
           await syncProfile({ full_name: `${formData.firstName} ${formData.lastName}`.trim() });
         } catch (_) {}
         // Redirect to account or verify email page
-        router.push('/account');
+        router.push('/auth/login');
       }
     } catch (err) {
       console.error('Registration frontend error:', err);
@@ -81,7 +81,7 @@ export default function Signup() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/account`
+          redirectTo: `${window.location.origin}/auth/login`
         }
       });
       if (error) throw error;

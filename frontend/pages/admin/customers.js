@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useSession } from '../../contexts/AuthContext';
-import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
+import { adminJson, errorMessage } from '../../lib/adminApi';
 
 export default function AdminCustomers() {
   const { data: session } = useSession();
@@ -14,17 +15,21 @@ export default function AdminCustomers() {
 
   const fetchCustomers = async () => {
     try {
-      const res = await apiFetch('/api/admin/customers');
-      const data = await res.json();
-      if (data.success) setCustomers(data.data || []);
-    } catch (err) { console.error('Error:', err); }
-    finally { setLoading(false); }
+      const { res, json } = await adminJson('/api/admin/customers');
+      if (res.ok && json.success) setCustomers(json.data || []);
+      else setMessage({ type: 'error', text: errorMessage(json, 'Could not load customers') });
+    } catch (err) {
+      console.error('Error:', err);
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchCustomers(); }, []);
 
   const handleRoleChange = async (userId, newRole) => {
-    if (!confirm(`Are you sure you want to ${newRole === 'admin' ? 'promote this user to Admin' : 'remove Admin access for this user'}?`)) return;
+    if (!confirm(`Are you sure you want to ${newRole === 'admin' ? 'promote this user to Admin' : 'set this user back to Customer'}?`)) return;
     setPromotingId(userId);
     try {
       const res = await apiFetch('/api/admin/promote', { method: 'PUT', body: JSON.stringify({ userId, newRole }) });
@@ -42,11 +47,10 @@ export default function AdminCustomers() {
   });
 
   return (
-    <Layout title="Customers — Admin Panel">
-      <div style={{ padding: 'var(--space-8) 0', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}><i className="fas fa-users" style={{ color: 'var(--primary)' }}></i> Customers <span style={{ fontSize: '.9rem', fontWeight: '500', color: 'var(--gray-1)' }}>({filtered.length})</span></h1>
-        </div>
+    <>
+        <p style={{ color: '#64748b', marginBottom: '16px' }}>
+          <strong>{filtered.length}</strong> accounts match your search.
+        </p>
 
         {message.text && (
           <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '16px', background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#16a34a' : '#ef4444', fontSize: '.9rem', fontWeight: '600' }}>
@@ -82,6 +86,7 @@ export default function AdminCustomers() {
                   {filtered.map(customer => {
                     const isSelf = customer._id === session?.user?.id;
                     const isAdmin = customer.role === 'admin';
+                    const isSeller = customer.role === 'seller';
                     return (
                       <tr key={customer._id} style={{ borderBottom: '1px solid var(--gray-4)' }}>
                         <td style={{ padding: '14px 16px' }}>
@@ -107,19 +112,19 @@ export default function AdminCustomers() {
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px' }}>
-                          <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '.78rem', fontWeight: '700', background: isAdmin ? '#ede9fe' : '#f1f5f9', color: isAdmin ? '#7c3aed' : '#64748b' }}>
-                            {isAdmin ? '🛡️ Admin' : 'User'}
+                          <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '.78rem', fontWeight: '700', background: isAdmin ? '#ede9fe' : isSeller ? '#dbeafe' : '#f1f5f9', color: isAdmin ? '#7c3aed' : isSeller ? '#1d4ed8' : '#64748b' }}>
+                            {isAdmin ? 'Admin' : isSeller ? 'Seller' : 'Customer'}
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                           {!isSelf && (
                             isAdmin ? (
-                              <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#ef4444', borderColor: '#fee2e2' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'user')}>
-                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Remove Admin'}
+                              <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#ef4444', borderColor: '#fee2e2' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'customer')}>
+                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Remove admin'}
                               </button>
                             ) : (
                               <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#7c3aed', borderColor: '#ede9fe' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'admin')}>
-                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Make Admin'}
+                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Make admin'}
                               </button>
                             )
                           )}
@@ -133,11 +138,14 @@ export default function AdminCustomers() {
             </div>
           )}
         </div>
-      </div>
-    </Layout>
+    </>
   );
 }
 
 AdminCustomers.getLayout = function getLayout(page) {
-  return <AdminGuard>{page}</AdminGuard>;
+  return (
+    <AdminGuard>
+      <AdminLayout title="Customers">{page}</AdminLayout>
+    </AdminGuard>
+  );
 };

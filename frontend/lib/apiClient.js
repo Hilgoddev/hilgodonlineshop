@@ -1,19 +1,20 @@
 import { supabase } from './supabaseClient';
 
 export async function apiFetch(path, options = {}) {
+  const { accessToken, ...fetchOptions } = options;
   const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
+  const token = accessToken || data?.session?.access_token;
 
   const headers = {
     'Content-Type': 'application/json',
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  return fetch(path, { ...options, headers });
+  return fetch(path, { ...fetchOptions, headers });
 }
 
 export async function syncProfile(overrides = {}) {

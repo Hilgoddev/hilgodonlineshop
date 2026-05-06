@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { useShop } from './ShopProvider';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 export default function ProductCard({ product, showAddToCart = true }) {
   const { _id, name, price, originalPrice, images, category, brand, stock, description, badge } = product;
   const { addToCart, toggleWishlist, isInWishlist, openQuickView } = useShop();
+  const { formatPrice } = useCurrency();
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -70,10 +72,10 @@ export default function ProductCard({ product, showAddToCart = true }) {
         )}
 
         <div className="product-card__pricing">
-          <span className="product-card__price">₦{price?.toLocaleString()}</span>
+          <span className="product-card__price">{formatPrice(price || 0)}</span>
           {discount > 0 && (
             <>
-              <span className="product-card__original">₦{originalPrice?.toLocaleString()}</span>
+              <span className="product-card__original">{formatPrice(originalPrice || 0)}</span>
             </>
           )}
         </div>

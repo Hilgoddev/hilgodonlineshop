@@ -3,12 +3,14 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { useShop } from '@/components/ShopProvider';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 export default function Cart() {
   const { cart, removeFromCart, updateCartQty, clearCart, showToast } = useShop();
   const [promoCode, setPromoCode] = useState('');
   const [promoApplied, setPromoApplied] = useState(false);
   const router = useRouter();
+  const { formatPrice } = useCurrency();
 
   // Update item quantity
   const updateQuantity = (itemId, newQuantity) => {
@@ -138,7 +140,7 @@ export default function Cart() {
                     
                     {/* Price */}
                     <div className="cart-item-price">
-                      ₦{item.product.price?.toLocaleString()}
+                      {formatPrice(item.product.price || 0)}
                     </div>
                     
                     {/* Quantity Control */}
@@ -161,7 +163,7 @@ export default function Cart() {
                     
                     {/* Subtotal */}
                     <div className="cart-item-sub">
-                      ₦{(item.product.price * item.quantity).toLocaleString()}
+                      {formatPrice((item.product.price * item.quantity) || 0)}
                     </div>
                     
                     {/* Remove */}
@@ -213,13 +215,13 @@ export default function Cart() {
               
               <div className="summary-row">
                 <span className="label">Subtotal ({totals.totalItems} items)</span>
-                <span>₦{totals.subtotal.toLocaleString()}</span>
+                <span>{formatPrice(totals.subtotal)}</span>
               </div>
               
               <div className="summary-row">
                 <span className="label">Delivery Fee</span>
                 <span style={totals.deliveryFee === 0 ? { color: 'var(--success)', fontWeight: '600' } : {}}>
-                  {totals.deliveryFee === 0 ? 'FREE' : `₦${totals.deliveryFee.toLocaleString()}`}
+                  {totals.deliveryFee === 0 ? 'FREE' : formatPrice(totals.deliveryFee)}
                 </span>
               </div>
 
@@ -227,13 +229,13 @@ export default function Cart() {
                 <div style={{ 
                   fontSize: '.78rem', color: 'var(--gray-2)', marginBottom: '10px', fontStyle: 'italic' 
                 }}>
-                  Add ₦{(50000 - totals.subtotal).toLocaleString()} more for free delivery
+                  Add {formatPrice(50000 - totals.subtotal)} more for free delivery
                 </div>
               )}
               
               <div className="summary-row total">
                 <span className="label">Total</span>
-                <span>₦{totals.total.toLocaleString()}</span>
+                <span>{formatPrice(totals.total)}</span>
               </div>
 
               {/* Promo Code */}

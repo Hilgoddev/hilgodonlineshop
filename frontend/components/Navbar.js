@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSession, signOut } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 import { useShop } from './ShopProvider';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -11,11 +12,15 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  /** Avoid SSR/client mismatch on currency <select disabled> while rates load. */
+  const [currencyUiReady, setCurrencyUiReady] = useState(false);
   const { data: session, status } = useSession();
   const router = useRouter();
   const { cart, wishlist } = useShop();
+  const { currency, setCurrency, loading: currencyLoading } = useCurrency();
 
   const isAdmin = session?.user?.role === 'admin';
+  const isSeller = session?.user?.role === 'seller';
   const isAdminPage = router.pathname.startsWith('/admin');
 
   useEffect(() => {
@@ -31,9 +36,12 @@ export default function Navbar() {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (session?.user?.id) localStorage.removeItem(`hilgod_cart_${session.user.id}`);
-    signOut({ callbackUrl: '/' });
+    closeMobileMenu();
+    setAccountDropdownOpen(false);
+    await signOut();
+    router.replace('/auth/login');
   };
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
   const closeMobileMenu = () => setMobileMenuOpen(false);
@@ -47,17 +55,48 @@ export default function Navbar() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const categories = [
-    { name: 'Beauty & Personal Care', slug: 'beauty', icon: 'fa-sparkles' },
-    { name: 'Womenswear & Underwear', slug: 'womenswear', icon: 'fa-person-dress' },
-    { name: 'Menswear & Underwear', slug: 'menswear', icon: 'fa-person' },
-    { name: 'Phones & Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
-    { name: 'Fashion Accessories', slug: 'accessories', icon: 'fa-glasses' },
-    { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' },
-    { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
-    { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
-    { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' }
-  ];
+  useEffect(() => {
+    setCurrencyUiReady(true);
+  }, []);
+
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await fetch('/api/categories');
+        const data = await res.json();
+        if (data.success && data.data && data.data.length > 0) {
+          // Use dynamic categories, map to include an icon fallback
+          const cats = data.data.map(c => ({
+            name: c.name,
+            slug: c.slug,
+            icon: c.icon || 'fa-tags'
+          }));
+          setCategories(cats);
+        } else {
+          // Fallback if db is empty
+          setCategories([
+            { name: 'Beauty & Personal Care', slug: 'beauty', icon: 'fa-sparkles' },
+            { name: 'Womenswear & Underwear', slug: 'womenswear', icon: 'fa-person-dress' },
+            { name: 'Menswear & Underwear', slug: 'menswear', icon: 'fa-person' },
+            { name: 'Phones & Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
+            { name: 'Fashion Accessories', slug: 'accessories', icon: 'fa-glasses' },
+            { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
+            { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
+            { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' },
+            { name: 'Sports', slug: 'sports', icon: 'fa-basketball' },
+            { name: 'Toys', slug: 'toys', icon: 'fa-gamepad' },
+            { name: 'Food', slug: 'food', icon: 'fa-utensils' },
+            { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' }
+          ]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // ─── ADMIN NAVBAR ───
   if (isAdmin && isAdminPage) {
@@ -207,6 +246,29 @@ export default function Navbar() {
               )}
             </div>
             <div className="header-actions">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                {/* Currency Selector */}
+                <select 
+                  value={currency} 
+                  onChange={(e) => setCurrency(e.target.value)}
+                  disabled={Boolean(currencyUiReady && currencyLoading)}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="USD" style={{ color: '#333' }}>USD ($)</option>
+                  <option value="NGN" style={{ color: '#333' }}>NGN (₦)</option>
+                  <option value="GBP" style={{ color: '#333' }}>GBP (£)</option>
+                  <option value="EUR" style={{ color: '#333' }}>EUR (€)</option>
+                </select>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }} id="auth-actions">
                 <div className="account-dropdown-wrap">
                   {status === 'loading' ? (
@@ -228,6 +290,10 @@ export default function Navbar() {
                         {isAdmin && (
                           <Link href="/admin" className="dropdown-item"><i className="fas fa-shield-halved"></i>Admin Dashboard</Link>
                         )}
+                        {isSeller && (
+                          <Link href="/seller/dashboard" className="dropdown-item"><i className="fas fa-store"></i>Seller Dashboard</Link>
+                        )}
+                        <Link href="/seller-zone" className="dropdown-item"><i className="fas fa-store"></i>Seller Zone</Link>
                         <Link href="/account" className="dropdown-item"><i className="fas fa-tachometer-alt"></i>My Account</Link>
                         <Link href="/account?tab=orders" className="dropdown-item"><i className="fas fa-box"></i>My Orders</Link>
                         <Link href="/wishlist" className="dropdown-item"><i className="fas fa-heart"></i>Wishlist</Link>
@@ -302,6 +368,7 @@ export default function Navbar() {
             {session ? (
               <>
                 {isAdmin && (<Link href="/admin" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-shield-halved icon" style={{ color: '#7c3aed' }}></i>Admin Dashboard</span><i className="fas fa-chevron-right"></i></Link>)}
+                {isSeller && (<Link href="/seller/dashboard" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-store icon" style={{ color: 'var(--primary)' }}></i>Seller Dashboard</span><i className="fas fa-chevron-right"></i></Link>)}
                 <Link href="/account" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-user icon"></i>My Account</span><i className="fas fa-chevron-right"></i></Link>
                 <Link href="/account?tab=orders" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-box icon"></i>My Orders</span><i className="fas fa-chevron-right"></i></Link>
                 <Link href="/wishlist" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-heart icon"></i>Wishlist</span><i className="fas fa-chevron-right"></i></Link>

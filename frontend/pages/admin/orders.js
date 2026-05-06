@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
+import { adminJson, errorMessage } from '../../lib/adminApi';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
@@ -16,16 +16,23 @@ export default function AdminOrders() {
 
   const fetchOrders = async () => {
     try {
-      const res = await apiFetch('/api/orders/all');
-      const data = await res.json();
-      if (data.success) {
-        setOrders(data.data || []);
+      const { res, json } = await adminJson('/api/orders/all');
+      if (res.ok && json.success) {
+        setOrders(json.data || []);
         const statuses = {};
-        (data.data || []).forEach(o => { statuses[o._id] = o.status || 'pending'; });
+        (json.data || []).forEach((o) => {
+          statuses[o._id] = o.status || 'pending';
+        });
         setLocalStatuses(statuses);
+      } else {
+        setMessage({ type: 'error', text: errorMessage(json, 'Could not load orders') });
       }
-    } catch (error) { console.error('Error fetching orders:', error); }
-    finally { setLoading(false); }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchOrders(); }, []);
@@ -62,11 +69,10 @@ export default function AdminOrders() {
   };
 
   return (
-    <Layout title="Manage Orders — Admin Panel">
-      <div style={{ padding: 'var(--space-8) 0', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', flexWrap: 'wrap', gap: '12px' }}>
-          <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}><i className="fas fa-shopping-cart" style={{ color: 'var(--primary)' }}></i> Manage Orders <span style={{ fontSize: '.9rem', fontWeight: '500', color: 'var(--gray-1)' }}>({filteredOrders.length})</span></h1>
-        </div>
+    <>
+        <p style={{ color: '#64748b', marginBottom: '16px' }}>
+          <strong>{filteredOrders.length}</strong> orders match your filters.
+        </p>
 
         {message.text && (
           <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '16px', background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#16a34a' : '#ef4444', fontSize: '.9rem', fontWeight: '600' }}>
@@ -176,11 +182,14 @@ export default function AdminOrders() {
             </div>
           )}
         </div>
-      </div>
-    </Layout>
+    </>
   );
 }
 
 AdminOrders.getLayout = function getLayout(page) {
-  return <AdminGuard>{page}</AdminGuard>;
+  return (
+    <AdminGuard>
+      <AdminLayout title="Orders">{page}</AdminLayout>
+    </AdminGuard>
+  );
 };

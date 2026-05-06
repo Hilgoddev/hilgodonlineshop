@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
-import { syncProfile } from '../../lib/apiClient';
+import { apiFetch, syncProfile } from '../../lib/apiClient';
+import { useSession } from '../../contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -10,6 +11,53 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { data: session, status } = useSession();
+
+  const getFreshAccessToken = async (initialToken) => {
+    if (initialToken) return initialToken;
+    for (let i = 0; i < 6; i++) {
+      const { data: current } = await supabase.auth.getSession();
+      const token = current?.session?.access_token;
+      if (token) return token;
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    return null;
+  };
+
+  const redirectByRole = async (userId, accessToken) => {
+    const stableToken = await getFreshAccessToken(accessToken);
+    let role = null;
+    try {
+      const meRes = await apiFetch('/api/auth/me', { accessToken: stableToken });
+      const meData = await meRes.json();
+      role = meData?.data?.role || null;
+    } catch (_) {}
+
+    if (!role) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+      const fallbackRole = session?.user?.role || session?.user?.user_metadata?.role;
+      role = profile?.role || fallbackRole || 'customer';
+    }
+
+    if (role === 'admin') {
+      router.replace('/admin');
+    } else if (role === 'seller') {
+      router.replace('/seller/dashboard');
+    } else {
+      router.replace('/account');
+    }
+  };
+
+  // If user is already authenticated, don't keep them on login page.
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user?.id) return;
+    redirectByRole(session.user.id, session?.access_token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session?.user?.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,13 +73,18 @@ export default function Login() {
       if (authError) {
         setError(authError.message || 'Invalid email or password');
       } else {
+        const stableToken = await getFreshAccessToken(data?.session?.access_token);
+        if (!stableToken) {
+          setError('Signed in, but session token is not ready yet. Please try again.');
+          return;
+        }
         try { await syncProfile(); } catch (_) {}
         // Merge anonymous cart with user cart on login
         if (typeof window !== 'undefined' && typeof mergeCartsOnLogin === 'function') {
           mergeCartsOnLogin();
         }
-        // Redirect to account page after successful login
-        router.push('/account');
+        
+        await redirectByRole(data.user.id, stableToken);
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -47,7 +100,7 @@ export default function Login() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/account`
+          redirectTo: `${window.location.origin}/auth/login`
         }
       });
       if (error) throw error;

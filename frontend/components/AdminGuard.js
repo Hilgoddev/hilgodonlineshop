@@ -1,26 +1,55 @@
 import { useSession } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { apiFetch } from '../lib/apiClient';
 
 export default function AdminGuard({ children }) {
-  const { data: session, status } = useSession();
+  const { data: session, status, profileLoading } = useSession();
   const router = useRouter();
+  const busy = status === 'loading' || profileLoading;
+  const [resolvedRole, setResolvedRole] = useState(null);
+  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
-    if (status === 'loading') return;
+    let cancelled = false;
+    const resolveRole = async () => {
+      if (busy) return;
+      if (!session) {
+        setRoleLoading(false);
+        router.push('/auth/login');
+        return;
+      }
 
-    if (!session) {
-      router.push('/auth/login');
-      return;
-    }
+      setRoleLoading(true);
+      const clientRole = session.user?.role || null;
+      const sessionToken = session?.access_token || null;
+      try {
+        const meRes = await apiFetch('/api/auth/me', { accessToken: sessionToken });
+        const meData = await meRes.json();
+        const authoritativeRole = meData?.data?.role || clientRole;
+        if (!cancelled) setResolvedRole(authoritativeRole);
+      } catch (_) {
+        if (!cancelled) setResolvedRole(clientRole);
+      } finally {
+        if (!cancelled) setRoleLoading(false);
+      }
+    };
 
-    // Check if user has admin role
-    if (session.user?.role !== 'admin') {
+    resolveRole();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, busy, router]);
+
+  useEffect(() => {
+    if (busy || roleLoading) return;
+    if (!session) return;
+    if (resolvedRole !== 'admin') {
       router.push('/');
     }
-  }, [session, status, router]);
+  }, [busy, roleLoading, resolvedRole, session, router]);
 
-  if (status === 'loading') {
+  if (busy || roleLoading) {
     return (
       <div style={{ 
         display: 'flex', 
@@ -33,7 +62,7 @@ export default function AdminGuard({ children }) {
     );
   }
 
-  if (!session || session.user?.role !== 'admin') {
+  if (!session || resolvedRole !== 'admin') {
     return null;
   }
 

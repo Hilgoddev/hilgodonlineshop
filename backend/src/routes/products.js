@@ -19,8 +19,9 @@ router.get('/', async (req, res, next) => {
 
         let query = supabase
             .from('products')
-            .select('*', { count: 'exact' })
-            .eq('is_active', true);
+            .select('*, store:stores(name, slug, status), category_ref:categories(name, slug)', { count: 'exact' })
+            .eq('is_active', true)
+            .eq('status', 'approved');
         
         if (category) {
             query = query.eq('category', category);
@@ -52,12 +53,33 @@ router.get('/', async (req, res, next) => {
     }
 });
 
+// Admin get all products (including pending)
+router.get('/all', verifyToken, async (req, res, next) => {
+    try {
+        // Quick admin check
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
+
+        const { limit = 1000 } = req.query;
+        const { data, error, count } = await supabase
+            .from('products')
+            .select('*, store:stores(name, slug, status), category_ref:categories(name, slug)', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .limit(Number(limit));
+            
+        if (error) throw error;
+        res.status(200).json({ success: true, data: (data || []).map(mapProduct), pagination: { total: count } });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // Get single product by ID
 router.get('/:id', async (req, res, next) => {
     try {
         const { data, error } = await supabase
             .from('products')
-            .select('*')
+            .select('*, store:stores(name, slug, logo_url), category_ref:categories(name, slug)')
             .eq('id', req.params.id)
             .single();
             
@@ -94,19 +116,24 @@ const verifySellerOrAdmin = async (req, res, next) => {
 // Create a new product (Protected: Seller/Admin only)
 router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
     try {
-        const { name, description, price, category, subcategory, images, stock } = req.body;
+        const { name, description, price, category, subcategory, category_id, store_id, images, stock } = req.body;
         
+        const status = req.userRole === 'admin' ? 'approved' : 'pending';
+
         const { data, error } = await supabase
             .from('products')
             .insert([{
                 seller_id: req.user.id,
+                store_id: store_id || null,
                 name,
                 description,
                 price,
                 category,
                 subcategory,
+                category_id: category_id || null,
                 images,
-                stock
+                stock,
+                status
             }])
             .select();
             
@@ -121,19 +148,25 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
 // Update a product (Protected: Seller/Admin; seller can only update own)
 router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
     try {
-        const { name, description, price, category, subcategory, images, stock, is_active } = req.body;
+        const { name, description, price, category, subcategory, category_id, store_id, images, stock, is_active } = req.body;
+        
+        let updateData = {
+            name,
+            description,
+            price,
+            category,
+            subcategory,
+            images,
+            stock,
+            ...(typeof is_active === 'boolean' ? { is_active } : {})
+        };
+        
+        if (category_id !== undefined) updateData.category_id = category_id;
+        if (store_id !== undefined) updateData.store_id = store_id;
+
         let updateQuery = supabase
             .from('products')
-            .update({
-                name,
-                description,
-                price,
-                category,
-                subcategory,
-                images,
-                stock,
-                ...(typeof is_active === 'boolean' ? { is_active } : {})
-            })
+            .update(updateData)
             .eq('id', req.params.id);
 
         if (req.userRole === 'seller') {
@@ -171,6 +204,36 @@ router.delete('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) =
         }
 
         res.status(200).json({ success: true, message: 'Product removed successfully' });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Admin-only route to approve/reject products
+router.patch('/:id/status', verifyToken, async (req, res, next) => {
+    try {
+        // Double check admin manually here for simplicity, or use middleware
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
+        if (!profile || profile.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
+
+        const { status } = req.body;
+        if (!['pending', 'approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ success: false, error: 'Invalid status' });
+        }
+
+        const { data, error } = await supabase
+            .from('products')
+            .update({ status })
+            .eq('id', req.params.id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        
+        // MOCK EMAIL
+        console.log(`[EMAIL MOCK] Notifying seller (ID: ${data.seller_id}) that product "${data.name}" is now ${status}`);
+
+        res.status(200).json({ success: true, data });
     } catch (err) {
         next(err);
     }

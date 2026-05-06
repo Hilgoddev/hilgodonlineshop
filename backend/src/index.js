@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const crypto = require('crypto');
 
 // Initialize Express app
 const app = express();
@@ -19,6 +20,11 @@ app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+app.use((req, res, next) => {
+    req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
+    res.setHeader('x-request-id', req.requestId);
+    next();
+});
 
 // Basic health check route
 app.get('/api/health', (req, res) => {
@@ -35,9 +41,14 @@ const wishlistRoutes = require('./routes/wishlist');
 const cartRoutes = require('./routes/cart');
 const adminRoutes = require('./routes/admin');
 const sellerRoutes = require('./routes/seller');
+const categoryRoutes = require('./routes/categories');
+const storeRoutes = require('./routes/stores');
+const reviewRoutes = require('./routes/reviews');
 const supabase = require('./config/supabase');
+const { generalApiLimiter, adminApiLimiter } = require('./middleware/rateLimit');
 
 // Apply Routes
+app.use('/api', generalApiLimiter);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payment', paymentRoutes);
@@ -45,8 +56,11 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/cart', cartRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminApiLimiter, adminRoutes);
 app.use('/api/seller', sellerRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/stores', storeRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Basic DB connectivity route used by frontend system test page
 app.get('/api/db-test', async (req, res, next) => {
@@ -62,10 +76,17 @@ app.get('/api/db-test', async (req, res, next) => {
 // Error Handling Middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(err.status || 500).json({
+    const status = err.status || 500;
+    const code = err.code || (status === 400 ? 'VALIDATION_FAILED' : 'INTERNAL_ERROR');
+    const message = err.message || 'Internal Server Error';
+    res.status(status).json({
         success: false,
-        message: err.message || 'Internal Server Error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+        code,
+        message,
+        details: err.details || null,
+        requestId: req.requestId || null,
+        timestamp: new Date().toISOString(),
+        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
     });
 });
 

@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { HILGOD_PRODUCTS } from '@/lib/products-data';
 
-export default function Home({ products }) {
+export default function Home({ products, categories = [] }) {
   const [flashProducts, setFlashProducts] = useState([]);
   const [bestsellers, setBestsellers] = useState([]);
   const [electronics, setElectronics] = useState([]);
@@ -255,23 +255,10 @@ export default function Home({ products }) {
               }
             `}} />
 
-            {[
-              { id: 'beauty', name: 'Beauty & Care', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=150&q=80' },
-              { id: 'womenswear', name: 'Womenswear', image: 'https://images.unsplash.com/photo-1515347619362-7164ff244837?w=150&q=80' },
-              { id: 'menswear', name: 'Menswear', image: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=150&q=80' },
-              { id: 'electronics', name: 'Electronics', image: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=150&q=80' },
-              { id: 'accessories', name: 'Accessories', image: 'https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=150&q=80' },
-              { id: 'home', name: 'Home Supplies', image: 'https://images.unsplash.com/photo-1583847268964-b28ce8f31586?w=150&q=80' },
-              { id: 'kitchen', name: 'Kitchenware', image: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=150&q=80' },
-              { id: 'shoes', name: 'Shoes', image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80' },
-              { id: 'sports', name: 'Sports', image: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=150&q=80' },
-              { id: 'toys', name: 'Toys', image: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=150&q=80' },
-              { id: 'food', name: 'Food', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=150&q=80' },
-              { id: 'collectibles', name: 'Collectibles', image: 'https://images.unsplash.com/photo-1611604548018-d56bbd85d681?w=150&q=80' }
-            ].map(category => (
+            {categories.slice(0, 12).map(category => (
             <Link 
-              key={category.id}
-              href={`/products?category=${category.id}`}
+              key={category.id || category.slug}
+              href={`/products?category=${category.slug}`}
               style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
@@ -295,7 +282,7 @@ export default function Home({ products }) {
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gray-4)'; e.currentTarget.style.transform = 'scale(1)'; }}
               >
                 <img 
-                  src={category.image} 
+                  src={category.image || category.image_url || 'https://images.unsplash.com/photo-1563089145-599997674d42?w=150&q=80'} 
                   alt={category.name} 
                   style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
                 />
@@ -546,64 +533,72 @@ export default function Home({ products }) {
 // Fetch products data on the server side
 export async function getServerSideProps() {
   try {
-    // Fetch from new Express backend API
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const res = await fetch(`${baseUrl}/products?limit=100`);
-    const data = await res.json();
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
     
-    if (data.success && data.data && data.data.length > 0) {
-      return {
-        props: {
-          products: data.data,
-        },
-      };
+    // Fetch products and categories in parallel
+    const [prodRes, catRes] = await Promise.all([
+      fetch(`${baseUrl}/products?limit=100`),
+      fetch(`${baseUrl}/categories`)
+    ]);
+    
+    const prodData = await prodRes.json();
+    const catData = await catRes.json();
+    
+    let products = [];
+    let categories = [];
+
+    if (prodData.success && prodData.data && prodData.data.length > 0) {
+      products = prodData.data;
+    } else {
+      console.log('Using fallback product data');
+      products = HILGOD_PRODUCTS.map(p => ({
+        _id: p.id.toString(),
+        name: p.name,
+        brand: p.brand,
+        description: p.description,
+        price: p.price,
+        originalPrice: p.originalPrice,
+        images: [p.image],
+        category: p.category,
+        subcategory: p.subcategory,
+        stock: p.inStock ? 100 : 0,
+        ratings: { average: p.rating, count: p.reviews },
+        badge: p.badge,
+        createdAt: new Date().toISOString()
+      }));
     }
-    
-    // If API fails or returns no data, use fallback data
-    console.log('Using fallback product data');
-    const fallbackProducts = HILGOD_PRODUCTS.map(p => ({
-      _id: p.id.toString(),
-      name: p.name,
-      brand: p.brand,
-      description: p.description,
-      price: p.price,
-      originalPrice: p.originalPrice,
-      images: [p.image],
-      category: p.category,
-      subcategory: p.subcategory,
-      stock: p.inStock ? 100 : 0,
-      ratings: { average: p.rating, count: p.reviews },
-      badge: p.badge,
-      createdAt: new Date().toISOString()
-    }));
+
+    if (catData.success && catData.data && catData.data.length > 0) {
+      categories = catData.data;
+    } else {
+      categories = [
+        { id: 'beauty', name: 'Beauty & Care', slug: 'beauty', image_url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=150&q=80' },
+        { id: 'womenswear', name: 'Womenswear', slug: 'womenswear', image_url: 'https://images.unsplash.com/photo-1515347619362-7164ff244837?w=150&q=80' },
+        { id: 'menswear', name: 'Menswear', slug: 'menswear', image_url: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=150&q=80' },
+        { id: 'electronics', name: 'Electronics', slug: 'electronics', image_url: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=150&q=80' },
+        { id: 'accessories', name: 'Accessories', slug: 'accessories', image_url: 'https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=150&q=80' },
+        { id: 'home', name: 'Home Supplies', slug: 'home', image_url: 'https://images.unsplash.com/photo-1583847268964-b28ce8f31586?w=150&q=80' },
+        { id: 'kitchen', name: 'Kitchenware', slug: 'kitchen', image_url: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=150&q=80' },
+        { id: 'shoes', name: 'Shoes', slug: 'shoes', image_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80' },
+        { id: 'sports', name: 'Sports', slug: 'sports', image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=150&q=80' },
+        { id: 'toys', name: 'Toys', slug: 'toys', image_url: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=150&q=80' },
+        { id: 'food', name: 'Food', slug: 'food', image_url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=150&q=80' },
+        { id: 'collectibles', name: 'Collectibles', slug: 'collectibles', image_url: 'https://images.unsplash.com/photo-1611604548018-d56bbd85d681?w=150&q=80' }
+      ];
+    }
     
     return {
       props: {
-        products: fallbackProducts,
+        products,
+        categories
       },
     };
   } catch (error) {
-    console.error('Error fetching products, using fallback:', error);
-    // Use fallback data on error
-    const fallbackProducts = HILGOD_PRODUCTS.map(p => ({
-      _id: p.id.toString(),
-      name: p.name,
-      brand: p.brand,
-      description: p.description,
-      price: p.price,
-      originalPrice: p.originalPrice,
-      images: [p.image],
-      category: p.category,
-      subcategory: p.subcategory,
-      stock: p.inStock ? 100 : 0,
-      ratings: { average: p.rating, count: p.reviews },
-      badge: p.badge,
-      createdAt: new Date().toISOString()
-    }));
-    
+    console.error('Error fetching data, using fallback:', error);
     return {
       props: {
-        products: fallbackProducts,
+        products: [],
+        categories: []
       },
     };
   }

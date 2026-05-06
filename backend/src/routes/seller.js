@@ -22,14 +22,12 @@ router.post('/apply', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'Required fields missing' });
     }
 
-    // Upsert into profiles metadata fields and mark as seller for now (MVP flow)
-    const { error } = await supabase
+    // Keep role unchanged until explicit admin approval.
+    const { error: profileError } = await supabase
       .from('profiles')
       .update({
         full_name: fullName,
-        username: email,
         phone_number: phone,
-        role: 'seller',
         address: {
           businessName,
           businessCategory: businessCategory || null,
@@ -37,9 +35,41 @@ router.post('/apply', verifyToken, async (req, res, next) => {
         }
       })
       .eq('id', req.user.id);
-    if (error) throw error;
+    if (profileError) throw profileError;
 
-    res.status(200).json({ success: true, message: 'Seller application submitted successfully' });
+    // Create/update seller application with pending status.
+    const { error: appError } = await supabase
+      .from('seller_applications')
+      .upsert({
+        user_id: req.user.id,
+        full_name: fullName,
+        business_name: businessName,
+        email,
+        phone,
+        business_category: businessCategory || null,
+        monthly_revenue: monthlyRevenue || null,
+        status: 'pending',
+        reviewed_by: null,
+        reviewed_at: null,
+        admin_notes: null,
+      }, { onConflict: 'user_id' });
+    if (appError) throw appError;
+
+    res.status(200).json({ success: true, message: 'Seller application submitted and pending admin approval' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/application-status', verifyToken, async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('seller_applications')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+    if (error) throw error;
+    res.status(200).json({ success: true, data: data || null });
   } catch (err) {
     next(err);
   }

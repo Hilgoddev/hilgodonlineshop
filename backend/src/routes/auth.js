@@ -37,9 +37,13 @@ router.post('/sync-profile', verifyToken, async (req, res, next) => {
             throw fetchError;
         }
 
+        const baseUsername = profile?.username || user.email.split('@')[0];
+        // simple unique fallback
+        const uniqueUsername = profile?.username ? baseUsername : `${baseUsername}${Math.floor(Math.random() * 1000)}`;
+
         const payload = {
             id: user.id,
-            username: profile?.username || user.email.split('@')[0],
+            username: uniqueUsername,
             full_name:
                 full_name ||
                 user.user_metadata?.full_name ||

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Layout from '@/components/Layout';
 import AdminGuard from '@/components/AdminGuard';
+import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
+import { adminJson, errorMessage } from '../../lib/adminApi';
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([]);
@@ -25,14 +25,15 @@ export default function AdminProducts() {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products');
-      const data = await res.json();
-      
-      if (data.success) {
-        setProducts(data.data || []);
+      const { res, json } = await adminJson('/api/products/all?limit=1000');
+      if (res.ok && json.success) {
+        setProducts(json.data || []);
+      } else {
+        setMessage({ type: 'error', text: errorMessage(json, 'Could not load products') });
       }
     } catch (error) {
       console.error('Error fetching products:', error);
+      setMessage({ type: 'error', text: 'Network error loading products' });
     } finally {
       setLoading(false);
     }
@@ -144,26 +145,15 @@ export default function AdminProducts() {
   );
 
   return (
-    <Layout title="Manage Products — Admin Panel">
-      <div style={{ padding: 'var(--space-8) 0' }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: 'var(--space-6)',
-          flexWrap: 'wrap',
-          gap: 'var(--space-3)'
-        }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>
-            <i className="fas fa-box" style={{ color: 'var(--primary)' }}></i> Manage Products
-          </h1>
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
           <button 
             className={`btn ${showForm ? 'btn-outline' : 'btn-primary'}`}
             onClick={() => showForm ? resetForm() : setShowForm(true)}
           >
             <i className={`fas ${showForm ? 'fa-times' : 'fa-plus'}`}></i> {showForm ? 'Cancel' : 'Add New Product'}
           </button>
-        </div>
+      </div>
 
         {message.text && (
           <div style={{ 
@@ -275,6 +265,7 @@ export default function AdminProducts() {
                     <th style={{ padding: '16px', fontWeight: '600' }}>Category</th>
                     <th style={{ padding: '16px', fontWeight: '600' }}>Price</th>
                     <th style={{ padding: '16px', fontWeight: '600' }}>Stock</th>
+                    <th style={{ padding: '16px', fontWeight: '600' }}>Listing</th>
                     <th style={{ padding: '16px', fontWeight: '600', textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
@@ -312,6 +303,19 @@ export default function AdminProducts() {
                           {product.stock} in stock
                         </span>
                       </td>
+                      <td style={{ padding: '16px' }}>
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          background: product.status === 'approved' ? '#dcfce7' : product.status === 'rejected' ? '#fee2e2' : '#fef3c7',
+                          color: product.status === 'approved' ? '#15803d' : product.status === 'rejected' ? '#b91c1c' : '#b45309',
+                          textTransform: 'capitalize',
+                        }}>
+                          {product.status || 'pending'}
+                        </span>
+                      </td>
                       <td style={{ padding: '16px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                           <button 
@@ -338,11 +342,14 @@ export default function AdminProducts() {
             </div>
           )}
         </div>
-      </div>
-    </Layout>
+    </>
   );
 }
 
 AdminProducts.getLayout = function getLayout(page) {
-  return <AdminGuard>{page}</AdminGuard>;
+  return (
+    <AdminGuard>
+      <AdminLayout title="Products">{page}</AdminLayout>
+    </AdminGuard>
+  );
 };

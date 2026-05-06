@@ -1,26 +1,51 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { syncProfile } from '../lib/apiClient';
+import { apiFetch, syncProfile } from '../lib/apiClient';
 
 const AuthContext = createContext({
   data: null,
-  status: 'loading'
+  status: 'loading',
+  profileLoading: true,
 });
+
+function mergeProfile(prev, next, userId) {
+  if (next) return next;
+  if (prev && userId && prev.id === userId) return prev;
+  return null;
+}
 
 export function SessionProvider({ children }) {
   const [session, setSession] = useState(null);
-  const [profileRole, setProfileRole] = useState(null);
+  const [dbProfile, setDbProfile] = useState(null);
   const [status, setStatus] = useState('loading');
+  const [profileLoading, setProfileLoading] = useState(true);
 
-  const loadProfileRole = async () => {
+  const loadProfile = async (retryCount = 0) => {
     try {
-      const { data } = await supabase.auth.getSession();
-      if (!data?.session?.access_token) return null;
-      const res = await fetch('/api/user/profile', {
-        headers: { Authorization: `Bearer ${data.session.access_token}` }
-      });
-      const json = await res.json();
-      if (json.success) return json.data?.role || null;
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.user?.id) return null;
+      const accessToken = sessionData.session.access_token;
+
+      try {
+        const meRes = await apiFetch('/api/auth/me', { accessToken });
+        if (meRes.ok) {
+          const meJson = await meRes.json();
+          if (meJson?.data) return meJson.data;
+        }
+      } catch (_) {}
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', sessionData.session.user.id)
+        .single();
+
+      if (profile) return profile;
+
+      if (error && retryCount < 2) {
+        await new Promise(r => setTimeout(r, 1000));
+        return loadProfile(retryCount + 1);
+      }
       return null;
     } catch (_) {
       return null;
@@ -31,59 +56,83 @@ export function SessionProvider({ children }) {
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
-      setStatus(session ? 'authenticated' : 'unauthenticated');
-      if (session) {
-        try { await syncProfile(); } catch (_) {}
-        const role = await loadProfileRole();
-        setProfileRole(role);
-      } else {
-        setProfileRole(null);
+      if (!session) {
+        setDbProfile(null);
+        setProfileLoading(false);
+        setStatus('unauthenticated');
+        return;
       }
+      setProfileLoading(true);
+      try {
+        await syncProfile();
+      } catch (_) {}
+      const profile = await loadProfile();
+      setDbProfile((prev) => mergeProfile(prev, profile, session.user.id));
+      setProfileLoading(false);
+      setStatus('authenticated');
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setStatus(session ? 'authenticated' : 'unauthenticated');
-      if (session) {
-        try { await syncProfile(); } catch (_) {}
-        const role = await loadProfileRole();
-        setProfileRole(role);
-      } else {
-        setProfileRole(null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'TOKEN_REFRESHED') {
+        setSession(session);
+        return;
       }
+
+      setSession(session);
+
+      if (!session) {
+        setDbProfile(null);
+        setProfileLoading(false);
+        setStatus('unauthenticated');
+        return;
+      }
+
+      setStatus('loading');
+      setProfileLoading(true);
+      try {
+        await syncProfile();
+      } catch (_) {}
+      const profile = await loadProfile();
+      setDbProfile((prev) => mergeProfile(prev, profile, session.user.id));
+      setProfileLoading(false);
+      setStatus('authenticated');
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
   // Format session to match next-auth structure somewhat
-  const getNameParts = (user) => {
+  const getNameParts = (user, dbProfile) => {
     const fullName =
+      dbProfile?.full_name ||
       user?.user_metadata?.full_name ||
       user?.user_metadata?.name ||
       user?.identities?.[0]?.identity_data?.full_name ||
-      user?.identities?.[0]?.identity_data?.name ||
       '';
     const parts = String(fullName).trim().split(' ').filter(Boolean);
     if (parts.length) return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
-    const local = String(user?.email || '').split('@')[0] || 'User';
-    return { firstName: local, lastName: '' };
+    const rawLocal = dbProfile?.username || user?.email || 'User';
+    const safeLocal = String(rawLocal).includes('@')
+      ? String(rawLocal).split('@')[0]
+      : String(rawLocal);
+    return { firstName: safeLocal || 'User', lastName: '' };
   };
 
   const formattedSession = session ? {
     user: {
       id: session.user.id,
       email: session.user.email,
-      ...getNameParts(session.user),
-      image: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
-      role: profileRole || session.user.user_metadata?.role || 'customer'
+      ...getNameParts(session.user, dbProfile),
+      image: dbProfile?.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
+      role: dbProfile?.role || session.user.user_metadata?.role || 'customer',
+      currency: dbProfile?.currency_preference || 'USD'
     },
     ...session
   } : null;
 
   return (
-    <AuthContext.Provider value={{ data: formattedSession, status }}>
+    <AuthContext.Provider value={{ data: formattedSession, status, profileLoading }}>
       {children}
     </AuthContext.Provider>
   );
@@ -93,9 +142,6 @@ export function useSession() {
   return useContext(AuthContext);
 }
 
-export async function signOut(options = {}) {
+export async function signOut() {
   await supabase.auth.signOut();
-  if (options.callbackUrl) {
-    window.location.href = options.callbackUrl;
-  }
 }
