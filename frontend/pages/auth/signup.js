@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
@@ -16,6 +16,13 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const router = useRouter();
+  const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (router.query.emailVerification === 'pending') {
+      setShowModal(true);
+    }
+  }, [router.query]);
 
   const calculatePasswordStrength = (password) => {
     let score = 0;
@@ -278,6 +285,16 @@ export default function Signup() {
           Already have an account? <Link href="/auth/login">Sign In</Link>
         </div>
       </div>
+
+      {showModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>Email Verification Required</h3>
+            <p>Please check your email inbox and click the verification link to activate your account.</p>
+            <button className="btn btn-primary" onClick={() => setShowModal(false)}>OK</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

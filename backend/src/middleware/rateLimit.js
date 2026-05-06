@@ -1,57 +1,36 @@
 const rateLimit = require('express-rate-limit');
-const { ipKeyGenerator } = rateLimit;
 
-const buildLimiter = ({ windowMs, max, message, keyGenerator }) =>
-    rateLimit({
-        windowMs,
-        max,
-        standardHeaders: true,
-        legacyHeaders: false,
-        keyGenerator,
-        handler: (req, res) => {
-            res.status(429).json({
-                success: false,
-                code: 'RATE_LIMITED',
-                message,
-                details: null,
-                requestId: req.requestId || null,
-                timestamp: new Date().toISOString(),
-            });
-        },
-    });
-
-// Auth routes: 5 requests / 15 minutes / IP
-const authLimiter = buildLimiter({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: 'Too many authentication requests. Please try again later.',
+// General API Rate Limiter
+const generalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many requests, please try again later.',
+  },
 });
 
-// General API: 120 requests / minute / IP
-const generalApiLimiter = buildLimiter({
-    windowMs: 60 * 1000,
-    max: 120,
-    message: 'Too many API requests. Please try again later.',
+// Admin API Rate Limiter
+const adminApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit each IP to 50 requests per windowMs
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many requests, please try again later.',
+  },
 });
 
-// Admin routes: 60 requests / minute / IP
-const adminApiLimiter = buildLimiter({
-    windowMs: 60 * 1000,
-    max: 60,
-    message: 'Too many admin API requests. Please try again later.',
+// Payment initialization limiter — stricter window to reduce fraud attempts
+const paymentInitLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many payment attempts, please try again later.',
+  },
 });
 
-// Payment initiation: 10 requests / hour / authenticated user (fallback to IP)
-const paymentInitLimiter = buildLimiter({
-    windowMs: 60 * 60 * 1000,
-    max: 10,
-    message: 'Too many payment initialization requests. Please try again later.',
-    keyGenerator: (req) => req.user?.id || ipKeyGenerator(req),
-});
-
-module.exports = {
-    authLimiter,
-    generalApiLimiter,
-    adminApiLimiter,
-    paymentInitLimiter,
-};
+module.exports = { generalApiLimiter, adminApiLimiter, paymentInitLimiter };

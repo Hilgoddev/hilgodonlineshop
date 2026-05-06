@@ -14,7 +14,7 @@ export async function apiFetch(path, options = {}) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  return fetch(path, { ...fetchOptions, headers });
+  return await fetch(path, { ...fetchOptions, headers });
 }
 
 export async function syncProfile(overrides = {}) {

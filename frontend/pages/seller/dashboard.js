@@ -6,7 +6,7 @@ import { apiFetch } from '../../lib/apiClient';
 
 export default function SellerDashboard() {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState({ metrics: {}, products: [] });
+  const [data, setData] = useState({ metrics: {}, products: [], isApproved: false });
 
   useEffect(() => {
     const load = async () => {
@@ -90,6 +90,8 @@ export default function SellerDashboard() {
                 <p style={{ color: 'var(--gray-1)' }}>No products yet.</p>
               )}
             </div>
+
+            {!loading && data.isApproved && <ApprovedSellerTools />}
           </>
         )}
       </div>
@@ -100,3 +102,21 @@ export default function SellerDashboard() {
 SellerDashboard.getLayout = function getLayout(page) {
   return <SellerGuard>{page}</SellerGuard>;
 };
+
+const ApprovedSellerTools = () => (
+  <div className="card" style={{ padding: '20px', marginTop: '24px' }}>
+    <h3 style={{ fontWeight: 700 }}>Exclusive Tools for Approved Sellers</h3>
+    <ul style={{ listStyle: 'none', padding: 0 }}>
+      <li style={{ marginBottom: '12px' }}>
+        <Link href="/seller/analytics" className="btn btn-outline btn-sm">
+          View Sales Analytics
+        </Link>
+      </li>
+      <li style={{ marginBottom: '12px' }}>
+        <Link href="/seller/promotions" className="btn btn-outline btn-sm">
+          Manage Promotions
+        </Link>
+      </li>
+    </ul>
+  </div>
+);
