@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
+const { verifyToken } = require('./auth');
 
 // Get reviews for a product
 router.get('/:productId', async (req, res, next) => {

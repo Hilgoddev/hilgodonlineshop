@@ -47,7 +47,7 @@ router.post('/', verifyToken, async (req, res, next) => {
     const nextQty = (existing?.quantity || 0) + quantity;
     const { error } = await supabase
       .from('cart_items')
-      .upsert({ user_id: req.user.id, product_id: productId, quantity: nextQty });
+      .upsert({ user_id: req.user.id, product_id: productId, quantity: nextQty }, { onConflict: 'user_id,product_id' });
     if (error) throw error;
 
     res.status(200).json({ success: true, message: 'Cart updated' });
