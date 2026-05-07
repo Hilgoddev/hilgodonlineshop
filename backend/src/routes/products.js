@@ -167,7 +167,8 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         let updateQuery = supabase
             .from('products')
             .update(updateData)
-            .eq('id', req.params.id);
+            .eq('id', req.params.id)
+            .eq('is_active', true);
 
         if (req.userRole === 'seller') {
             updateQuery = updateQuery.eq('seller_id', req.user.id);

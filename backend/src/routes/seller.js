@@ -81,6 +81,7 @@ router.get('/dashboard', verifyToken, requireSellerOrAdmin, async (req, res, nex
       .from('products')
       .select('*')
       .eq('seller_id', req.user.id)
+      .eq('is_active', true)
       .order('created_at', { ascending: false });
     if (pErr) throw pErr;
 
