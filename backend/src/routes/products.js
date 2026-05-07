@@ -64,6 +64,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
         const { data, error, count } = await supabase
             .from('products')
             .select('*, store:stores(name, slug, status), category_ref:categories(name, slug)', { count: 'exact' })
+            .eq('is_active', true)
             .order('created_at', { ascending: false })
             .limit(Number(limit));
             

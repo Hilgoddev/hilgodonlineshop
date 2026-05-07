@@ -29,7 +29,8 @@ export default function AdminCustomers() {
   useEffect(() => { fetchCustomers(); }, []);
 
   const handleRoleChange = async (userId, newRole) => {
-    if (!confirm(`Are you sure you want to ${newRole === 'admin' ? 'promote this user to Admin' : 'set this user back to Customer'}?`)) return;
+    const labels = { admin: 'Admin', seller: 'Seller', customer: 'Customer' };
+    if (!confirm(`Change this user's role to ${labels[newRole]}?`)) return;
     setPromotingId(userId);
     try {
       const res = await apiFetch('/api/admin/promote', { method: 'PUT', body: JSON.stringify({ userId, newRole }) });
@@ -117,18 +118,27 @@ export default function AdminCustomers() {
                           </span>
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                          {!isSelf && (
-                            isAdmin ? (
-                              <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#ef4444', borderColor: '#fee2e2' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'customer')}>
-                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Remove admin'}
-                              </button>
-                            ) : (
-                              <button className="btn btn-sm btn-outline" style={{ fontSize: '.78rem', color: '#7c3aed', borderColor: '#ede9fe' }} disabled={promotingId === customer._id} onClick={() => handleRoleChange(customer._id, 'admin')}>
-                                {promotingId === customer._id ? <i className="fas fa-spinner fa-spin"></i> : 'Make admin'}
-                              </button>
-                            )
+                          {isSelf ? (
+                            <span style={{ fontSize: '.78rem', color: 'var(--gray-2)' }}>You</span>
+                          ) : (
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                              {!isAdmin && (
+                                <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#7c3aed', borderColor: '#ede9fe' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'admin')}>
+                                  {promotingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Admin'}
+                                </button>
+                              )}
+                              {!isSeller && (
+                                <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#1d4ed8', borderColor: '#dbeafe' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'seller')}>
+                                  {promotingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Seller'}
+                                </button>
+                              )}
+                              {(isAdmin || isSeller) && (
+                                <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#64748b', borderColor: '#e2e8f0' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'customer')}>
+                                  {promotingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Customer'}
+                                </button>
+                              )}
+                            </div>
                           )}
-                          {isSelf && <span style={{ fontSize: '.78rem', color: 'var(--gray-2)' }}>You</span>}
                         </td>
                       </tr>
                     );
@@ -145,7 +155,7 @@ export default function AdminCustomers() {
 AdminCustomers.getLayout = function getLayout(page) {
   return (
     <AdminGuard>
-      <AdminLayout title="Customers">{page}</AdminLayout>
+      <AdminLayout title="User Management">{page}</AdminLayout>
     </AdminGuard>
   );
 };

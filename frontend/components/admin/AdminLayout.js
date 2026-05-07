@@ -9,7 +9,7 @@ const NAV = [
   { href: '/admin/approvals', label: 'Approvals', icon: 'fa-clipboard-check' },
   { href: '/admin/products', label: 'Products', icon: 'fa-box' },
   { href: '/admin/orders', label: 'Orders', icon: 'fa-shopping-cart' },
-  { href: '/admin/customers', label: 'Customers', icon: 'fa-users' },
+  { href: '/admin/customers', label: 'Users', icon: 'fa-users' },
   { href: '/admin/categories', label: 'Categories', icon: 'fa-tags' },
   { href: '/admin/stores', label: 'Stores', icon: 'fa-store' },
 ];
