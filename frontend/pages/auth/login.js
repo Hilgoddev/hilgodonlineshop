@@ -79,11 +79,6 @@ export default function Login() {
           return;
         }
         try { await syncProfile(); } catch (_) {}
-        // Merge anonymous cart with user cart on login
-        if (typeof window !== 'undefined' && typeof mergeCartsOnLogin === 'function') {
-          mergeCartsOnLogin();
-        }
-        
         await redirectByRole(data.user.id, stableToken);
       }
     } catch (err) {
