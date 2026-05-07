@@ -200,7 +200,8 @@ The seller account has:
 | Key / Setting | Service | Status |
 |---|---|---|
 | **Supabase Auth Site URL** | Supabase Dashboard | Must be set to `https://hilgod-frontend.onrender.com` |
-| **Google OAuth redirect URI** | Google Cloud Console | Must add `https://nmrqdzikceakkhfhflja.supabase.co/auth/v1/callback` |
+| **Google OAuth redirect URI** | Google Cloud Console | **Already configured ✓** — `https://nmrqdzikceakkhfhflja.supabase.co/auth/v1/callback` |
+| **Google OAuth JS Origin** | Google Cloud Console | **Already configured ✓** — `https://hilgod-frontend.onrender.com` |
 | **Paystack Webhook URL** | Paystack Dashboard | Must add `https://hilgodonlineshop.onrender.com/api/payment/webhook` |
 
 ### 4.3 Needed When Adding Future Features
@@ -218,8 +219,8 @@ The seller account has:
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Backend Render env + `backend/.env` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase | Frontend Render env + `frontend/.env.local` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Frontend Render env + `frontend/.env.local` |
-| `GOOGLE_CLIENT_ID` | Google Cloud | Both services Render env |
-| `GOOGLE_CLIENT_SECRET` | Google Cloud | Backend Render env |
+| `GOOGLE_CLIENT_ID` | Google Cloud (Project: `database-server-472321`) | Both services Render env |
+| `GOOGLE_CLIENT_SECRET` | Google Cloud | Backend Render env — **never put in report or git** |
 
 ---
 
@@ -237,9 +238,24 @@ The seller account has:
 - [ ] Collect live secret key → set `PAYSTACK_SECRET_KEY` on Render backend
 - [ ] Add webhook URL in Paystack dashboard (see Part 4)
 
-### Step 3 — Google OAuth
-- [ ] Add production callback URI in Google Cloud Console
-- [ ] Update `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to client's own credentials
+### Step 3 — Google OAuth (Developer Setup — Already Configured)
+
+The developer's Google OAuth client is **fully configured** for the current live deployment:
+
+| Setting | Value | Status |
+|---|---|---|
+| Google Cloud Project | `database-server-472321` | Active |
+| Client ID | `662682454869-6asvl7hu34sts9tcl9rd95ot9c1hegi7.apps.googleusercontent.com` | Set on Render ✓ |
+| Authorized Redirect URI | `https://nmrqdzikceakkhfhflja.supabase.co/auth/v1/callback` | Configured in Google Console ✓ |
+| Authorized JS Origin | `https://hilgod-frontend.onrender.com` | Configured in Google Console ✓ |
+| Client Secret JSON | `client_secret_662682...json` (in project root) | Gitignored ✓ — never committed |
+
+**At handover, the client must:**
+- [ ] Create their own Google Cloud project (or use the developer's with transferred ownership)
+- [ ] Create a new OAuth 2.0 Web Client ID
+- [ ] Add their own Supabase callback URI: `https://[CLIENT-PROJECT-REF].supabase.co/auth/v1/callback`
+- [ ] Add their frontend URL as an Authorized JS Origin
+- [ ] Update `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on Render backend + frontend
 
 ### Step 4 — First Admin Account
 - [ ] Sign up on the live platform → set `role = 'admin'` in Supabase Table Editor → profiles
