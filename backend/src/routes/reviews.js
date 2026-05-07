@@ -20,22 +20,28 @@ router.get('/:productId', async (req, res, next) => {
     }
 });
 
-// Create a review
-router.post('/', async (req, res, next) => {
+// Create a review — requires authentication; name/email sourced from verified profile
+router.post('/', verifyToken, async (req, res, next) => {
     try {
-        const { product_id, product_name, name, email, rating, title, message } = req.body;
+        const { product_id, product_name, rating, title, message } = req.body;
 
-        if (!product_id || !name || !email || !message) {
-            return res.status(400).json({ success: false, error: 'Missing required fields' });
+        if (!product_id || !message) {
+            return res.status(400).json({ success: false, error: 'product_id and message are required' });
         }
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, username')
+            .eq('id', req.user.id)
+            .single();
 
         const { data, error } = await supabase
             .from('reviews')
             .insert([{
                 product_id,
                 product_name,
-                user_name: name,
-                user_email: email,
+                user_name: profile?.full_name || req.user.email || 'Customer',
+                user_email: req.user.email,
                 rating: parseInt(rating) || 5,
                 title,
                 message

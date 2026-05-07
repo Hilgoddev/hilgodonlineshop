@@ -251,7 +251,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
     }
 });
 
-router.get('/:id', async (req, res, next) => {
+router.get('/:id', verifyToken, async (req, res, next) => {
     try {
         const id = req.params.id;
         let order = null;
@@ -260,6 +260,7 @@ router.get('/:id', async (req, res, next) => {
             const { data: orders, error } = await supabase
                 .from('orders')
                 .select('*')
+                .eq('user_id', req.user.id)
                 .order('created_at', { ascending: false })
                 .limit(200);
             if (error) throw error;
@@ -271,6 +272,14 @@ router.get('/:id', async (req, res, next) => {
         }
 
         if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+        // Ownership check — only the order owner or an admin can view
+        if (order.user_id !== req.user.id) {
+            const { data: me } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
+            if (!me || me.role !== 'admin') {
+                return res.status(403).json({ success: false, error: 'Access denied' });
+            }
+        }
 
         const { data: items } = await supabase
             .from('order_items')

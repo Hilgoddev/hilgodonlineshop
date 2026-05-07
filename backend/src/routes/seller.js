@@ -84,15 +84,19 @@ router.get('/dashboard', verifyToken, requireSellerOrAdmin, async (req, res, nex
       .order('created_at', { ascending: false });
     if (pErr) throw pErr;
 
-    const { data: orderItems, error: oiErr } = await supabase
-      .from('order_items')
-      .select('quantity, unit_price, product:products(seller_id)')
-      .limit(5000);
-    if (oiErr) throw oiErr;
-
-    const sellerOrderItems = (orderItems || []).filter((it) => it.product?.seller_id === req.user.id);
-    const totalSales = sellerOrderItems.reduce((sum, it) => sum + Number(it.unit_price || 0) * Number(it.quantity || 0), 0);
-    const totalUnits = sellerOrderItems.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+    // Filter order_items at DB level using the seller's product IDs
+    const productIds = (products || []).map((p) => p.id);
+    let totalSales = 0;
+    let totalUnits = 0;
+    if (productIds.length > 0) {
+      const { data: orderItems, error: oiErr } = await supabase
+        .from('order_items')
+        .select('quantity, unit_price')
+        .in('product_id', productIds);
+      if (oiErr) throw oiErr;
+      totalSales = (orderItems || []).reduce((sum, it) => sum + Number(it.unit_price || 0) * Number(it.quantity || 0), 0);
+      totalUnits = (orderItems || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+    }
 
     res.status(200).json({
       success: true,
