@@ -50,7 +50,7 @@ router.post('/sync-profile', verifyToken, async (req, res, next) => {
                 user.user_metadata?.name ||
                 profile?.full_name ||
                 null,
-            avatar_url: avatar_url || user.user_metadata?.avatar_url || profile?.avatar_url || null,
+            avatar_url: avatar_url || user.user_metadata?.avatar_url || user.user_metadata?.picture || profile?.avatar_url || null,
         };
 
         const { error: upsertError } = await supabase.from('profiles').upsert(payload);
