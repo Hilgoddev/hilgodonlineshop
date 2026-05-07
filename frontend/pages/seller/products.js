@@ -36,6 +36,22 @@ export default function SellerProducts() {
     }
   };
 
+  const handleDelete = async (productId, productName) => {
+    if (!confirm(`Remove "${productName}" from your listings?`)) return;
+    try {
+      const res = await apiFetch(`/api/products/${productId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        setMessage({ type: 'success', text: 'Product removed successfully.' });
+        await load();
+      } else {
+        setMessage({ type: 'error', text: json.error || 'Failed to remove product' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Network error while removing product' });
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
@@ -167,21 +183,54 @@ export default function SellerProducts() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--gray-5)' }}>
+                    <th style={{ textAlign: 'left', padding: '10px', width: '52px' }}></th>
                     <th style={{ textAlign: 'left', padding: '10px' }}>Name</th>
                     <th style={{ textAlign: 'left', padding: '10px' }}>Category</th>
                     <th style={{ textAlign: 'left', padding: '10px' }}>Price</th>
                     <th style={{ textAlign: 'left', padding: '10px' }}>Stock</th>
                     <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '10px' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {(data.products || []).map((p) => (
                     <tr key={p._id} style={{ borderBottom: '1px solid var(--gray-4)' }}>
-                      <td style={{ padding: '10px' }}>{p.name}</td>
-                      <td style={{ padding: '10px' }}>{p.category}</td>
+                      <td style={{ padding: '10px' }}>
+                        {p.images?.[0] ? (
+                          <img src={p.images[0]} alt={p.name} style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} />
+                        ) : (
+                          <div style={{ width: '42px', height: '42px', background: 'var(--gray-5)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <i className="fas fa-image" style={{ color: 'var(--gray-2)', fontSize: '1rem' }} />
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px', maxWidth: '200px' }}>{p.name}</td>
+                      <td style={{ padding: '10px', textTransform: 'capitalize' }}>{p.category}</td>
                       <td style={{ padding: '10px' }}>N{Number(p.price || 0).toLocaleString()}</td>
                       <td style={{ padding: '10px' }}>{p.stock}</td>
-                      <td style={{ padding: '10px', textTransform: 'capitalize' }}>{p.status || 'pending'}</td>
+                      <td style={{ padding: '10px' }}>
+                        <span style={{
+                          padding: '3px 10px',
+                          borderRadius: '999px',
+                          fontSize: '.78rem',
+                          fontWeight: 700,
+                          background: p.status === 'approved' ? '#dcfce7' : p.status === 'rejected' ? '#fee2e2' : '#fef3c7',
+                          color: p.status === 'approved' ? '#15803d' : p.status === 'rejected' ? '#b91c1c' : '#92400e',
+                          textTransform: 'capitalize',
+                        }}>
+                          {p.status || 'pending'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px' }}>
+                        <button
+                          onClick={() => handleDelete(p._id, p.name)}
+                          className="btn btn-sm"
+                          style={{ background: 'var(--danger-light)', color: 'var(--danger)', border: 'none', cursor: 'pointer' }}
+                          title="Remove product"
+                        >
+                          <i className="fas fa-trash-can"></i>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

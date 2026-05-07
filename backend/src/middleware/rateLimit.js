@@ -1,9 +1,11 @@
 const rateLimit = require('express-rate-limit');
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 // General API Rate Limiter
 const generalApiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 2000 : 100,
   message: {
     success: false,
     code: 'RATE_LIMIT_EXCEEDED',
@@ -13,8 +15,8 @@ const generalApiLimiter = rateLimit({
 
 // Admin API Rate Limiter
 const adminApiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Limit each IP to 50 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: isDev ? 1000 : 50,
   message: {
     success: false,
     code: 'RATE_LIMIT_EXCEEDED',
