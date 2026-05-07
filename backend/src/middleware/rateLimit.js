@@ -5,7 +5,7 @@ const isDev = process.env.NODE_ENV !== 'production';
 // General API Rate Limiter
 const generalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 2000 : 100,
+  max: isDev ? 2000 : 500,
   message: {
     success: false,
     code: 'RATE_LIMIT_EXCEEDED',
@@ -16,7 +16,7 @@ const generalApiLimiter = rateLimit({
 // Admin API Rate Limiter
 const adminApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDev ? 1000 : 50,
+  max: isDev ? 1000 : 300,
   message: {
     success: false,
     code: 'RATE_LIMIT_EXCEEDED',

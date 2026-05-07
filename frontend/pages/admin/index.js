@@ -25,9 +25,11 @@ export default function AdminDashboard() {
     loading: true,
   });
   const [loadError, setLoadError] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setStats((s) => ({ ...s, loading: true }));
     (async () => {
       setLoadError('');
       const { res, json } = await adminJson('/api/admin/stats');
@@ -59,7 +61,7 @@ export default function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [retryKey]);
 
   const getStatusBadge = (status) => {
     const map = {
@@ -108,7 +110,7 @@ export default function AdminDashboard() {
       {loadError ? (
         <div
           style={{
-            padding: '12px 16px',
+            padding: '16px 20px',
             borderRadius: '8px',
             marginBottom: '20px',
             background: '#fef2f2',
@@ -119,6 +121,22 @@ export default function AdminDashboard() {
         >
           <i className="fas fa-circle-exclamation" style={{ marginRight: '8px' }} />
           {loadError}
+          <button
+            onClick={() => setRetryKey((k) => k + 1)}
+            style={{
+              marginLeft: '16px',
+              padding: '4px 14px',
+              background: '#dc2626',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
         </div>
       ) : null}
 
