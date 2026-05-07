@@ -120,6 +120,7 @@ export function SessionProvider({ children }) {
   };
 
   const formattedSession = session ? {
+    ...session,
     user: {
       id: session.user.id,
       email: session.user.email,
@@ -128,7 +129,6 @@ export function SessionProvider({ children }) {
       role: dbProfile?.role || session.user.user_metadata?.role || 'customer',
       currency: dbProfile?.currency_preference || 'USD'
     },
-    ...session
   } : null;
 
   return (

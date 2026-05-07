@@ -3,9 +3,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { apiFetch } from '../lib/apiClient';
+import { useSession } from '@/contexts/AuthContext';
 
 export default function SellerZone() {
   const router = useRouter();
+  const { data: session } = useSession();
+  const isSeller = session?.user?.role === 'seller' || session?.user?.role === 'admin';
   const [submitLoading, setSubmitLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
   const [applicationStatus, setApplicationStatus] = useState(null);
@@ -409,7 +412,19 @@ export default function SellerZone() {
       {/* Seller Form */}
       <div id="seller-form" style={{ padding: 'var(--space-16) 0', background: 'var(--gray-6)' }}>
         <div className="container" style={{ maxWidth: '640px' }}>
-          {!statusLoading && applicationStatus ? (
+          {isSeller && (
+            <div className="card" style={{ padding: 'var(--space-6)', marginBottom: 'var(--space-5)', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 'var(--radius-lg)', textAlign: 'center' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🎉</div>
+              <strong style={{ fontSize: '1.1rem' }}>Your seller account is active!</strong>
+              <p style={{ marginTop: '8px', marginBottom: '16px', color: 'var(--gray-1)' }}>
+                You already have seller access. Go to your dashboard to manage products, view sales, and more.
+              </p>
+              <Link href="/seller/dashboard" className="btn btn-primary btn-lg">
+                <i className="fas fa-store"></i> Go to Seller Dashboard
+              </Link>
+            </div>
+          )}
+          {!isSeller && !statusLoading && applicationStatus ? (
             <div
               className="card"
               style={{
