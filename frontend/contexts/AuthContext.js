@@ -74,11 +74,25 @@ export function SessionProvider({ children }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'TOKEN_REFRESHED') {
+      // Token silently refreshed in background — just swap the token, no UI flash
+      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         setSession(session);
         return;
       }
 
+      // Tab regained focus and Supabase re-validated the same session — refresh
+      // profile silently in the background so the page never goes blank.
+      if (event === 'SIGNED_IN') {
+        setSession(session);
+        if (session) {
+          loadProfile().then((profile) => {
+            if (profile) setDbProfile((prev) => mergeProfile(prev, profile, session.user.id));
+          });
+        }
+        return;
+      }
+
+      // SIGNED_OUT or any other event — full reset
       setSession(session);
 
       if (!session) {
