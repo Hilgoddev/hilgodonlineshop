@@ -142,7 +142,7 @@ export default function Checkout() {
   return (
     <Layout 
       title="Checkout — Hilgod Online Store"
-      description="Secure checkout. Pay with Paystack or cash on delivery."
+      description="Secure checkout. Pay with Paystack, Stripe, OPay, Visa, Mastercard or cash on delivery."
     >
       <nav className="breadcrumb">
         <Link href="/">Home</Link>
@@ -167,7 +167,7 @@ export default function Checkout() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-          {['Paystack', 'Visa', 'MC'].map(logo => (
+          {['Paystack', 'Stripe', 'Visa', 'MC', 'OPay'].map(logo => (
             <div key={logo} style={{
               background: 'rgba(255,255,255,.12)', borderRadius: 'var(--radius-sm)',
               padding: '4px 10px', fontSize: '.72rem', fontWeight: '700', color: 'rgba(255,255,255,.8)'
@@ -267,8 +267,11 @@ export default function Checkout() {
               <h3><i className="fas fa-credit-card" style={{ color: 'var(--primary)' }}></i> Payment Method</h3>
               <div className="payment-methods">
                 {[
-                  { id: 'paystack', label: 'Paystack', desc: 'Card, Bank Transfer & USSD via Paystack', color: '#0ba4db' },
-                  { id: 'pod', label: 'CASH', desc: 'Pay on Delivery (cash to rider)', color: 'var(--success)' },
+                  { id: 'paystack', label: 'Paystack', desc: 'Card & Bank Transfer via Paystack', color: '#0ba4db' },
+                  { id: 'stripe', label: 'Stripe', desc: 'Credit/Debit Card via Stripe', color: '#6772e5' },
+                  { id: 'opay', label: 'OPay', desc: 'OPay Wallet & Transfer', color: '#1dcf5f' },
+                  { id: 'card', label: 'VISA / MC', desc: 'Visa / Mastercard Direct', color: '#1a1f71' },
+                  { id: 'pod', label: 'CASH', desc: 'Pay on Delivery', color: 'var(--success)' },
                 ].map(pm => (
                   <label 
                     key={pm.id}
