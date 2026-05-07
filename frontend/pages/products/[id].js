@@ -5,7 +5,6 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { HILGOD_PRODUCTS } from '@/lib/products-data';
 
 export default function ProductDetail({ product, relatedProducts }) {
   const router = useRouter();
@@ -509,113 +508,9 @@ export async function getServerSideProps({ params }) {
       };
     }
     
-    // If API fails, try to find product in fallback data
-    console.log('Product not found in API, checking fallback data');
-    const productId = parseInt(params.id);
-    const fallbackProduct = HILGOD_PRODUCTS.find(p => p.id === productId);
-    
-    if (fallbackProduct) {
-      const formattedProduct = {
-        _id: fallbackProduct.id.toString(),
-        name: fallbackProduct.name,
-        brand: fallbackProduct.brand,
-        description: fallbackProduct.description,
-        price: fallbackProduct.price,
-        originalPrice: fallbackProduct.originalPrice,
-        images: [fallbackProduct.image],
-        category: fallbackProduct.category,
-        subcategory: fallbackProduct.subcategory,
-        stock: fallbackProduct.inStock ? 100 : 0,
-        ratings: { average: fallbackProduct.rating, count: fallbackProduct.reviews },
-        badge: fallbackProduct.badge,
-        createdAt: new Date().toISOString()
-      };
-      
-      // Get related products from same category
-      const relatedFromFallback = HILGOD_PRODUCTS
-        .filter(p => p.category === fallbackProduct.category && p.id !== productId)
-        .slice(0, 3)
-        .map(p => ({
-          _id: p.id.toString(),
-          name: p.name,
-          brand: p.brand,
-          description: p.description,
-          price: p.price,
-          originalPrice: p.originalPrice,
-          images: [p.image],
-          category: p.category,
-          subcategory: p.subcategory,
-          stock: p.inStock ? 100 : 0,
-          ratings: { average: p.rating, count: p.reviews },
-          badge: p.badge,
-          createdAt: new Date().toISOString()
-        }));
-      
-      return {
-        props: {
-          product: formattedProduct,
-          relatedProducts: relatedFromFallback,
-        },
-      };
-    }
-    
-    // Product not found anywhere
-    return { props: { product: null, relatedProducts: [] } };
+    return { notFound: true };
   } catch (error) {
-    console.error('Error fetching product, trying fallback:', error);
-    
-    // Try fallback on error
-    try {
-      const productId = parseInt(params.id);
-      const fallbackProduct = HILGOD_PRODUCTS.find(p => p.id === productId);
-      
-      if (fallbackProduct) {
-        const formattedProduct = {
-          _id: fallbackProduct.id.toString(),
-          name: fallbackProduct.name,
-          brand: fallbackProduct.brand,
-          description: fallbackProduct.description,
-          price: fallbackProduct.price,
-          originalPrice: fallbackProduct.originalPrice,
-          images: [fallbackProduct.image],
-          category: fallbackProduct.category,
-          subcategory: fallbackProduct.subcategory,
-          stock: fallbackProduct.inStock ? 100 : 0,
-          ratings: { average: fallbackProduct.rating, count: fallbackProduct.reviews },
-          badge: fallbackProduct.badge,
-          createdAt: new Date().toISOString()
-        };
-        
-        const relatedFromFallback = HILGOD_PRODUCTS
-          .filter(p => p.category === fallbackProduct.category && p.id !== productId)
-          .slice(0, 3)
-          .map(p => ({
-            _id: p.id.toString(),
-            name: p.name,
-            brand: p.brand,
-            description: p.description,
-            price: p.price,
-            originalPrice: p.originalPrice,
-            images: [p.image],
-            category: p.category,
-            subcategory: p.subcategory,
-            stock: p.inStock ? 100 : 0,
-            ratings: { average: p.rating, count: p.reviews },
-            badge: p.badge,
-            createdAt: new Date().toISOString()
-          }));
-        
-        return {
-          props: {
-            product: formattedProduct,
-            relatedProducts: relatedFromFallback,
-          },
-        };
-      }
-    } catch (fallbackError) {
-      console.error('Fallback also failed:', fallbackError);
-    }
-    
+    console.error('Error fetching product:', error);
     return { props: { product: null, relatedProducts: [] } };
   }
 }

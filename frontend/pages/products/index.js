@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
-import { HILGOD_PRODUCTS } from '@/lib/products-data';
 
 export default function ProductsPage({ initialProducts, initialPagination, categories }) {
   const router = useRouter();
@@ -415,96 +414,19 @@ export async function getServerSideProps({ query }) {
     const res = await fetch(`${baseUrl}/api/products?${params.toString()}`);
     const data = await res.json();
     
-    if (data.success && data.data && data.data.length > 0) {
-      return {
-        props: {
-          initialProducts: data.data,
-          initialPagination: data.pagination,
-          categories: []
-        },
-      };
-    }
-    
-    // If API fails or returns no data, use fallback
-    console.log('Using fallback product data for products page');
-    let filteredProducts = [...HILGOD_PRODUCTS];
-    
-    if (category) {
-      filteredProducts = filteredProducts.filter(p => p.category === category);
-    }
-    
-    const pageNum = parseInt(page);
-    const limit = 20;
-    const skip = (pageNum - 1) * limit;
-    const paginatedProducts = filteredProducts.slice(skip, skip + limit);
-    
-    const formattedProducts = paginatedProducts.map(p => ({
-      _id: p.id.toString(),
-      name: p.name,
-      brand: p.brand,
-      description: p.description,
-      price: p.price,
-      originalPrice: p.originalPrice,
-      images: [p.image],
-      category: p.category,
-      subcategory: p.subcategory,
-      stock: p.inStock ? 100 : 0,
-      ratings: { average: p.rating, count: p.reviews },
-      badge: p.badge,
-      createdAt: new Date().toISOString()
-    }));
-    
     return {
       props: {
-        initialProducts: formattedProducts,
-        initialPagination: {
-          total: filteredProducts.length,
-          page: pageNum,
-          pages: Math.ceil(filteredProducts.length / limit)
-        },
+        initialProducts: data.success ? (data.data || []) : [],
+        initialPagination: data.pagination || { total: 0, page: 1, pages: 0 },
         categories: []
       },
     };
   } catch (error) {
-    console.error('Error fetching products, using fallback:', error);
-    
-    // Use fallback data on error
-    const { category, page = 1 } = query;
-    let filteredProducts = [...HILGOD_PRODUCTS];
-    
-    if (category) {
-      filteredProducts = filteredProducts.filter(p => p.category === category);
-    }
-    
-    const pageNum = parseInt(page);
-    const limit = 20;
-    const skip = (pageNum - 1) * limit;
-    const paginatedProducts = filteredProducts.slice(skip, skip + limit);
-    
-    const formattedProducts = paginatedProducts.map(p => ({
-      _id: p.id.toString(),
-      name: p.name,
-      brand: p.brand,
-      description: p.description,
-      price: p.price,
-      originalPrice: p.originalPrice,
-      images: [p.image],
-      category: p.category,
-      subcategory: p.subcategory,
-      stock: p.inStock ? 100 : 0,
-      ratings: { average: p.rating, count: p.reviews },
-      badge: p.badge,
-      createdAt: new Date().toISOString()
-    }));
-    
+    console.error('Error fetching products:', error);
     return {
       props: {
-        initialProducts: formattedProducts,
-        initialPagination: {
-          total: filteredProducts.length,
-          page: pageNum,
-          pages: Math.ceil(filteredProducts.length / limit)
-        },
+        initialProducts: [],
+        initialPagination: { total: 0, page: 1, pages: 0 },
         categories: []
       },
     };

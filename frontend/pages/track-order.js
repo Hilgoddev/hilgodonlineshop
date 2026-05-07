@@ -1,27 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
+import { apiFetch } from '@/lib/apiClient';
+import { useSession } from '@/contexts/AuthContext';
 
 export default function TrackOrder() {
   const [orderId, setOrderId] = useState('');
   const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { data: session, status } = useSession();
 
   const trackOrder = async () => {
     if (!orderId.trim()) {
       setError('Please enter an order ID');
       return;
     }
+    if (status !== 'authenticated') {
+      setError('Please log in to track your order.');
+      return;
+    }
 
     setLoading(true);
     setError('');
-    
+
     try {
-      // Extract just the ID part if it has a prefix like HGD-
       const cleanOrderId = orderId.replace(/^HGD-/, '');
-      
-      const res = await fetch(`/api/orders/${cleanOrderId}`);
+
+      const res = await apiFetch(`/api/orders/${cleanOrderId}`);
       const data = await res.json();
       
       if (data.success) {

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
-import { HILGOD_PRODUCTS } from '@/lib/products-data';
 
 export default function Home({ products, categories = [] }) {
   const [flashProducts, setFlashProducts] = useState([]);
@@ -547,25 +546,8 @@ export async function getServerSideProps() {
     let products = [];
     let categories = [];
 
-    if (prodData.success && prodData.data && prodData.data.length > 0) {
+    if (prodData.success && prodData.data) {
       products = prodData.data;
-    } else {
-      console.log('Using fallback product data');
-      products = HILGOD_PRODUCTS.map(p => ({
-        _id: p.id.toString(),
-        name: p.name,
-        brand: p.brand,
-        description: p.description,
-        price: p.price,
-        originalPrice: p.originalPrice,
-        images: [p.image],
-        category: p.category,
-        subcategory: p.subcategory,
-        stock: p.inStock ? 100 : 0,
-        ratings: { average: p.rating, count: p.reviews },
-        badge: p.badge,
-        createdAt: new Date().toISOString()
-      }));
     }
 
     if (catData.success && catData.data && catData.data.length > 0) {
