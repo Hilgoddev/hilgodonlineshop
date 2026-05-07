@@ -1,7 +1,7 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-07  
+**Report Date:** 2026-05-07 (Updated)  
 **Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack  
 **Hosting:** Render (two live Web Services — auto-deploy on push to `main`)  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
@@ -18,130 +18,147 @@
 
 ---
 
-## Overall Completion: **~80%**
+## Overall Completion: **~88%**
 
-Core infrastructure is fully live and deployable. The remaining 20% consists of email notifications, file-based image upload, three security fixes that must be done before public launch, and the client's own third-party account provisioning.
+All security vulnerabilities fixed. Platform is now fully dynamic (no static fallback data). Test accounts seeded with 40 real products. Remaining work is email notifications, image upload UI, password reset page, and delivery calculation.
 
 ---
 
 ## Part 1 — What Has Been Done
 
-### 1.1 Critical Bug Fixes
-
-These three bugs were present from before this session. Without them, the platform could not function at all.
+### 1.1 Critical Bug Fixes (Previous Session)
 
 | Bug | Symptom | Fix Applied |
 |---|---|---|
-| **Backend crash on startup** | Server refused to start; Express 5 threw `TypeError: Route.post() requires a callback` | Added missing `paymentInitLimiter` export to `backend/src/middleware/rateLimit.js` |
-| **All API calls silently returned `undefined`** | Every button click and page load silently failed with no visible error | Removed broken `lodash.debounce` wrapper from `frontend/lib/apiClient.js` — lodash was not installed and debounce wraps return `undefined`, not a Promise |
-| **`paystack-api` package not declared** | Backend crashed when payment routes loaded in production | Added `"paystack-api": "^2.0.2"` to `backend/package.json` |
+| **Backend crash on startup** | Express 5 threw `TypeError: Route.post() requires a callback` | Added missing `paymentInitLimiter` export to `rateLimit.js` |
+| **All API calls silently returned `undefined`** | Every button click and page load silently failed | Removed broken `lodash.debounce` wrapper from `apiClient.js` |
+| **`paystack-api` package not declared** | Backend crashed when payment routes loaded in production | Added to `backend/package.json` |
 
 ---
 
-### 1.2 Hosting Fixed (Render)
+### 1.2 Critical Bug Fixes (This Session)
 
-The platform was deployed incorrectly across multiple dimensions.
+| Bug | Root Cause | Fix Applied |
+|---|---|---|
+| **Backend 502 — all API calls failing** | `reviews.js` used `verifyToken` middleware without importing it — `ReferenceError` crashed Express on startup | Added `const { verifyToken } = require('./auth')` to `reviews.js` |
+| **Add to Cart silently fails** | `cart_items` has a UNIQUE constraint on `(user_id, product_id)` but the upsert had no `onConflict` — every add for an existing item threw a duplicate key error | Added `{ onConflict: 'user_id,product_id' }` to the upsert in `cart.js` |
+| **Supabase profiles query returning 500** | `"Admins can view all profiles"` RLS policy did `EXISTS (SELECT 1 FROM profiles WHERE role='admin')` — self-referential subquery caused infinite recursion in PostgreSQL | Dropped the recursive policy via migration; backend uses `service_role` which bypasses RLS |
+| **Google sign-in does not populate profile name/avatar** | `handle_new_user` trigger read `full_name` and `avatar_url` from user metadata, but Google OAuth sends `name` and `picture` | Updated trigger to `COALESCE(full_name, name)` and `COALESCE(avatar_url, picture)`; also added `picture` fallback in `sync-profile` endpoint |
+
+---
+
+### 1.3 Security Fixes — All Completed
+
+All four vulnerabilities identified in the original security review have been resolved:
+
+| Vulnerability | File | Fix Applied |
+|---|---|---|
+| **Unauthenticated order lookup** | `orders.js:254` | Added `verifyToken` + ownership check; admins can view all, users only their own |
+| **Reviews with no auth guard** | `reviews.js:24` | Added `verifyToken`; `user_name` and `user_email` now sourced from verified profile, not request body |
+| **Profiles RLS too permissive** | Supabase DB | Dropped public read policy; users can only read their own profile row |
+| **Seller dashboard loads all platform order_items** | `seller.js:88` | Refactored to first get seller's product IDs, then filter `order_items` at DB level |
+
+---
+
+### 1.4 Platform Made Fully Dynamic
+
+All pages previously fell back to a hardcoded `HILGOD_PRODUCTS` array when the API was unavailable. This has been removed entirely:
+
+| Page | Change |
+|---|---|
+| `pages/index.js` | Removed `HILGOD_PRODUCTS` import; on API failure returns empty products (no fake data) |
+| `pages/products/index.js` | Same — returns empty initial state; client-side `fetchProducts` handles retry |
+| `pages/products/[id].js` | Returns `notFound: true` when product ID doesn't match any DB record (proper 404) |
+| `pages/track-order.js` | Wired to authenticated backend using `apiFetch`; shows "please log in" prompt for guests |
+
+---
+
+### 1.5 Test Accounts Set Up
+
+| Account | Email | Role | Password |
+|---|---|---|---|
+| **Admin** | hilgoddev@gmail.com | `admin` | `HilgodAdmin2025!` |
+| **Seller** | linuxrate@gmail.com | `seller` (approved) | `HilgodSeller2025!` |
+
+The seller account has:
+- Approved seller application (reviewed by the admin account)
+- A store: **TechMart NG** (slug: `techmart-ng`)
+- **40 products** seeded across all categories (electronics, beauty, womenswear, menswear, shoes, accessories, home, kitchen)
+
+> **Important:** Change these passwords before any public or client demo.
+
+---
+
+### 1.6 Hosting Fixed (Previous Session)
 
 | Issue | Before | After |
 |---|---|---|
-| **Frontend service type** | Static Site — Next.js with SSR cannot run as a static site | Rebuilt as Node.js Web Service |
-| **Backend start command** | `npm run dev` (node --watch — development mode) | `node src/index.js` (production) |
-| **Frontend build command** | `npm install && npm run build` — skipped devDependencies in production | `npm install --include=dev && npm run build` |
-| **`NEXT_PUBLIC_API_URL`** | `http://localhost:5000/api` — all API calls went to a server that doesn't exist on Render | `https://hilgodonlineshop.onrender.com/api` |
-| **`FRONTEND_URL` on backend** | Old broken static site URL | `https://hilgod-frontend.onrender.com` |
-| **Supabase anon key on Render** | One-character typo (`mmrq...` instead of `nmrq...`) — every Supabase call returned HTTP 401 | Corrected to the real anon key |
-| **Old broken static site** | `HilgodOnlineShopfront` was still running, causing confusion | Deleted from Render |
+| Frontend service type | Static Site (SSR cannot run as static) | Node.js Web Service |
+| Backend start command | `npm run dev` (development mode) | `node src/index.js` (production) |
+| Frontend build command | Skipped devDependencies | `npm install --include=dev && npm run build` |
+| `NEXT_PUBLIC_API_URL` | `localhost:5000` | `https://hilgodonlineshop.onrender.com/api` |
+| Supabase anon key | One-character typo causing 401 | Corrected |
 
 ---
 
-### 1.3 Authentication Fixed
+### 1.7 Authentication Fixed (Previous Session)
 
 | Issue | Fix |
 |---|---|
-| Signup redirected immediately to login before email was confirmed — login returned HTTP 400 | Signup now detects whether a session was returned; if not, shows an email verification modal instead of redirecting |
-| Email verification blocking all test signups | Added `POST /api/auth/auto-confirm` endpoint controlled by `EMAIL_VERIFICATION_ENABLED` env flag; when `false`, users are confirmed and signed in immediately after signup |
-| `hilgoddev@gmail.com` account locked out (email unconfirmed) | Confirmed via Supabase Admin API |
-| Google "G" logo blocked by OpaqueResponseBlocking | Replaced Wikipedia CDN reference with locally-served `/google-logo.svg` |
-| Favicon returning 404 | Created `favicon.svg` and `_document.js` to inject it into `<head>` |
-| Stale Vite service worker spamming 404 requests | Created `public/dev-sw.js` self-destructing service worker to clear the stale SW |
-
----
-
-### 1.4 Database
-
-| Action | Detail |
-|---|---|
-| Schema verified complete | All 11 required tables present and accessible |
-| 8 categories seeded | Electronics, Fashion, Home & Living, Beauty & Health, Sports & Fitness, Books & Stationery, Food & Groceries, Phones & Tablets |
-| Supabase MCP configured | `.mcp.json` added to project root for future DB access from Claude Code |
-| Next.js image domains updated | Added `**.supabase.co`, `images.unsplash.com`, `upload.wikimedia.org` to `next.config.js` allowed hostnames |
+| Signup returned 400 before email confirmed | Auto-confirm endpoint controlled by `EMAIL_VERIFICATION_ENABLED` env flag |
+| Google login blocked (OpaqueResponseBlocking) | Google logo served locally (`/public/google-logo.svg`) |
+| Favicon returning 404 | Created `favicon.svg` and `_document.js` |
+| Stale Vite service worker 404s | Self-destructing service worker at `/public/dev-sw.js` |
 
 ---
 
 ## Part 2 — What Is Working Right Now (Live)
 
 ### Authentication
-- Email/password signup — creates account and immediately signs user in (email verification bypassed)
-- Email/password login — confirmed working
-- Google OAuth — configured and functional (requires redirect URI updated in Google Console for production domain)
-- JWT token issued by Supabase, verified on every protected backend route
-- Automatic profile creation on first login via Supabase trigger
-- Role-based login redirect: `admin` → `/admin`, `seller` → `/seller/dashboard`, `customer` → `/account`
+- Email/password signup with auto-confirm (email verification bypassed during dev)
+- Email/password login
+- Google OAuth (configured; production redirect URI must be added — see Part 4)
+- JWT token verified on every protected backend route
+- Profile created automatically on signup via DB trigger (now correctly reads Google metadata)
+- Role-based redirect: `admin` → `/admin`, `seller` → `/seller/dashboard`, `customer` → `/account`
 
 ### Product Catalog
-- Browse all approved products with search, category filter, and pagination
-- Single product detail page
-- Admin approve/reject products — only `status=approved` and `is_active=true` products appear publicly
-- Sellers can create, edit, and soft-delete their own products
+- All 40 seeded products live in the DB and loading dynamically from the API
+- Search, category filter, pagination
+- Single product detail page with related products
+- Admin approve/reject products — only `approved + is_active` products appear publicly
 
 ### Shopping Cart
+- **Fixed this session** — add to cart now correctly updates quantity for duplicate items
 - Persistent server-side cart (survives browser close and device switch)
-- Add, update quantity, remove individual items, clear cart
-- Cart linked to authenticated user session
+- Guest cart saved in `localStorage`, merged to server on login
 
 ### Wishlist
-- Add/remove products to wishlist
-- Persisted server-side per user
+- Add/remove, persisted server-side per user
 
 ### Order Placement
-- Server-side price validation — client-submitted prices checked against database; tampering rejected with `400 Price mismatch detected`
-- Stock validation at order time — insufficient stock rejected with `409 Conflict`
-- Aggregated duplicate item lines
-- Order auto-marked `processing` for pay-on-delivery, `pending` for Paystack
+- Server-side price validation (tamper-proof)
+- Stock validation
+- Pay-on-delivery auto-marked `processing`
+
+### Track Order
+- **Now wired** — users can enter their order ID and see full status, items, and progress timeline
+- Requires login (shows prompt if not authenticated)
 
 ### Payment — Paystack
-- Payment initialization route computes amount server-side from the order record — client-submitted amount used only as a tamper signal
-- Webhook endpoint at `POST /api/payment/webhook`
-- HMAC-SHA512 signature verification with timing-safe comparison
-- Idempotent event processing via unique `event_key` in `payment_events` table — duplicate webhooks safely ignored
-- `charge.success` event automatically marks order `paid` and clears the user's cart
-- **Payment is code-complete but non-functional — Paystack secret key is a placeholder (see Part 4)**
+- Code-complete, HMAC-signed webhook, idempotent processing
+- **Non-functional until real secret key is set** (see Part 4)
 
-### Admin Dashboard (`/admin`)
-- Live platform stats: total products, orders, customers, revenue, pending approval count
-- Low stock alerts (products with fewer than 10 units)
-- Recent orders list with user attribution
-- Customer list with order count and total spend per user
-- Product management with approve/reject/status controls
-- Order management with full status lifecycle: `pending → processing → shipped → delivered → cancelled`
-- Seller application review (approve/reject with admin notes)
-- Store approval workflow
-- Category management (create, edit, delete)
-- Role management (promote/demote users)
+### Admin Dashboard
+- Platform stats, low stock alerts, recent orders
+- Customer list, order management (full lifecycle)
+- Product approvals, seller application review, store approvals
+- Category management, role management
 
-### Seller Flow
-- Seller application submission form at `/seller-zone`
-- Application status tracking (pending/approved/rejected)
-- Seller dashboard with metrics: product count, total sales revenue, total units sold
-- Store creation and profile management
-- Product listing and management per seller
-
-### Infrastructure
-- Both Render services live and auto-deploying on every push to `main`
-- Rate limiting: general (100 req/15 min), admin (50 req/15 min), payment init (10 req/hour)
-- Helmet security headers on all responses
-- CORS locked to `FRONTEND_URL` environment variable
-- Morgan request logging in production
+### Seller Dashboard
+- Seller metrics (products, total sales, total units)
+- Seller's own products listed and manageable
+- All data scoped to the authenticated seller — no cross-seller data leaks
 
 ---
 
@@ -151,28 +168,22 @@ The platform was deployed incorrectly across multiple dimensions.
 
 | Feature | Current State | Impact |
 |---|---|---|
-| **Email notifications** | Only `console.log` stubs in code — no emails sent for order status changes, seller approvals, or product approvals | Sellers and customers receive no communication after actions |
-| **Image upload** | Products, stores, and avatars store URL strings only — there is no file upload UI or storage integration | Sellers cannot upload product photos; they must provide external image URLs manually |
-| **Shipping/delivery calculation** | Page exists at `/delivery` — no calculation logic, no carrier integration | Customers see no shipping cost estimate; orders cannot account for delivery fees |
-| **Multi-currency** | `CurrencyContext` exists and currency selector is present — all prices are served in NGN only | International customers see NGN amounts regardless of selection |
+| **Email notifications** | `console.log` stubs only — no emails sent | Users and sellers receive no communication after orders, approvals, or status changes |
+| **Image upload** | Products store URL strings only — no file upload UI | Sellers must provide external image URLs manually |
+| **Password reset page** | Supabase sends reset email but opens generic Supabase page | Poor UX — no branded or custom reset UI |
+| **Delivery / shipping calculation** | Static `/delivery` page — no logic | No shipping cost estimate or carrier integration |
+| **Multi-currency** | Context exists but all prices are NGN only | International pricing not functional |
 
 ### 3.2 Partially Implemented
 
 | Feature | What Works | What's Missing |
 |---|---|---|
-| **Track Order page** | Frontend page at `/track-order` renders | Not wired to authenticated backend — cannot actually fetch order data |
-| **Seller Products page** | Page at `/seller/products` renders | Missing some UI interactions; create/edit product flow needs full testing |
-| **Product Reviews** | Reviews can be submitted and displayed | No authentication guard — any anonymous user can post reviews under any name/email |
-| **Password Reset** | Supabase sends reset email via its default template | No custom reset UI — user is taken to Supabase's generic page |
+| **Seller Products page** | Page renders with seller's own products | Create/edit product flow needs full UI testing |
+| **Product Reviews** | Fetch + display works; authenticated submission works | No "verified purchase" badge; no rating aggregation update |
 
-### 3.3 Security Issues (Must Fix Before Public Launch)
+### 3.3 Leaked Password Protection
 
-| Issue | File | Risk | Fix Required |
-|---|---|---|---|
-| **Unauthenticated order lookup** | `backend/src/routes/orders.js` line 254 | `GET /api/orders/:id` has no `verifyToken` middleware — any person who knows or guesses an order UUID can read full order details including shipping address | Add `verifyToken` middleware and ownership check |
-| **Reviews have no auth guard** | `backend/src/routes/reviews.js` line 24 | `POST /api/reviews` accepts any name and email — anyone can impersonate any user in reviews | Add `verifyToken`; bind review to `req.user.id` |
-| **Profiles RLS too permissive** | `backend/supabase/schema.sql` line 133 | `"Public profiles are viewable by everyone"` — all user PII (full name, phone, address, role) is readable by anyone who sends a request with the anon key | Replace with a policy that exposes only non-sensitive fields publicly; restrict PII to the account owner |
-| **Seller dashboard loads all platform order_items** | `backend/src/routes/seller.js` line 88–90 | Fetches up to 5,000 `order_items` from the entire platform into Node.js memory, then filters by seller — leaks revenue data of other sellers during the filter window | Push the `seller_id` filter to the database query level |
+> **Client Note:** Supabase's HaveIBeenPwned.org integration (which blocks users from setting compromised passwords) is only available on **Supabase Pro Plan** and above. The current project runs on the free tier. The client must upgrade their Supabase project to Pro Plan to enable this feature after handover.
 
 ---
 
@@ -182,26 +193,24 @@ The platform was deployed incorrectly across multiple dimensions.
 
 | Key | Service | Current Status | What Breaks Without It |
 |---|---|---|---|
-| `PAYSTACK_SECRET_KEY` | Paystack | **Placeholder: `your-paystack-secret-key`** | Payment initialization returns 500 error; no payments can be accepted |
+| `PAYSTACK_SECRET_KEY` | Paystack | **Placeholder: `your-paystack-secret-key`** | Payment initialization returns 500; no payments accepted |
 
 ### 4.2 Required for Full Feature Set
 
-| Key / Setting | Service | Status | Where to Get It |
-|---|---|---|---|
-| **Supabase Auth Site URL** | Supabase Dashboard | Not updated — still points to `localhost` | Supabase Dashboard → Authentication → URL Configuration → set Site URL to `https://hilgod-frontend.onrender.com` |
-| **Supabase Auth Redirect URL** | Supabase Dashboard | Not added | Same screen — add `https://hilgod-frontend.onrender.com/auth/login` to Redirect URLs |
-| **Google OAuth redirect URI** | Google Cloud Console | Not updated for production | Google Cloud Console → OAuth Client → Authorized redirect URIs → add `https://nmrqdzikceakkhfhflja.supabase.co/auth/v1/callback` |
-| **Paystack Webhook URL** | Paystack Dashboard | Not configured | Paystack Dashboard → Settings → Webhooks → add `https://hilgodonlineshop.onrender.com/api/payment/webhook` with event `charge.success` |
+| Key / Setting | Service | Status |
+|---|---|---|
+| **Supabase Auth Site URL** | Supabase Dashboard | Must be set to `https://hilgod-frontend.onrender.com` |
+| **Google OAuth redirect URI** | Google Cloud Console | Must add `https://nmrqdzikceakkhfhflja.supabase.co/auth/v1/callback` |
+| **Paystack Webhook URL** | Paystack Dashboard | Must add `https://hilgodonlineshop.onrender.com/api/payment/webhook` |
 
 ### 4.3 Needed When Adding Future Features
 
-| Feature | Service | Key(s) Needed | Cost |
-|---|---|---|---|
-| Email notifications | Resend (recommended) | `RESEND_API_KEY` | Free up to 3,000 emails/month |
-| File-based image upload | Supabase Storage (already provisioned) | Uses existing `SUPABASE_SERVICE_ROLE_KEY` | Included in Supabase plan |
-| Alternative image CDN | Cloudinary | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Free tier: 25GB storage |
+| Feature | Service | Key(s) Needed |
+|---|---|---|
+| Email notifications | Resend | `RESEND_API_KEY` (free up to 3,000/month) |
+| Image upload | Supabase Storage | Uses existing `SUPABASE_SERVICE_ROLE_KEY` |
 
-### 4.4 Currently Active (Developer's Accounts — Must Be Rotated at Handover)
+### 4.4 Currently Active (Developer's Accounts — Rotate at Handover)
 
 | Key | Service | Location |
 |---|---|---|
@@ -209,150 +218,170 @@ The platform was deployed incorrectly across multiple dimensions.
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Backend Render env + `backend/.env` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase | Frontend Render env + `frontend/.env.local` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Frontend Render env + `frontend/.env.local` |
-| `GOOGLE_CLIENT_ID` | Google Cloud (developer's project) | Both services Render env |
+| `GOOGLE_CLIENT_ID` | Google Cloud | Both services Render env |
 | `GOOGLE_CLIENT_SECRET` | Google Cloud | Backend Render env |
 
 ---
 
 ## Part 5 — Required Client Actions Before Handover
 
-These are actions only the client can perform — they require creating their own accounts.
+### Step 1 — Supabase
+- [ ] Create account at https://supabase.com → new project
+- [ ] Run full `backend/supabase/schema.sql` in SQL Editor
+- [ ] Collect `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- [ ] Set Site URL and Redirect URL in Authentication → URL Configuration
+- [ ] Upgrade to **Pro Plan** to enable leaked password protection via HaveIBeenPwned
 
-### Step 1 — Supabase (Database + Auth)
+### Step 2 — Paystack
+- [ ] Register + complete KYC at https://paystack.com
+- [ ] Collect live secret key → set `PAYSTACK_SECRET_KEY` on Render backend
+- [ ] Add webhook URL in Paystack dashboard (see Part 4)
 
-The platform currently runs on the developer's personal Supabase project. The client must set up their own.
-
-- [ ] Create account at https://supabase.com
-- [ ] Create new project (recommended region: `eu-west-2` for Nigeria proximity)
-- [ ] Open SQL Editor and run the full `backend/supabase/schema.sql` file once
-- [ ] Collect from **Project Settings → API**:
-  - `SUPABASE_URL` → Project URL
-  - `SUPABASE_SERVICE_ROLE_KEY` → service_role key (never expose publicly)
-  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → anon/public key
-- [ ] Go to **Authentication → URL Configuration**:
-  - Set **Site URL** to `https://hilgod-frontend.onrender.com`
-  - Add **Redirect URL**: `https://hilgod-frontend.onrender.com/auth/login`
-- [ ] Update all Supabase env vars on Render backend and frontend, then redeploy both services
-
-### Step 2 — Paystack (Payments)
-
-- [ ] Register at https://paystack.com (free for Nigerian businesses)
-- [ ] Complete KYC/business verification to unlock live NGN transactions
-- [ ] Collect live secret key from **Settings → API Keys → Live Secret Key** (`sk_live_...`)
-- [ ] Replace `PAYSTACK_SECRET_KEY` on Render backend — remove placeholder `your-paystack-secret-key`
-- [ ] Configure webhook: **Settings → API Keys & Webhooks → Webhooks**
-  - URL: `https://hilgodonlineshop.onrender.com/api/payment/webhook`
-  - Events: enable `charge.success`
-
-### Step 3 — Google OAuth (Google Login)
-
-- [ ] Go to https://console.cloud.google.com
-- [ ] Open the existing OAuth 2.0 Client ID (or create a new Web Application one)
-- [ ] Under **Authorized redirect URIs** add: `https://[CLIENT-SUPABASE-PROJECT-REF].supabase.co/auth/v1/callback`
-- [ ] In Supabase Dashboard → **Authentication → Providers → Google**: enter Client ID and Secret
-- [ ] Update `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` on Render backend
+### Step 3 — Google OAuth
+- [ ] Add production callback URI in Google Cloud Console
+- [ ] Update `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to client's own credentials
 
 ### Step 4 — First Admin Account
+- [ ] Sign up on the live platform → set `role = 'admin'` in Supabase Table Editor → profiles
 
-- [ ] Sign up on the live platform
-- [ ] In Supabase Dashboard → **Table Editor → profiles** → find your row → set `role` to `admin`
-- [ ] Return to the platform — `/admin` is now accessible
-
-### Step 5 — Re-enable Email Verification (After SMTP is Set Up)
-
-- [ ] Set up email provider in Supabase → **Authentication → SMTP Settings** (or use Resend integration)
-- [ ] Change `EMAIL_VERIFICATION_ENABLED` from `false` → `true` on Render backend → manual redeploy
+### Step 5 — Enable Email Verification
+- [ ] Configure SMTP in Supabase → set `EMAIL_VERIFICATION_ENABLED=true` on Render backend
 
 ---
 
 ## Part 6 — Remaining Development Work
 
-### High Priority (Required Before Public Launch)
+### High Priority
 
 | Task | File(s) | Estimated Effort |
 |---|---|---|
-| Fix unauthenticated `GET /api/orders/:id` — add `verifyToken` + ownership check | `backend/src/routes/orders.js:254` | 1 hour |
-| Fix profiles RLS — restrict PII to account owner | Supabase Dashboard or schema migration | 1 hour |
-| Fix reviews — add `verifyToken`, bind to authenticated user | `backend/src/routes/reviews.js:24` | 2 hours |
-| Fix seller dashboard — push `seller_id` filter to DB | `backend/src/routes/seller.js:88` | 1 hour |
-| Email notifications — integrate Resend (order paid, seller approved, product approved) | New `backend/src/services/email.js` + update routes | 1–2 days |
+| Email notifications (order placed, paid, shipped, seller approved) | New `backend/src/services/email.js` + update routes | 2–3 days |
+| Image upload — Supabase Storage for products, stores, avatars | New upload endpoint + frontend file picker | 2 days |
+| Password reset — custom branded page | `frontend/pages/auth/forgot-password.js` | 1 day |
 
-### Medium Priority (Ship With First Update)
+### Medium Priority
 
 | Task | File(s) | Estimated Effort |
 |---|---|---|
-| Image upload — integrate Supabase Storage for products, stores, avatars | New upload endpoint + frontend file picker | 1–2 days |
-| Wire Track Order page to authenticated backend | `frontend/pages/track-order.js` + `backend/src/routes/orders.js` | 3 hours |
-| Complete and fully test seller products UI (create/edit flow) | `frontend/pages/seller/products.js` | 4 hours |
-| Password reset — custom UI page | `frontend/pages/auth/forgot-password.js` | 1 day |
+| Fully test and polish seller create/edit product flow | `frontend/pages/seller/products.js` | 4 hours |
+| Delivery / shipping fee calculation | `/delivery` page + backend | 3–5 days |
 
-### Low Priority (Post-Launch Roadmap)
+### Low Priority (Post-Launch)
 
-| Task | Estimated Effort |
+| Task | Effort |
 |---|---|
-| Multi-currency support — convert NGN prices using exchange rate API | 3–5 days |
-| Shipping / delivery rate calculation — integrate carrier API or flat-rate config | 3–5 days |
-| Seller analytics — charts, monthly revenue trends, top products | 2–3 days |
-| Customer order tracking timeline UI | 2 days |
-| Product review system refactor — attach to `auth.uid()`, show verified purchase badge | 1 day |
+| Multi-currency (NGN → USD/GBP via exchange rate API) | 3–5 days |
+| Seller analytics charts (monthly revenue, top products) | 2–3 days |
+| "Verified purchase" badge on reviews | 1 day |
 
-**Estimated total effort to fully production-ready (high + medium priority only): 5–8 working days**
+**Estimated total to fully production-ready: 5–8 working days**
 
 ---
 
-## Part 7 — Current Database State
+## Part 7 — Unused Files (Safe to Delete)
+
+These files are remnants of the old static HTML prototype site and are entirely superseded by the Next.js app. They serve no function and add noise to the repo.
+
+### Old Static HTML Site (frontend root)
+```
+frontend/index.html
+frontend/account.html
+frontend/categories.html
+frontend/checkout.html
+frontend/delivery.html
+frontend/login.html
+frontend/product-detail.html
+frontend/products.html
+frontend/seller-zone.html
+frontend/signup.html
+frontend/track-order.html
+frontend/cart.html
+frontend/wishlist.html
+```
+
+### Old Vanilla JS (frontend/js/)
+```
+frontend/js/auth.js
+frontend/js/ui.js
+frontend/js/slider.js
+frontend/js/products-data.js
+frontend/js/wishlist.js
+frontend/js/main.js
+frontend/js/cart.js
+```
+
+### Other Unused Files
+```
+frontend/update_topbar.js          — old static site utility
+frontend/public/api-test.html      — dev test file
+frontend/lib/products-data.js      — static fallback data, now fully removed from all pages
+```
+
+### Stray Dev Directory
+```
+frontend/dev/                      — abandoned dev attempt with mongoose, next-auth, bcryptjs,
+                                     zod node_modules — entire directory can be deleted
+```
+
+> None of these are imported by any Next.js page or component. Deleting them will not break anything.
+
+---
+
+## Part 8 — Current Database State
 
 | Table | Rows | Notes |
 |---|---|---|
-| `profiles` | 3 | admin × 1, seller × 1, customer × 1 |
-| `categories` | 8 | Seeded: Electronics, Fashion, Home & Living, Beauty & Health, Sports & Fitness, Books & Stationery, Food & Groceries, Phones & Tablets |
-| `stores` | 0 | No seller stores created yet |
-| `products` | 0 | No products listed yet |
-| `orders` | 0 | No customer orders placed |
+| `profiles` | 2+ | `hilgoddev@gmail.com` (admin), `linuxrate@gmail.com` (seller) |
+| `categories` | 8 | Electronics, Fashion, Home & Living, Beauty & Health, Sports, Books, Food, Phones |
+| `stores` | 1 | TechMart NG (approved, owner: linuxrate@gmail.com) |
+| `products` | 40 | All approved, active, across all categories — seeded from site's own product data |
+| `seller_applications` | 1 | linuxrate@gmail.com → approved |
+| `orders` | 0 | No customer orders placed yet |
 | `order_items` | 0 | — |
 | `cart_items` | 0 | — |
 | `wishlist_items` | 0 | — |
-| `seller_applications` | 1 | One pending application |
 | `payment_events` | 0 | — |
 | `reviews` | 0 | — |
-| **auth.users** | **5** | All confirmed — linuxrate@gmail.com, hilgoddev@gmail.com, sediqsadia3@gmail.com, akhigbewahab354@gmail.com, akhigbeabdulwahab354@gmail.com |
+| **auth.users** | 5+ | All confirmed |
 
 ---
 
-## Part 8 — Module Completion Breakdown
+## Part 9 — Module Completion Breakdown
 
 | Module | Status | Completion |
 |---|---|---|
-| Hosting & Deployment (Render, CI/CD, env vars) | Fully live, auto-deploys on push | **95%** |
-| Authentication (signup, login, JWT, role-based redirect) | Fully working on live | **95%** |
-| Shopping Cart (add, update, remove, persist) | Working | **95%** |
-| Product Catalog (listing, search, filter, detail) | Working | **90%** |
+| Hosting & Deployment | Live, auto-deploys on push | **95%** |
+| Authentication (signup, login, JWT, Google OAuth, role redirect) | Fully working | **95%** |
+| Shopping Cart (add, update, remove, persist, merge on login) | Fixed & working | **98%** |
+| Product Catalog (listing, search, filter, detail, 40 real products) | Fully dynamic, all data from DB | **95%** |
 | Wishlist | Working | **90%** |
 | Order Placement (server-side price + stock validation) | Working | **90%** |
-| Admin Dashboard (stats, orders, customers, products) | Working | **88%** |
-| Seller Application Flow (apply, approve, reject) | Working | **85%** |
-| Categories (CRUD, admin-managed, seeded) | Working | **85%** |
-| Store Management (create, update, approval workflow) | Working | **80%** |
-| Payment — Paystack (code complete, key missing) | Code ready, key placeholder | **70%** |
-| Seller Dashboard (metrics, product management) | Working, efficiency issue in query | **72%** |
-| Product Reviews | No auth guard, partially broken | **50%** |
-| Password Reset Flow | Supabase default email only | **50%** |
-| Track Order Page | Frontend only, backend not wired | **40%** |
-| Multi-currency Support | Context exists, NGN-only in practice | **35%** |
+| Track Order Page | Now wired to authenticated backend | **85%** |
+| Admin Dashboard (stats, orders, customers, products, approvals) | Working | **88%** |
+| Seller Dashboard (metrics, product management, scoped to seller) | Working, efficient DB queries | **88%** |
+| Seller Application Flow | Working end-to-end | **90%** |
+| Store Management | Working | **82%** |
+| Categories (CRUD, seeded) | Working | **85%** |
+| Security (RLS, auth guards, price tamper protection) | All 4 vulnerabilities resolved | **95%** |
+| Payment — Paystack | Code complete, key placeholder | **70%** |
+| Product Reviews | Auth guard added, display works | **70%** |
+| Password Reset | Supabase default only, no custom UI | **50%** |
 | Email Notifications | `console.log` stubs only | **10%** |
 | Image Upload | URL strings only, no file upload | **15%** |
-| Delivery / Shipping Calculation | Static page only, no logic | **10%** |
+| Delivery / Shipping Calculation | Static page, no logic | **10%** |
+| Multi-currency | Context exists, NGN-only in practice | **35%** |
 
-### **Overall: ~80% Complete**
+### **Overall: ~88% Complete**
 
 ---
 
-## Part 9 — Architecture Overview
+## Part 10 — Architecture Overview
 
 ```
 BROWSER (Customer / Seller / Admin)
   Next.js 16 (React 19) — https://hilgod-frontend.onrender.com
   All /api/* requests proxied server-side via next.config.js rewrites
+  No hardcoded product data — all content fetched from API
          |
          | Server-to-server HTTPS (no browser CORS)
          v
@@ -367,43 +396,41 @@ RENDER — EXPRESS.JS 5 BACKEND
          | supabase-js client (service_role key — bypasses RLS)
          v
 SUPABASE POSTGRESQL — project: nmrqdzikceakkhfhflja
-  11 tables · RLS enabled on all · Triggers: auto-create profile on signup
-  Auth module: email/password + Google OAuth
+  11 tables · RLS enabled · Trigger: handle_new_user (reads Google name+picture)
+  Auth: email/password + Google OAuth
          ^
-         | HMAC-SHA512 signed webhook (POST /api/payment/webhook)
-PAYSTACK
-  Nigerian NGN payment gateway
-  Idempotent processing via payment_events table
+         | HMAC-SHA512 signed webhook
+PAYSTACK — Nigerian NGN payment gateway
 ```
 
 ---
 
-## Part 10 — Environment Variables Reference
+## Part 11 — Environment Variables Reference
 
 ### Backend (`HilgodOnlineShop` on Render)
 
 | Variable | Value / Status | Notes |
 |---|---|---|
-| `SUPABASE_URL` | Set ✓ | Developer's project — must be replaced at handover |
-| `SUPABASE_SERVICE_ROLE_KEY` | Set ✓ | Developer's project — keep secret, never expose to frontend |
-| `PAYSTACK_SECRET_KEY` | **PLACEHOLDER ✗** | Replace with `sk_live_...` from Paystack dashboard |
+| `SUPABASE_URL` | Set ✓ | Rotate at handover |
+| `SUPABASE_SERVICE_ROLE_KEY` | Set ✓ | Never expose to frontend |
+| `PAYSTACK_SECRET_KEY` | **PLACEHOLDER ✗** | Replace with `sk_live_...` |
 | `GOOGLE_CLIENT_ID` | Set ✓ | Developer's Google project |
 | `GOOGLE_CLIENT_SECRET` | Set ✓ | Developer's Google project |
-| `FRONTEND_URL` | Set ✓ (`https://hilgod-frontend.onrender.com`) | Used for CORS origin |
+| `FRONTEND_URL` | Set ✓ (`https://hilgod-frontend.onrender.com`) | CORS origin |
 | `NODE_ENV` | Set ✓ (`production`) | — |
-| `PORT` | Set ✓ (`5000`) | Render overrides this automatically |
-| `EMAIL_VERIFICATION_ENABLED` | Set ✓ (`false`) | Change to `"true"` to require email confirmation |
+| `PORT` | Set ✓ (`5000`) | Render overrides automatically |
+| `EMAIL_VERIFICATION_ENABLED` | Set ✓ (`false`) | Change to `"true"` when SMTP configured |
 
 ### Frontend (`hilgod-frontend` on Render)
 
 | Variable | Value / Status | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Set ✓ | Developer's project |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Set ✓ | Corrected (was one-character typo causing 401s) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Set ✓ | Corrected (was typo) |
 | `NEXT_PUBLIC_API_URL` | Set ✓ (`https://hilgodonlineshop.onrender.com/api`) | Backend proxy target |
-| `GOOGLE_CLIENT_ID` | Set ✓ | Used for OAuth button |
+| `GOOGLE_CLIENT_ID` | Set ✓ | OAuth button |
 | `NODE_ENV` | Set ✓ (`production`) | — |
 
 ---
 
-*This platform runs on the developer's personal Supabase and Google accounts. All credentials listed above belong to the developer and must be rotated and replaced with the client's own accounts at handover. The developer's Supabase project should remain active until the client confirms their own project is fully working.*
+*All credentials belong to the developer and must be rotated at handover. The developer's Supabase project should remain active until the client's own project is confirmed working.*
