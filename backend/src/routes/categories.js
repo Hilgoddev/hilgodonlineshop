@@ -34,15 +34,15 @@ router.get('/', async (req, res, next) => {
 // Create a new category (Admin only)
 router.post('/', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { name, slug, parent_id, is_active } = req.body;
-        
+        const { name, slug, parent_id, is_active, image_url } = req.body;
+
         if (!name || !slug) {
             return res.status(400).json({ success: false, error: 'Name and slug are required' });
         }
-        
+
         const { data, error } = await supabase
             .from('categories')
-            .insert([{ name, slug, parent_id, is_active }])
+            .insert([{ name, slug, parent_id, is_active, image_url: image_url || null }])
             .select();
             
         if (error) throw error;
@@ -55,11 +55,14 @@ router.post('/', verifyToken, requireAdmin, async (req, res, next) => {
 // Update a category (Admin only)
 router.put('/:id', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { name, slug, parent_id, is_active } = req.body;
-        
+        const { name, slug, parent_id, is_active, image_url } = req.body;
+
+        const updatePayload = { name, slug, parent_id, is_active };
+        if (image_url !== undefined) updatePayload.image_url = image_url;
+
         const { data, error } = await supabase
             .from('categories')
-            .update({ name, slug, parent_id, is_active })
+            .update(updatePayload)
             .eq('id', req.params.id)
             .select();
             

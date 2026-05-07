@@ -550,23 +550,8 @@ export async function getServerSideProps() {
       products = prodData.data;
     }
 
-    if (catData.success && catData.data && catData.data.length > 0) {
+    if (catData.success && catData.data) {
       categories = catData.data;
-    } else {
-      categories = [
-        { id: 'beauty', name: 'Beauty & Care', slug: 'beauty', image_url: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=150&q=80' },
-        { id: 'womenswear', name: 'Womenswear', slug: 'womenswear', image_url: 'https://images.unsplash.com/photo-1515347619362-7164ff244837?w=150&q=80' },
-        { id: 'menswear', name: 'Menswear', slug: 'menswear', image_url: 'https://images.unsplash.com/photo-1516257984-b1b4d707412e?w=150&q=80' },
-        { id: 'electronics', name: 'Electronics', slug: 'electronics', image_url: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=150&q=80' },
-        { id: 'accessories', name: 'Accessories', slug: 'accessories', image_url: 'https://images.unsplash.com/photo-1523206489230-c012c64b2b48?w=150&q=80' },
-        { id: 'home', name: 'Home Supplies', slug: 'home', image_url: 'https://images.unsplash.com/photo-1583847268964-b28ce8f31586?w=150&q=80' },
-        { id: 'kitchen', name: 'Kitchenware', slug: 'kitchen', image_url: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=150&q=80' },
-        { id: 'shoes', name: 'Shoes', slug: 'shoes', image_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=150&q=80' },
-        { id: 'sports', name: 'Sports', slug: 'sports', image_url: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=150&q=80' },
-        { id: 'toys', name: 'Toys', slug: 'toys', image_url: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=150&q=80' },
-        { id: 'food', name: 'Food', slug: 'food', image_url: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=150&q=80' },
-        { id: 'collectibles', name: 'Collectibles', slug: 'collectibles', image_url: 'https://images.unsplash.com/photo-1611604548018-d56bbd85d681?w=150&q=80' }
-      ];
     }
     
     return {
