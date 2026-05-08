@@ -24,6 +24,69 @@ All security vulnerabilities fixed. Platform is fully dynamic. Email notificatio
 
 ---
 
+## Module Completion Status
+
+| Module | Status | Completion |
+|---|---|---|
+| Authentication (email/password, Google OAuth, JWT) | Working | 100% |
+| Product Catalog (listing, search, filter, single product) | Working | 100% |
+| Shopping Cart (add, update, remove, persist) | Working | 100% |
+| Wishlist | Working | 100% |
+| Order Placement (server-side price + stock validation) | Working | 100% |
+| Track Order (authenticated, full timeline) | Working | 100% |
+| Payment — Paystack (initialize, HMAC webhook, idempotent) | Code complete — awaiting live key | 95% |
+| Admin Dashboard (stats, orders, customers, products) | Working | 100% |
+| Admin Analytics (platform metrics, charts, low stock) | Working | 100% |
+| Seller Application Flow (apply, admin approve/reject) | Working | 100% |
+| Seller Dashboard (metrics, product management) | Working | 100% |
+| Seller Analytics (per-product revenue, status breakdown) | Working | 100% |
+| Seller Orders (customer orders for seller's products) | Working | 100% |
+| Product Image Upload (Supabase Storage file picker) | Working | 100% |
+| Store Management (create, update, approval workflow) | Working | 100% |
+| Product Reviews (authenticated, display) | Working | 90% |
+| Categories (CRUD, admin-managed, cached) | Working | 100% |
+| Email Notifications (Resend — order, approval, newsletter) | Working — awaiting API key | 95% |
+| Newsletter Subscribe | Working | 100% |
+| Delivery Partner Application | Working | 100% |
+| Role-Aware Navigation (Admin / Seller / Customer) | Working | 100% |
+| Multi-currency Support | Selector exists, NGN only | 40% |
+| Delivery / Shipping Calculation | Form submits, no rate logic | 15% |
+
+---
+
+## Platform Architecture
+
+```
+BROWSER (Next.js 16 / React 19)
+  /api/* → proxied to Express backend on Render
+         |
+         | HTTPS
+         v
+RENDER — Backend (Express.js 5, Node.js 18)
+  Routes: auth · products · orders · seller · admin
+          cart · wishlist · categories · reviews
+          stores · payment · upload
+  Middleware: helmet · cors · morgan · rate-limit
+         |
+         | Supabase JS (service_role key — bypasses RLS)
+         v
+SUPABASE (PostgreSQL + RLS)
+  Tables: profiles · products · orders · order_items
+          cart_items · wishlist_items · stores
+          seller_applications · categories · reviews
+          payment_events
+  Auth:   Supabase Auth (email + Google OAuth)
+  Storage: product-images bucket (public, 5 MB limit)
+         ^
+         | Webhook (HMAC-SHA512 verified)
+PAYSTACK (NGN payment gateway)
+         ^
+         | fetch() — fire-and-forget
+RESEND (transactional email)
+```
+
+---
+
 ## Part 1 — What Has Been Done
 
 ### 1.1 Critical Bug Fixes (Previous Session)
@@ -414,7 +477,53 @@ The developer's Google OAuth client is **fully configured** for the current live
 
 ---
 
-## Part 7 — Unused Files (Safe to Delete)
+## Part 7 — Platform User Guide
+
+### 7.1 Customer Flow
+
+1. **Browse Products** — Visit the homepage or `/products`. Filter by category or search by name.
+2. **Register / Login** — Click Account in the navbar. Google login is also available.
+3. **Add to Cart** — Click "Add to Cart" on any product. Cart persists across devices after login.
+4. **Checkout** — Review cart, enter shipping address, choose payment method (Paystack or Pay on Delivery).
+5. **Pay with Paystack** — Redirected to Paystack secure checkout. Order is automatically marked `paid` after success.
+6. **View Orders** — Go to My Account → Orders to see order history and live status.
+7. **Track an Order** — Go to `/track-order`, enter your order ID to see a full timeline.
+8. **Wishlist** — Save items using the heart icon on product cards; accessible from the navbar.
+9. **Write a Review** — On any product detail page, logged-in users can submit a star rating and comment.
+
+### 7.2 Seller Flow
+
+1. **Apply to Sell** — Go to `/seller-zone` and complete the application form (business name, category, phone, email).
+2. **Wait for Admin Approval** — Admin reviews applications in `/admin`. You receive an approval email once accepted.
+3. **On Approval** — Your account role changes to `seller`. The Seller Dashboard at `/seller/dashboard` becomes accessible. "Sell on Hilgod" is automatically hidden from your navigation.
+4. **Upload Products** — Go to `/seller/products`. Use the file picker to upload a product image directly (or paste an external URL). Fill in name, category, price, stock, and description.
+5. **Product Approval** — New products start as `pending`. Admin must approve each product before it appears publicly.
+6. **Track Sales** — `/seller/analytics` shows revenue, units sold, average price, and a per-product revenue bar chart.
+7. **View Customer Orders** — `/seller/orders` lists all orders containing your products, with buyer details, item thumbnails, and order status.
+8. **Manage Your Store** — `/seller/store` lets you set your storefront name, description, and logo.
+
+### 7.3 Admin Flow
+
+1. **Access the Admin Panel** — Your account must have `role = 'admin'`. Navigate to `/admin` (or click "Admin Dashboard" in the account dropdown).
+2. **Dashboard Overview** — Live platform stats: total products, orders, revenue, users, and a count of items awaiting approval.
+3. **Approve Products** — `/admin/products` — approve or reject seller-submitted products. Only approved products are visible to customers.
+4. **Manage Orders** — `/admin/orders` — view all platform orders; update status: `pending → processing → shipped → delivered`.
+5. **Review Seller Applications** — Approve or reject applicants from the admin dashboard. Approved sellers receive an email automatically.
+6. **Manage Users** — `/admin/customers` — view all accounts, switch roles (Admin / Seller / Customer) with one click.
+7. **Platform Analytics** — `/admin/analytics` — revenue metrics, orders by status bar chart, low-stock alerts, pending approvals breakdown, and review statistics.
+8. **Manage Categories** — Create, edit, and delete product categories from the admin dashboard.
+
+### 7.4 First Admin Account Setup
+
+1. Sign up on the live platform normally to create an account.
+2. Go to **Supabase Dashboard → Table Editor → profiles**.
+3. Find your row (match on `username` or `full_name`).
+4. Edit the `role` column from `customer` to `admin`.
+5. Refresh the platform — full admin access is now active.
+
+---
+
+## Part 8 — Unused Files (Safe to Delete)
 
 These files are remnants of the old static HTML prototype site and are entirely superseded by the Next.js app. They serve no function and add noise to the repo.
 
