@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
 
-export default function ProductsPage({ initialProducts, initialPagination, categories }) {
+export default function ProductsPage({ initialProducts, initialPagination }) {
   const router = useRouter();
   const { category, page = 1 } = router.query;
   
@@ -16,6 +16,13 @@ export default function ProductsPage({ initialProducts, initialPagination, categ
   const [selectedSubcategories, setSelectedSubcategories] = useState(router.query.subcategory ? router.query.subcategory.split(',') : []);
   const [sortBy, setSortBy] = useState('default');
   const [viewMode, setViewMode] = useState('grid');
+
+  // Sync filter state whenever the URL query changes (e.g. navbar category links)
+  useEffect(() => {
+    if (!router.isReady) return;
+    setSelectedCategories(router.query.category ? [router.query.category] : []);
+    setSelectedSubcategories(router.query.subcategory ? router.query.subcategory.split(',') : []);
+  }, [router.isReady, router.query.category, router.query.subcategory]);
 
   // Fetch products based on filters
   const fetchProducts = async (pageNum = 1) => {
