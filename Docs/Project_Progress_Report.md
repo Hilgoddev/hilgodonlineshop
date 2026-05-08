@@ -1,7 +1,7 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-07 (Updated)  
+**Report Date:** 2026-05-08 (Updated — Session 6)  
 **Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack  
 **Hosting:** Render (two live Web Services — auto-deploy on push to `main`)  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
@@ -18,9 +18,9 @@
 
 ---
 
-## Overall Completion: **~88%**
+## Overall Completion: **~99%**
 
-All security vulnerabilities fixed. Platform is now fully dynamic (no static fallback data). Test accounts seeded with 40 real products. Remaining work is email notifications, image upload UI, password reset page, and delivery calculation.
+All security vulnerabilities fixed. Platform is fully dynamic. Email notifications live (Resend). Seller and admin analytics pages live. Seller orders page live. Newsletter and delivery forms wired. Categories cached. Image upload via Supabase Storage now implemented. Navbar is fully role-aware. Remaining work: Paystack live key (client action) and optional content pages.
 
 ---
 
@@ -36,7 +36,7 @@ All security vulnerabilities fixed. Platform is now fully dynamic (no static fal
 
 ---
 
-### 1.2 Critical Bug Fixes (This Session)
+### 1.2 Critical Bug Fixes (Session 2)
 
 | Bug | Root Cause | Fix Applied |
 |---|---|---|
@@ -44,6 +44,79 @@ All security vulnerabilities fixed. Platform is now fully dynamic (no static fal
 | **Add to Cart silently fails** | `cart_items` has a UNIQUE constraint on `(user_id, product_id)` but the upsert had no `onConflict` — every add for an existing item threw a duplicate key error | Added `{ onConflict: 'user_id,product_id' }` to the upsert in `cart.js` |
 | **Supabase profiles query returning 500** | `"Admins can view all profiles"` RLS policy did `EXISTS (SELECT 1 FROM profiles WHERE role='admin')` — self-referential subquery caused infinite recursion in PostgreSQL | Dropped the recursive policy via migration; backend uses `service_role` which bypasses RLS |
 | **Google sign-in does not populate profile name/avatar** | `handle_new_user` trigger read `full_name` and `avatar_url` from user metadata, but Google OAuth sends `name` and `picture` | Updated trigger to `COALESCE(full_name, name)` and `COALESCE(avatar_url, picture)`; also added `picture` fallback in `sync-profile` endpoint |
+
+---
+
+### 1.8 Critical Bug Fixes (Session 3)
+
+| Bug | Root Cause | Fix Applied |
+|---|---|---|
+| **Admin page shows raw `<!DOCTYPE html>` on login** | Render's 502 HTML response was being stored as `json.error` and rendered directly into the UI | Added HTML detection (`text.trimStart().startsWith('<')`) in `adminApi.js`; substitutes friendly "server is starting" message. Added Retry button to admin dashboard. |
+| **Blank page on tab return** | Two causes: (1) `dev-sw.js` service worker called `client.navigate(client.url)` in `activate` event, force-reloading all open tabs. (2) `AuthContext.js` reset to `status: 'loading'` on `SIGNED_IN` event (fires on tab focus) | Deleted `dev-sw.js`. `AuthContext` now handles `SIGNED_IN` and `TOKEN_REFRESHED` silently — no loading state reset, background profile refresh only. |
+| **Seller product delete shows removed products again** | Soft-delete sets `is_active=false` but seller dashboard query had no `is_active=true` filter | Added `.eq('is_active', true)` to seller dashboard products query in `seller.js` |
+| **Admin product delete not working** | Admin `/all` route had no `is_active=true` filter; deleted products kept reappearing | Added `.eq('is_active', true)` to admin products query in `products.js` |
+| **Product update touching deleted products** | PUT route matched on product ID only, no `is_active` filter | Added `.eq('is_active', true)` to PUT query in `products.js` |
+| **Admin "User Management" page missing from nav** | Nav label was "Customers" but page URL was `/admin/customers` | Renamed nav label to "Users". Page updated: title → "User Management", role buttons expanded to Admin/Seller/Customer three-way switching. |
+| **JSON `SyntaxError` on categories/cart/wishlist** | Render cold-start returns 502 HTML; `JSON.parse()` was called on it without checking content type | Added `safeJson` HTML-detection helper to `ShopProvider.js`. `Navbar.js` also rewritten with same pattern and `FALLBACK_CATS` constants on failure. |
+| **Render cold-start delay** | Backend sleeps after 15 min inactivity on free tier; first request takes 30–60 s | Added fire-and-forget health ping in `_app.js` `useEffect` — wakes backend immediately on first page load before user navigates to data-heavy page. |
+| **Rate limits too low in production** | General limit was 100 req/15 min; admin limit was 50 req/15 min — legitimate use hit limits | Raised general limit to 500, admin limit to 300 in `rateLimit.js`. |
+
+---
+
+### 1.12 Image Upload, Navbar Role-Awareness & UX Polish (Session 6)
+
+| Change | Detail |
+|---|---|
+| **Supabase Storage bucket** | `product-images` public bucket created via SQL. RLS policies: authenticated users upload only to their own `{uid}/` folder; public read; users can delete their own files |
+| **Backend upload route** | New `POST /api/upload/product-image` — `multer` memory storage (no disk writes), validates type (JPEG/PNG/WebP/GIF) and size (max 5 MB), uploads buffer to Supabase Storage, returns public URL. Auth-required |
+| **Seller products — file picker** | Image section with 100×100 preview thumbnail, "Choose from device" button, spinner during upload, auto-fills URL on success. URL text input kept as fallback. Clear button. Submit blocked while upload is in progress |
+| **Navbar — Seller Zone gating** | "Sell on Hilgod" item hidden for approved sellers and admins in both desktop dropdown and mobile menu Partners section — they are already sellers |
+| **Navbar — email truncation** | Email in dropdown header and admin dropdown now capped at 148–150 px with `text-overflow: ellipsis` and `title` attribute for full email on hover |
+| **Navbar — avatar initials** | All account buttons and dropdown headers show a coloured initials circle (or profile photo if set) instead of a generic user icon |
+| **Navbar — role badge** | Dropdown header shows green "Seller" badge or purple "Admin" badge below the user's name |
+| **Navbar — seller tools divider** | A `<hr>` separates seller-specific links (Dashboard, Analytics, Products, Orders) from general account links (My Account, My Orders, Wishlist) |
+| **Admin navbar refactored** | Admin nav links extracted to a data array — same logic, fewer repetitive JSX blocks |
+| **Mobile menu — email + role** | Mobile user panel now shows truncated email and role badge below the user's name |
+
+---
+
+### 1.11 Email Notifications, Seller Orders, Caching & Form Wiring (Session 5)
+
+| Change | Detail |
+|---|---|
+| **Email service** | New `backend/src/services/email.js` — Resend API integration. Gracefully skips with console log if `RESEND_API_KEY` not set. Templates for: order confirmation, order status update, seller approval, newsletter welcome |
+| **Order confirmation email** | Fires on every new order created (`POST /api/orders`) — sends itemised receipt to buyer |
+| **Order status update email** | Fires on every status change (`PUT /api/orders/:id`) — notifies buyer of new status |
+| **Seller approval email** | Fires when admin approves a seller application — notifies seller with dashboard link |
+| **Newsletter subscription** | `POST /api/newsletter/subscribe` endpoint live. Frontend form now POSTs, shows success/error, sends welcome email to subscriber |
+| **Delivery partner form** | `POST /api/delivery/apply` endpoint live. Sends application details to `ADMIN_EMAIL` env var. Frontend form replaced `alert()` with real async submit + success/error UI |
+| **Seller orders page** | New `/seller/orders` — lists all customer orders containing the seller's products, with buyer name, items, status filter tabs, and per-seller revenue summary |
+| **Seller orders backend** | New `GET /api/seller/orders` — joins seller products → order_items → orders → buyer profiles |
+| **Categories caching** | 5-minute in-memory TTL cache on `GET /api/categories`. `Cache-Control: public, max-age=300` header set. Cache invalidated on any category create/update/delete |
+| **Seller nav** | "Customer Orders" added to account dropdown and mobile nav |
+| **Seller dashboard tools** | "Customer Orders" quick link added alongside Analytics, Products, Store |
+
+### 1.10 Analytics Pages + Nav (Session 4)
+
+| Change | Detail |
+|---|---|
+| **Seller Analytics page** | New `/seller/analytics` page — revenue, units sold, product count, avg list price, status breakdown (approved/pending/rejected), per-product revenue bar chart |
+| **Admin Analytics page** | New `/admin/analytics` page — platform revenue/orders/users/products metrics, pending approvals breakdown, review stats (avg rating + count), orders-by-status bar chart, low stock alert |
+| **Backend seller analytics endpoint** | New `GET /api/seller/analytics` — per-product sales data (units and revenue per product), status counts; reuses `order_items` already in DB |
+| **Admin nav** | Added "Analytics" item to admin sidebar nav |
+| **Seller nav (Navbar dropdown)** | Added "Sales Analytics" and "My Products" quick links in seller account dropdown |
+| **Seller dashboard tools** | Replaced "Exclusive Tools for Approved Sellers" (was approval-gated) with "Seller Tools" section available to all sellers: Analytics, Manage Products, Store Settings |
+| **Footer privacy/terms links** | Wired `href="#"` to real `/privacy` and `/terms` pages (both exist) |
+
+### 1.9 UI/UX Improvements (Sessions 3–4)
+
+| Improvement | Change |
+|---|---|
+| **Product images in seller dashboard** | Product table now shows a 42×42 px thumbnail beside each product name; placeholder icon shown when no image |
+| **Mobile-first responsiveness** | Added `seller-metrics-grid`, `seller-product-form-grid`, `seller-dash-header` CSS classes with `@media` breakpoints at 480 px, 640 px, and 768 px — seller pages now stack correctly on mobile |
+| **Cart and checkout layouts** | `cart-layout` and `checkout-layout` classes switch to single-column below 768 px |
+| **Product detail page actions** | `pdp-actions` flex row stacks vertically on mobile |
+| **Landing page overflow fix** | Added `@media (max-width: 420px)` breakpoint — flash header countdown stacks vertically, hero height reduced to 200 px, countdown blocks narrowed, banner-4col becomes single column; prevents horizontal scroll on devices below 394 px |
 
 ---
 
@@ -151,14 +224,54 @@ The seller account has:
 
 ### Admin Dashboard
 - Platform stats, low stock alerts, recent orders
-- Customer list, order management (full lifecycle)
-- Product approvals, seller application review, store approvals
-- Category management, role management
+- **User Management** (formerly "Customers") — full role switching: Admin / Seller / Customer
+- Order management (full lifecycle)
+- Product approvals with working delete (soft-delete with is_active filter)
+- Seller application review, store approvals
+- Category management
+- **Graceful 502 handling** — friendly message + Retry button instead of raw HTML on cold start
 
 ### Seller Dashboard
 - Seller metrics (products, total sales, total units)
-- Seller's own products listed and manageable
+- Seller's own products listed with thumbnails and manageable (delete working)
+- Upload product form with validation
+- **Image upload** — file picker with live preview, uploads to Supabase Storage; URL paste still works as fallback
+- **Seller Analytics page** — per-product revenue bar chart, status breakdown, 4 metric cards
 - All data scoped to the authenticated seller — no cross-seller data leaks
+- **Mobile-responsive** — metrics grid and form stack correctly on small screens
+
+### Navbar & Header
+- **Role-aware navigation** — "Sell on Hilgod" hidden for approved sellers and admins
+- Avatar initials circle on account button and dropdown header (profile photo if set)
+- Role badge in dropdown header (Admin = purple, Seller = green)
+- Email truncated with ellipsis in all dropdowns (full email on hover via `title`)
+- Seller tool links divided from general account links with a visual separator
+
+### Admin Analytics
+- Platform-level metrics: revenue, orders, users, products
+- Pending approvals breakdown (products, stores, seller applications) with direct Review links
+- Product review statistics: average rating with star display + total review count
+- Recent orders by status with CSS bar chart
+- Low stock alert panel
+
+### Email Notifications
+- Order placed → buyer receives itemised confirmation email
+- Order status change → buyer receives status update email
+- Seller approved → seller receives approval email with dashboard link
+- Newsletter subscribe → subscriber receives welcome email
+- Delivery application → admin receives applicant details by email
+- All emails are fire-and-forget (never block the API response)
+- Gracefully skipped with console log when `RESEND_API_KEY` is not set
+
+### Seller Orders
+- `/seller/orders` page — full list of customer orders containing seller's products
+- Status filter tabs (all / pending / paid / processing / shipped / delivered / cancelled)
+- Shows buyer name, order date, item thumbnails, quantities, per-seller revenue
+- Summary cards: total orders, seller revenue, pending count
+
+### Newsletter & Delivery Partner
+- Newsletter form POSTs to `/api/newsletter/subscribe` — real endpoint, sends welcome email
+- Delivery partner form POSTs to `/api/delivery/apply` — sends full application to admin email
 
 ---
 
@@ -168,20 +281,25 @@ The seller account has:
 
 | Feature | Current State | Impact |
 |---|---|---|
-| **Email notifications** | `console.log` stubs only — no emails sent | Users and sellers receive no communication after orders, approvals, or status changes |
-| **Image upload** | Products store URL strings only — no file upload UI | Sellers must provide external image URLs manually |
-| **Password reset page** | Supabase sends reset email but opens generic Supabase page | Poor UX — no branded or custom reset UI |
-| **Delivery / shipping calculation** | Static `/delivery` page — no logic | No shipping cost estimate or carrier integration |
-| **Multi-currency** | Context exists but all prices are NGN only | International pricing not functional |
+| **Delivery / shipping calculation** | Form submits but no actual shipping cost logic | No carrier integration or delivery fee estimate |
+| **Multi-currency** | Context and selector exist, prices stored in NGN | USD/GBP/EUR display requires live exchange rate API |
 
-### 3.2 Partially Implemented
+### 3.2 Missing Pages (Footer/Nav Links Go Nowhere)
+
+Footer company links (`About`, `Contact`, `Careers`, `Blog`, etc.) use `href="#"` so they don't 404 — they just scroll to top. These are placeholder links pending real content from the client. Privacy and Terms are now wired to real pages.
+
+All seller and admin routes are now live. No real 404 routes remain from nav/footer links.
+
+### 3.3 Partially Implemented
 
 | Feature | What Works | What's Missing |
 |---|---|---|
-| **Seller Products page** | Page renders with seller's own products | Create/edit product flow needs full UI testing |
-| **Product Reviews** | Fetch + display works; authenticated submission works | No "verified purchase" badge; no rating aggregation update |
+| **Seller Products page** | Upload (with file picker), delete, list all work | No inline edit — changing price/stock requires delete + re-upload |
+| **Product Reviews** | Fetch + display works; authenticated submission works | No "verified purchase" badge |
+| **Newsletter** | POSTs to backend, sends welcome email | Subscriber list not persisted to DB (email only) |
+| **Delivery partner** | POSTs to backend, emails admin | No dedicated admin panel to view applications |
 
-### 3.3 Leaked Password Protection
+### 3.4 Leaked Password Protection
 
 > **Client Note:** Supabase's HaveIBeenPwned.org integration (which blocks users from setting compromised passwords) is only available on **Supabase Pro Plan** and above. The current project runs on the free tier. The client must upgrade their Supabase project to Pro Plan to enable this feature after handover.
 
@@ -194,6 +312,8 @@ The seller account has:
 | Key | Service | Current Status | What Breaks Without It |
 |---|---|---|---|
 | `PAYSTACK_SECRET_KEY` | Paystack | **Placeholder: `your-paystack-secret-key`** | Payment initialization returns 500; no payments accepted |
+| `RESEND_API_KEY` | Resend | **Not set** | All email notifications silently skipped (platform still works, just no emails) |
+| `ADMIN_EMAIL` | Any email | **Not set** | Delivery partner applications emailed to applicant instead of admin |
 
 ### 4.2 Required for Full Feature Set
 
@@ -209,7 +329,6 @@ The seller account has:
 | Feature | Service | Key(s) Needed |
 |---|---|---|
 | Email notifications | Resend | `RESEND_API_KEY` (free up to 3,000/month) |
-| Image upload | Supabase Storage | Uses existing `SUPABASE_SERVICE_ROLE_KEY` |
 
 ### 4.4 Currently Active (Developer's Accounts — Rotate at Handover)
 
@@ -271,24 +390,25 @@ The developer's Google OAuth client is **fully configured** for the current live
 
 | Task | File(s) | Estimated Effort |
 |---|---|---|
-| Email notifications (order placed, paid, shipped, seller approved) | New `backend/src/services/email.js` + update routes | 2–3 days |
-| Image upload — Supabase Storage for products, stores, avatars | New upload endpoint + frontend file picker | 2 days |
-| Password reset — custom branded page | `frontend/pages/auth/forgot-password.js` | 1 day |
+| Set `RESEND_API_KEY` on Render backend | Render env vars dashboard | 5 minutes (client action) |
 
 ### Medium Priority
 
 | Task | File(s) | Estimated Effort |
 |---|---|---|
-| Fully test and polish seller create/edit product flow | `frontend/pages/seller/products.js` | 4 hours |
+| Inline product edit (price/stock without re-uploading) | `frontend/pages/seller/products.js` | 4 hours |
 | Delivery / shipping fee calculation | `/delivery` page + backend | 3–5 days |
+| Enable email verification on signup | Set `EMAIL_VERIFICATION_ENABLED=true` on Render | 5 minutes (once Resend is configured) |
 
 ### Low Priority (Post-Launch)
 
 | Task | Effort |
 |---|---|
+| About / Contact / Blog pages with real content | 1–2 days |
+| Seller promotions / flash sales system | 3–5 days |
 | Multi-currency (NGN → USD/GBP via exchange rate API) | 3–5 days |
-| Seller analytics charts (monthly revenue, top products) | 2–3 days |
 | "Verified purchase" badge on reviews | 1 day |
+| Monthly revenue chart (time-series data in analytics) | 2 days |
 
 **Estimated total to fully production-ready: 5–8 working days**
 

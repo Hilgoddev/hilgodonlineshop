@@ -12,16 +12,35 @@ export default function Delivery() {
     vehicleType: 'Motorcycle',
     hasLicense: 'yes'
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: Implement actual form submission to backend
-    alert('Application submitted! 🏍️ We will contact you shortly.');
+    setSubmitting(true);
+    setSubmitStatus('');
+    try {
+      const res = await fetch('/api/delivery/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSubmitStatus('success');
+      } else {
+        setSubmitStatus('error');
+      }
+    } catch {
+      setSubmitStatus('error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -171,6 +190,16 @@ export default function Delivery() {
           <p style={{ textAlign: 'center', color: 'var(--gray-1)', marginBottom: 'var(--space-8)' }}>
             We'll review your application and reach out within 48 hours.
           </p>
+          {submitStatus === 'success' && (
+            <div style={{ marginBottom: '16px', padding: '14px 18px', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontWeight: 600 }}>
+              Application submitted! We will contact you shortly.
+            </div>
+          )}
+          {submitStatus === 'error' && (
+            <div style={{ marginBottom: '16px', padding: '14px 18px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', fontWeight: 600 }}>
+              Something went wrong. Please try again.
+            </div>
+          )}
           <div className="card" style={{ padding: 'var(--space-8)' }}>
             <form onSubmit={handleSubmit}>
               <div className="form-row">
@@ -272,8 +301,8 @@ export default function Delivery() {
                   <option value="no">No (getting soon)</option>
                 </select>
               </div>
-              <button type="submit" className="btn btn-primary btn-full btn-lg">
-                <i className="fas fa-motorcycle"></i> Submit Application
+              <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={submitting}>
+                <i className="fas fa-motorcycle"></i> {submitting ? 'Submitting...' : 'Apply Now'}
               </button>
             </form>
           </div>

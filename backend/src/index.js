@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const crypto = require('crypto');
+const { sendEmail, newsletterConfirmHtml } = require('./services/email');
 
 // Initialize Express app
 const app = express();
@@ -44,6 +45,7 @@ const sellerRoutes = require('./routes/seller');
 const categoryRoutes = require('./routes/categories');
 const storeRoutes = require('./routes/stores');
 const reviewRoutes = require('./routes/reviews');
+const uploadRoutes = require('./routes/upload');
 const supabase = require('./config/supabase');
 const { generalApiLimiter, adminApiLimiter } = require('./middleware/rateLimit');
 
@@ -61,6 +63,7 @@ app.use('/api/seller', sellerRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Basic DB connectivity route used by frontend system test page
 app.get('/api/db-test', async (req, res, next) => {
@@ -71,6 +74,40 @@ app.get('/api/db-test', async (req, res, next) => {
     } catch (err) {
         next(err);
     }
+});
+
+app.post('/api/newsletter/subscribe', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ success: false, error: 'Valid email required' });
+  }
+  sendEmail({
+    to: email,
+    subject: "You're subscribed to Hilgod updates!",
+    html: newsletterConfirmHtml(email),
+  }).catch(() => {});
+  res.status(200).json({ success: true, message: 'Subscribed successfully' });
+});
+
+app.post('/api/delivery/apply', async (req, res) => {
+  const { fullName, phone, email, state, vehicleType, hasLicense, dateOfBirth } = req.body;
+  if (!fullName || !phone || !email) {
+    return res.status(400).json({ success: false, error: 'Name, phone and email are required' });
+  }
+  sendEmail({
+    to: process.env.ADMIN_EMAIL || email,
+    subject: `New Delivery Partner Application — ${fullName}`,
+    html: `<div style="font-family:sans-serif"><h2>New Delivery Application</h2>
+      <p><strong>Name:</strong> ${fullName}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Phone:</strong> ${phone}</p>
+      <p><strong>State:</strong> ${state || 'N/A'}</p>
+      <p><strong>Vehicle:</strong> ${vehicleType || 'N/A'}</p>
+      <p><strong>Has License:</strong> ${hasLicense || 'N/A'}</p>
+      <p><strong>DOB:</strong> ${dateOfBirth || 'N/A'}</p>
+    </div>`,
+  }).catch(() => {});
+  res.status(200).json({ success: true, message: 'Application received. We will contact you shortly.' });
 });
 
 // Error Handling Middleware

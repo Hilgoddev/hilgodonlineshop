@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { sendEmail, orderConfirmationHtml, orderStatusHtml } = require('../services/email');
 
 const mapOrder = (order, items = [], user = null) => ({
     _id: order.id,
@@ -211,6 +212,13 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         const response = mapOrder(order, responseItems);
         res.status(201).json({ success: true, data: response });
+
+        // Fire-and-forget — don't await, don't block the response
+        sendEmail({
+            to: req.user.email,
+            subject: `Order Confirmed — Hilgod #${order.id.slice(0,8).toUpperCase()}`,
+            html: orderConfirmationHtml(order.id, responseItems, total_amount),
+        }).catch(() => {});
     } catch (err) {
         next(err);
     }
@@ -318,6 +326,24 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         if (!data?.length) return res.status(404).json({ success: false, error: 'Order not found' });
 
         res.status(200).json({ success: true, data: mapOrder(data[0]) });
+
+        // Fire-and-forget status update email to buyer
+        const updatedOrder = data[0];
+        const orderId = updatedOrder.id;
+        const newStatus = updatedOrder.status;
+        if (updatedOrder.user_id) {
+            supabase.from('profiles').select('username').eq('id', updatedOrder.user_id).single()
+                .then(({ data: profile }) => {
+                    if (profile?.username) {
+                        sendEmail({
+                            to: profile.username,
+                            subject: `Order Update — Hilgod`,
+                            html: orderStatusHtml(orderId, newStatus),
+                        }).catch(() => {});
+                    }
+                })
+                .catch(() => {});
+        }
     } catch (err) {
         next(err);
     }

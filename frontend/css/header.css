@@ -86,7 +86,7 @@
 .header-search-wrap { position: relative; flex: 1; }
 
 /* Header Actions */
-.header-actions { display: flex; align-items: center; gap: var(--space-4); }
+.header-actions { display: flex; align-items: center; gap: var(--space-4);justify-content: flex-end; }
 .header-action-btn {
   display: flex; flex-direction: column; align-items: center;
   color: var(--white); gap: 2px; cursor: pointer;
@@ -261,12 +261,21 @@
   .admin-nav-links { display: none; }
 }
 
+.header-currency-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 /* ---- RESPONSIVE HEADER ---- */
 @media (max-width: 992px) {
   .header-top .container { grid-template-columns: auto auto; gap: var(--space-3); }
   .header-search-wrap { display: none; }
   .cat-nav-item:not(.all-cats) { display: none; }
   .menu-toggle { display: flex; }
+}
+@media (max-width: 394px) {
+  .header-currency-wrap { display: none; }
 }
 @media (max-width: 768px) {
   .topbar { display: none; }
@@ -275,4 +284,9 @@
   .header-actions .header-action-btn span { display: none; }
   .category-nav { display: none; }
   .main-header { box-shadow: var(--shadow); }
+}
+@media (max-width: 480px) {
+  /* On very small screens keep only Account and Cart in the header — wishlist is in mobile menu */
+  .header-wishlist-btn { display: none; }
+  .header-logo img { height: 34px; }
 }

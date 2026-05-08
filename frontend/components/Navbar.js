@@ -5,6 +5,45 @@ import { useRouter } from 'next/router';
 import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 
+function getInitials(firstName, lastName) {
+  return [(firstName || '').charAt(0), (lastName || '').charAt(0)].filter(Boolean).join('').toUpperCase() || '?';
+}
+
+function AvatarCircle({ firstName, lastName, image, size = 32, fontSize = '0.85rem', style = {} }) {
+  if (image) {
+    return (
+      <img
+        src={image}
+        alt=""
+        style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)', flexShrink: 0, ...style }}
+      />
+    );
+  }
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', background: 'var(--primary)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontWeight: 700, fontSize, flexShrink: 0, letterSpacing: '0.5px', ...style,
+    }}>
+      {getInitials(firstName, lastName)}
+    </div>
+  );
+}
+
+function RoleBadge({ role }) {
+  if (role === 'admin') return (
+    <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: '#7c3aed20', color: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <i className="fas fa-shield-halved"></i> Admin
+    </span>
+  );
+  if (role === 'seller') return (
+    <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '20px', background: '#dcfce7', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <i className="fas fa-store"></i> Seller
+    </span>
+  );
+  return null;
+}
+
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
@@ -12,7 +51,6 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
-  /** Avoid SSR/client mismatch on currency <select disabled> while rates load. */
   const [currencyUiReady, setCurrencyUiReady] = useState(false);
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -22,6 +60,7 @@ export default function Navbar() {
   const isAdmin = session?.user?.role === 'admin';
   const isSeller = session?.user?.role === 'seller';
   const isAdminPage = router.pathname.startsWith('/admin');
+  const isLoggedIn = status !== 'loading' && !!session;
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) { setSearchResults([]); return; }
@@ -55,9 +94,7 @@ export default function Navbar() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    setCurrencyUiReady(true);
-  }, []);
+  useEffect(() => { setCurrencyUiReady(true); }, []);
 
   const [categories, setCategories] = useState([]);
 
@@ -115,43 +152,36 @@ export default function Navbar() {
                   </div>
                 </Link>
                 <nav className="admin-nav-links" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                  <Link href="/" style={{ color: 'rgba(255,255,255,.8)', fontSize: '.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fas fa-store" style={{ fontSize: '.8rem' }}></i> Store Front
-                  </Link>
-                  <Link href="/admin" className={router.pathname === '/admin' ? 'admin-link-active' : ''} style={{ color: router.pathname === '/admin' ? '#fff' : 'rgba(255,255,255,.8)', fontSize: '.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', background: router.pathname === '/admin' ? 'rgba(255,255,255,.1)' : 'transparent', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fas fa-tachometer-alt" style={{ fontSize: '.8rem' }}></i> Dashboard
-                  </Link>
-                  <Link href="/admin/products" style={{ color: router.pathname === '/admin/products' ? '#fff' : 'rgba(255,255,255,.8)', fontSize: '.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', background: router.pathname === '/admin/products' ? 'rgba(255,255,255,.1)' : 'transparent', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fas fa-box" style={{ fontSize: '.8rem' }}></i> Products
-                  </Link>
-                  <Link href="/admin/orders" style={{ color: router.pathname === '/admin/orders' ? '#fff' : 'rgba(255,255,255,.8)', fontSize: '.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', background: router.pathname === '/admin/orders' ? 'rgba(255,255,255,.1)' : 'transparent', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fas fa-shopping-cart" style={{ fontSize: '.8rem' }}></i> Orders
-                  </Link>
-                  <Link href="/admin/customers" style={{ color: router.pathname === '/admin/customers' ? '#fff' : 'rgba(255,255,255,.8)', fontSize: '.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', background: router.pathname === '/admin/customers' ? 'rgba(255,255,255,.1)' : 'transparent', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <i className="fas fa-users" style={{ fontSize: '.8rem' }}></i> Customers
-                  </Link>
+                  {[
+                    { href: '/', label: 'Store Front', icon: 'fa-store' },
+                    { href: '/admin', label: 'Dashboard', icon: 'fa-tachometer-alt' },
+                    { href: '/admin/products', label: 'Products', icon: 'fa-box' },
+                    { href: '/admin/orders', label: 'Orders', icon: 'fa-shopping-cart' },
+                    { href: '/admin/customers', label: 'Customers', icon: 'fa-users' },
+                  ].map(({ href, label, icon }) => (
+                    <Link key={href} href={href} style={{ color: router.pathname === href ? '#fff' : 'rgba(255,255,255,.8)', fontSize: '.85rem', fontWeight: '600', padding: '6px 12px', borderRadius: '6px', textDecoration: 'none', background: router.pathname === href ? 'rgba(255,255,255,.1)' : 'transparent', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className={`fas ${icon}`} style={{ fontSize: '.8rem' }}></i> {label}
+                    </Link>
+                  ))}
                 </nav>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div className="account-dropdown-wrap">
-                  <div className="header-action-btn account" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)} style={{ cursor: 'pointer' }}>
-                    {session.user?.image ? (
-                      <img src={session.user.image} alt="" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
-                    ) : (
-                      <i className="fas fa-user-circle"></i>
-                    )}
+                  <div className="header-action-btn account" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AvatarCircle firstName={session.user?.firstName} lastName={session.user?.lastName} image={session.user?.image} size={32} />
                     <span>{session.user?.firstName || 'Admin'}</span>
                   </div>
                   <div className={`account-dropdown ${accountDropdownOpen ? 'open' : ''}`}>
                     <div className="dropdown-header">
-                      <div className="user-name">{session.user?.firstName} {session.user?.lastName}</div>
-                      <div className="user-email">{session.user?.email}</div>
-                      <div style={{ marginTop: '4px' }}>
-                        <span style={{ fontSize: '.7rem', fontWeight: '700', padding: '2px 8px', borderRadius: '20px', background: '#7c3aed20', color: '#7c3aed' }}>
-                          <i className="fas fa-shield-halved"></i> Admin
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <AvatarCircle firstName={session.user?.firstName} lastName={session.user?.lastName} image={session.user?.image} size={38} fontSize="1rem" />
+                        <div style={{ minWidth: 0 }}>
+                          <div className="user-name">{session.user?.firstName} {session.user?.lastName}</div>
+                          <div className="user-email" title={session.user?.email} style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.user?.email}</div>
+                        </div>
                       </div>
+                      <RoleBadge role="admin" />
                     </div>
                     <Link href="/account" className="dropdown-item"><i className="fas fa-user"></i>My Profile</Link>
                     <Link href="/" className="dropdown-item"><i className="fas fa-store"></i>View Store</Link>
@@ -168,7 +198,6 @@ export default function Navbar() {
           </div>
         </header>
 
-        {/* Admin Mobile Menu */}
         {mobileMenuOpen && (
           <nav className="mobile-menu" id="mobile-menu">
             <div className="mobile-menu-header">
@@ -177,17 +206,21 @@ export default function Navbar() {
             </div>
             <div className="mobile-menu-body">
               <div className="mobile-menu-user">
-                <div className="mobile-user-avatar"><i className="fas fa-shield-halved"></i></div>
+                <AvatarCircle firstName={session.user?.firstName} lastName={session.user?.lastName} image={session.user?.image} size={40} fontSize="1rem" />
                 <div>
                   <div style={{ fontWeight: '700', fontSize: '.9rem' }}>{session.user?.firstName} {session.user?.lastName}</div>
-                  <div style={{ fontSize: '.75rem', color: '#7c3aed', fontWeight: '600' }}>Administrator</div>
+                  <RoleBadge role="admin" />
                 </div>
               </div>
               <div className="mobile-nav-title">Admin Panel</div>
-              <Link href="/admin" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-tachometer-alt icon"></i>Dashboard</span><i className="fas fa-chevron-right"></i></Link>
-              <Link href="/admin/products" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-box icon"></i>Products</span><i className="fas fa-chevron-right"></i></Link>
-              <Link href="/admin/orders" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-shopping-cart icon"></i>Orders</span><i className="fas fa-chevron-right"></i></Link>
-              <Link href="/admin/customers" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-users icon"></i>Customers</span><i className="fas fa-chevron-right"></i></Link>
+              {[
+                { href: '/admin', label: 'Dashboard', icon: 'fa-tachometer-alt' },
+                { href: '/admin/products', label: 'Products', icon: 'fa-box' },
+                { href: '/admin/orders', label: 'Orders', icon: 'fa-shopping-cart' },
+                { href: '/admin/customers', label: 'Customers', icon: 'fa-users' },
+              ].map(({ href, label, icon }) => (
+                <Link key={href} href={href} className="mobile-nav-link" onClick={closeMobileMenu}><span><i className={`fas ${icon} icon`}></i>{label}</span><i className="fas fa-chevron-right"></i></Link>
+              ))}
               <div className="mobile-nav-title" style={{ marginTop: '10px' }}>Quick Links</div>
               <Link href="/" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-store icon"></i>View Store</span><i className="fas fa-chevron-right"></i></Link>
               <Link href="/account" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-user icon"></i>My Profile</span><i className="fas fa-chevron-right"></i></Link>
@@ -244,22 +277,12 @@ export default function Navbar() {
               )}
             </div>
             <div className="header-actions">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                {/* Currency Selector */}
-                <select 
-                  value={currency} 
+              <div className="header-currency-wrap">
+                <select
+                  value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   disabled={Boolean(currencyUiReady && currencyLoading)}
-                  style={{
-                    background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.2)',
-                    color: '#fff',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="USD" style={{ color: '#333' }}>USD ($)</option>
                   <option value="NGN" style={{ color: '#333' }}>NGN (₦)</option>
@@ -272,36 +295,65 @@ export default function Navbar() {
                   {status === 'loading' ? (
                     <div className="header-action-btn account"><i className="fas fa-user-circle"></i><span>Loading...</span></div>
                   ) : session ? (
-                    <div className="header-action-btn account" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}>
-                      <i className="fas fa-user-circle"></i><span>{session.user?.firstName || 'Account'}</span>
+                    <div className="header-action-btn account" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <AvatarCircle firstName={session.user?.firstName} lastName={session.user?.lastName} image={session.user?.image} size={28} fontSize=".78rem" />
+                      <span>{session.user?.firstName || 'Account'}</span>
                     </div>
                   ) : (
                     <Link href="/auth/login" className="header-action-btn account"><i className="fas fa-user-circle"></i><span>Account</span></Link>
                   )}
-                  {(status !== 'loading' && session) && (
+
+                  {isLoggedIn && (
                     <div className={`account-dropdown ${accountDropdownOpen ? 'open' : ''}`} id="account-dropdown">
-                      <div id="logged-in-dd">
-                        <div className="dropdown-header">
-                          <div className="user-name" id="dd-user-name">{session.user?.firstName} {session.user?.lastName}</div>
-                          <div className="user-email" id="dd-user-email">{session.user?.email}</div>
+                      {/* Header */}
+                      <div className="dropdown-header">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                          <AvatarCircle firstName={session.user?.firstName} lastName={session.user?.lastName} image={session.user?.image} size={38} fontSize="1rem" />
+                          <div style={{ minWidth: 0 }}>
+                            <div className="user-name">{session.user?.firstName} {session.user?.lastName}</div>
+                            <div className="user-email" title={session.user?.email} style={{ maxWidth: '148px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.user?.email}</div>
+                          </div>
                         </div>
-                        {isAdmin && (
-                          <Link href="/admin" className="dropdown-item"><i className="fas fa-shield-halved"></i>Admin Dashboard</Link>
-                        )}
-                        {isSeller && (
-                          <Link href="/seller/dashboard" className="dropdown-item"><i className="fas fa-store"></i>Seller Dashboard</Link>
-                        )}
-                        <Link href="/seller-zone" className="dropdown-item"><i className="fas fa-store"></i>Seller Zone</Link>
-                        <Link href="/account" className="dropdown-item"><i className="fas fa-tachometer-alt"></i>My Account</Link>
-                        <Link href="/account?tab=orders" className="dropdown-item"><i className="fas fa-box"></i>My Orders</Link>
-                        <Link href="/wishlist" className="dropdown-item"><i className="fas fa-heart"></i>Wishlist</Link>
-                        <hr className="dropdown-divider" />
-                        <div className="dropdown-item logout" onClick={handleLogout}><i className="fas fa-right-from-bracket"></i>Logout</div>
+                        <RoleBadge role={session.user?.role} />
                       </div>
+
+                      {/* Admin link */}
+                      {isAdmin && (
+                        <Link href="/admin" className="dropdown-item"><i className="fas fa-shield-halved"></i>Admin Dashboard</Link>
+                      )}
+
+                      {/* Seller tools */}
+                      {isSeller && (
+                        <>
+                          <Link href="/seller/dashboard" className="dropdown-item"><i className="fas fa-store"></i>Seller Dashboard</Link>
+                          <Link href="/seller/analytics" className="dropdown-item"><i className="fas fa-chart-line"></i>Sales Analytics</Link>
+                          <Link href="/seller/products" className="dropdown-item"><i className="fas fa-box"></i>My Products</Link>
+                          <Link href="/seller/orders" className="dropdown-item"><i className="fas fa-shopping-bag"></i>Customer Orders</Link>
+                          <hr className="dropdown-divider" />
+                        </>
+                      )}
+
+                      {/* General account links */}
+                      <Link href="/account" className="dropdown-item"><i className="fas fa-tachometer-alt"></i>My Account</Link>
+                      <Link href="/account?tab=orders" className="dropdown-item"><i className="fas fa-box"></i>My Orders</Link>
+                      <Link href="/wishlist" className="dropdown-item"><i className="fas fa-heart"></i>Wishlist</Link>
+
+                      {/* Seller Zone — only for non-sellers and non-admins */}
+                      {!isSeller && !isAdmin && (
+                        <>
+                          <hr className="dropdown-divider" />
+                          <Link href="/seller-zone" className="dropdown-item" style={{ color: 'var(--primary)' }}>
+                            <i className="fas fa-store" style={{ color: 'var(--primary)' }}></i>Sell on Hilgod
+                          </Link>
+                        </>
+                      )}
+
+                      <hr className="dropdown-divider" />
+                      <div className="dropdown-item logout" onClick={handleLogout}><i className="fas fa-right-from-bracket"></i>Logout</div>
                     </div>
                   )}
                 </div>
-                <Link href="/wishlist" className="header-action-btn" style={{ position: 'relative' }} aria-label="Wishlist">
+                <Link href="/wishlist" className="header-action-btn header-wishlist-btn" style={{ position: 'relative' }} aria-label="Wishlist">
                   <i className="fas fa-heart"></i><span>Wishlist</span>
                   <span className="badge-count wishlist-badge" style={{ display: wishlist.length > 0 ? 'flex' : 'none' }}>{wishlist.length}</span>
                 </Link>
@@ -336,6 +388,8 @@ export default function Navbar() {
           </div>
         </nav>
       </header>
+
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <nav className="mobile-menu" id="mobile-menu">
           <div className="mobile-menu-header">
@@ -343,34 +397,64 @@ export default function Navbar() {
             <button className="mobile-menu-close" id="mobile-menu-close" onClick={closeMobileMenu}><i className="fas fa-xmark"></i></button>
           </div>
           <div className="mobile-menu-body">
+            {/* User panel */}
             <div className="mobile-menu-user">
-              <div className="mobile-user-avatar"><i className="fas fa-user"></i></div>
-              <div>
-                {status === 'loading' ? (<div style={{ fontWeight: '700', fontSize: '.9rem' }}>Loading...</div>) : session ? (
+              {session ? (
+                <AvatarCircle firstName={session.user?.firstName} lastName={session.user?.lastName} image={session.user?.image} size={40} fontSize="1rem" />
+              ) : (
+                <div className="mobile-user-avatar"><i className="fas fa-user"></i></div>
+              )}
+              <div style={{ minWidth: 0 }}>
+                {status === 'loading' ? (
+                  <div style={{ fontWeight: '700', fontSize: '.9rem' }}>Loading...</div>
+                ) : session ? (
                   <>
-                    <div style={{ fontWeight: '700', fontSize: '.9rem' }} id="mobile-user-name">{session.user?.firstName} {session.user?.lastName}</div>
-                    <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }} id="mobile-user-sub"><Link href="/account" style={{ color: 'var(--primary)' }}>View Account</Link></div>
+                    <div style={{ fontWeight: '700', fontSize: '.9rem' }}>{session.user?.firstName} {session.user?.lastName}</div>
+                    <div style={{ fontSize: '.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px', color: 'var(--gray-1)', marginBottom: '4px' }} title={session.user?.email}>{session.user?.email}</div>
+                    <RoleBadge role={session.user?.role} />
                   </>
                 ) : (
                   <>
-                    <div style={{ fontWeight: '700', fontSize: '.9rem' }} id="mobile-user-name">Guest</div>
-                    <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }} id="mobile-user-sub"><Link href="/auth/login" style={{ color: 'var(--primary)' }}>Login</Link> or <Link href="/auth/signup" style={{ color: 'var(--primary)' }}>Register</Link></div>
+                    <div style={{ fontWeight: '700', fontSize: '.9rem' }}>Guest</div>
+                    <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}><Link href="/auth/login" style={{ color: 'var(--primary)' }}>Login</Link> or <Link href="/auth/signup" style={{ color: 'var(--primary)' }}>Register</Link></div>
                   </>
                 )}
               </div>
             </div>
+
+            {/* Categories */}
             <div className="mobile-nav-title">Shop by Category</div>
-            {categories.slice(0, 7).map((cat) => (<Link key={cat.slug} href={`/products?category=${cat.slug}`} className="mobile-nav-link" onClick={closeMobileMenu}><span><i className={`fas ${cat.icon} icon`}></i>{cat.name}</span><i className="fas fa-chevron-right"></i></Link>))}
-            <Link href="/categories" className="mobile-nav-link" style={{ color: 'var(--primary)' }} onClick={closeMobileMenu}><span><i className="fas fa-th-large icon" style={{ color: 'var(--primary)' }}></i>All Categories</span><i className="fas fa-chevron-right"></i></Link>
+            {categories.slice(0, 7).map((cat) => (
+              <Link key={cat.slug} href={`/products?category=${cat.slug}`} className="mobile-nav-link" onClick={closeMobileMenu}>
+                <span><i className={`fas ${cat.icon} icon`}></i>{cat.name}</span><i className="fas fa-chevron-right"></i>
+              </Link>
+            ))}
+            <Link href="/categories" className="mobile-nav-link" style={{ color: 'var(--primary)' }} onClick={closeMobileMenu}>
+              <span><i className="fas fa-th-large icon" style={{ color: 'var(--primary)' }}></i>All Categories</span><i className="fas fa-chevron-right"></i>
+            </Link>
+
+            {/* Account section */}
             <div className="mobile-nav-title" style={{ marginTop: '10px' }}>My Account</div>
             {session ? (
               <>
-                {isAdmin && (<Link href="/admin" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-shield-halved icon" style={{ color: '#7c3aed' }}></i>Admin Dashboard</span><i className="fas fa-chevron-right"></i></Link>)}
-                {isSeller && (<Link href="/seller/dashboard" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-store icon" style={{ color: 'var(--primary)' }}></i>Seller Dashboard</span><i className="fas fa-chevron-right"></i></Link>)}
+                {isAdmin && (
+                  <Link href="/admin" className="mobile-nav-link" onClick={closeMobileMenu}>
+                    <span><i className="fas fa-shield-halved icon" style={{ color: '#7c3aed' }}></i>Admin Dashboard</span><i className="fas fa-chevron-right"></i>
+                  </Link>
+                )}
+                {isSeller && (
+                  <>
+                    <Link href="/seller/dashboard" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-store icon" style={{ color: 'var(--primary)' }}></i>Seller Dashboard</span><i className="fas fa-chevron-right"></i></Link>
+                    <Link href="/seller/analytics" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-chart-line icon" style={{ color: 'var(--primary)' }}></i>Sales Analytics</span><i className="fas fa-chevron-right"></i></Link>
+                    <Link href="/seller/orders" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-shopping-bag icon" style={{ color: 'var(--primary)' }}></i>Customer Orders</span><i className="fas fa-chevron-right"></i></Link>
+                  </>
+                )}
                 <Link href="/account" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-user icon"></i>My Account</span><i className="fas fa-chevron-right"></i></Link>
                 <Link href="/account?tab=orders" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-box icon"></i>My Orders</span><i className="fas fa-chevron-right"></i></Link>
                 <Link href="/wishlist" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-heart icon"></i>Wishlist</span><i className="fas fa-chevron-right"></i></Link>
-                <div className="mobile-nav-link" onClick={() => { closeMobileMenu(); handleLogout(); }} style={{ color: 'var(--danger)' }}><span><i className="fas fa-right-from-bracket icon" style={{ color: 'var(--danger)' }}></i>Logout</span><i className="fas fa-chevron-right"></i></div>
+                <div className="mobile-nav-link" onClick={() => { closeMobileMenu(); handleLogout(); }} style={{ color: 'var(--danger)' }}>
+                  <span><i className="fas fa-right-from-bracket icon" style={{ color: 'var(--danger)' }}></i>Logout</span><i className="fas fa-chevron-right"></i>
+                </div>
               </>
             ) : (
               <>
@@ -378,9 +462,17 @@ export default function Navbar() {
                 <Link href="/auth/signup" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-user-plus icon"></i>Register</span><i className="fas fa-chevron-right"></i></Link>
               </>
             )}
+
+            {/* Partners — hide "Sell on Hilgod" for approved sellers and admins */}
             <div className="mobile-nav-title" style={{ marginTop: '10px' }}>Partners</div>
-            <Link href="/seller-zone" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-store icon"></i>Sell on Hilgod</span><i className="fas fa-chevron-right"></i></Link>
-            <Link href="/delivery" className="mobile-nav-link" onClick={closeMobileMenu}><span><i className="fas fa-motorcycle icon"></i>Delivery Partner</span><i className="fas fa-chevron-right"></i></Link>
+            {!isSeller && !isAdmin && (
+              <Link href="/seller-zone" className="mobile-nav-link" onClick={closeMobileMenu}>
+                <span><i className="fas fa-store icon"></i>Sell on Hilgod</span><i className="fas fa-chevron-right"></i>
+              </Link>
+            )}
+            <Link href="/delivery" className="mobile-nav-link" onClick={closeMobileMenu}>
+              <span><i className="fas fa-motorcycle icon"></i>Delivery Partner</span><i className="fas fa-chevron-right"></i>
+            </Link>
           </div>
         </nav>
       )}

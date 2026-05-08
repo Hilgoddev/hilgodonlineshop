@@ -101,7 +101,7 @@ export default function SellerDashboard() {
               )}
             </div>
 
-            {!loading && data.isApproved && <ApprovedSellerTools />}
+            {!loading && <SellerQuickLinks />}
           </>
         )}
       </div>
@@ -113,20 +113,22 @@ SellerDashboard.getLayout = function getLayout(page) {
   return <SellerGuard>{page}</SellerGuard>;
 };
 
-const ApprovedSellerTools = () => (
+const SellerQuickLinks = () => (
   <div className="card" style={{ padding: '20px', marginTop: '24px' }}>
-    <h3 style={{ fontWeight: 700 }}>Exclusive Tools for Approved Sellers</h3>
-    <ul style={{ listStyle: 'none', padding: 0 }}>
-      <li style={{ marginBottom: '12px' }}>
-        <Link href="/seller/analytics" className="btn btn-outline btn-sm">
-          View Sales Analytics
-        </Link>
-      </li>
-      <li style={{ marginBottom: '12px' }}>
-        <Link href="/seller/promotions" className="btn btn-outline btn-sm">
-          Manage Promotions
-        </Link>
-      </li>
-    </ul>
+    <h3 style={{ fontWeight: 700, marginBottom: '12px' }}>Seller Tools</h3>
+    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+      <Link href="/seller/analytics" className="btn btn-outline btn-sm">
+        <i className="fas fa-chart-line"></i> Sales Analytics
+      </Link>
+      <Link href="/seller/products" className="btn btn-outline btn-sm">
+        <i className="fas fa-box"></i> Manage Products
+      </Link>
+      <Link href="/seller/store" className="btn btn-outline btn-sm">
+        <i className="fas fa-store"></i> Store Settings
+      </Link>
+      <Link href="/seller/orders" className="btn btn-outline btn-sm">
+        <i className="fas fa-shopping-bag"></i> Customer Orders
+      </Link>
+    </div>
   </div>
 );

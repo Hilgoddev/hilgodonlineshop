@@ -6,6 +6,7 @@ import { signOut, useSession } from '../../contexts/AuthContext';
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: 'fa-gauge-high' },
+  { href: '/admin/analytics', label: 'Analytics', icon: 'fa-chart-line' },
   { href: '/admin/approvals', label: 'Approvals', icon: 'fa-clipboard-check' },
   { href: '/admin/products', label: 'Products', icon: 'fa-box' },
   { href: '/admin/orders', label: 'Orders', icon: 'fa-shopping-cart' },

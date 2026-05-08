@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { sendEmail, sellerApprovedHtml } = require('../services/email');
 
 const requireAdmin = async (req, res, next) => {
     try {
@@ -227,6 +228,16 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
         if (updateError) throw updateError;
 
         res.status(200).json({ success: true, data });
+
+        // Fire-and-forget approval email
+        const applicantEmail = application.email;
+        const applicantName = application.full_name || 'Seller';
+        const businessName = application.business_name || 'your business';
+        sendEmail({
+            to: applicantEmail,
+            subject: 'Your Hilgod Seller Application Has Been Approved',
+            html: sellerApprovedHtml(applicantName, businessName),
+        }).catch(() => {});
     } catch (err) {
         next(err);
     }

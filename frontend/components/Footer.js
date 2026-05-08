@@ -1,6 +1,34 @@
 import Link from 'next/link';
+import { useState } from 'react';
 
 export default function Footer() {
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterStatus, setNewsletterStatus] = useState('');
+  const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
+
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    setNewsletterSubmitting(true);
+    setNewsletterStatus('');
+    try {
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newsletterEmail }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setNewsletterStatus('success');
+        setNewsletterEmail('');
+      } else {
+        setNewsletterStatus('error');
+      }
+    } catch {
+      setNewsletterStatus('error');
+    } finally {
+      setNewsletterSubmitting(false);
+    }
+  };
   const categories = [
     { name: 'Phones & Tablets', slug: 'phones' },
     { name: 'Laptops', slug: 'laptops' },
@@ -54,22 +82,30 @@ export default function Footer() {
             <h3>Subscribe to Our Newsletter</h3>
             <p>Get the latest deals, new arrivals, and exclusive offers.</p>
           </div>
-          <form 
-            className="newsletter-form" 
-            onSubmit={(e) => {
-              e.preventDefault();
-              // TODO: Implement newsletter subscription API
-              alert('Subscribed successfully! 🎉');
-            }}
+          {newsletterStatus === 'success' && (
+            <div style={{ marginBottom: '8px', padding: '10px 16px', background: 'rgba(21,128,61,0.15)', color: '#86efac', borderRadius: '8px', fontWeight: 600, fontSize: '.9rem' }}>
+              You are subscribed! Check your inbox.
+            </div>
+          )}
+          {newsletterStatus === 'error' && (
+            <div style={{ marginBottom: '8px', padding: '10px 16px', background: 'rgba(185,28,28,0.15)', color: '#fca5a5', borderRadius: '8px', fontWeight: 600, fontSize: '.9rem' }}>
+              Something went wrong. Please try again.
+            </div>
+          )}
+          <form
+            className="newsletter-form"
+            onSubmit={handleNewsletterSubmit}
           >
-            <input 
-              type="email" 
-              className="newsletter-input" 
-              placeholder="Enter your email address..." 
+            <input
+              type="email"
+              className="newsletter-input"
+              placeholder="Enter your email address..."
               required
+              value={newsletterEmail}
+              onChange={(e) => setNewsletterEmail(e.target.value)}
             />
-            <button type="submit" className="newsletter-btn">
-              <i className="fas fa-paper-plane"></i> Subscribe
+            <button type="submit" className="newsletter-btn" disabled={newsletterSubmitting}>
+              <i className="fas fa-paper-plane"></i> {newsletterSubmitting ? 'Subscribing...' : 'Subscribe'}
             </button>
           </form>
         </div>
@@ -161,8 +197,8 @@ export default function Footer() {
               <a href="#"><i className="fas fa-chevron-right"></i>Press & Media</a>
               <a href="#"><i className="fas fa-chevron-right"></i>Blog</a>
               <a href="#"><i className="fas fa-chevron-right"></i>Sitemap</a>
-              <a href="#"><i className="fas fa-chevron-right"></i>Privacy Policy</a>
-              <a href="#"><i className="fas fa-chevron-right"></i>Terms of Service</a>
+              <Link href="/privacy"><i className="fas fa-chevron-right"></i>Privacy Policy</Link>
+              <Link href="/terms"><i className="fas fa-chevron-right"></i>Terms of Service</Link>
             </div>
           </div>
 
@@ -257,8 +293,8 @@ export default function Footer() {
             &copy; 2026 <span>Hilgod Online Store</span>. All Rights Reserved.
           </div>
           <div className="footer-bottom-links">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
             <a href="#">Cookies</a>
             <a href="#">Accessibility</a>
           </div>
