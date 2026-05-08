@@ -36,7 +36,7 @@ export default function SellerDashboard() {
           </div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px', marginBottom: '24px' }} className="seller-metrics-grid">
               <div className="card" style={{ padding: '20px' }}>
                 <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Products</div>
                 <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{data.metrics.productCount || 0}</div>
@@ -52,9 +52,9 @@ export default function SellerDashboard() {
             </div>
 
             <div className="card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div className="seller-dash-header">
                 <h3 style={{ fontWeight: 700 }}>My Products</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                   <Link href="/seller/products" className="btn btn-primary btn-sm">
                     Upload Product
                   </Link>
@@ -68,6 +68,7 @@ export default function SellerDashboard() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: 'var(--gray-5)' }}>
+                        <th style={{ textAlign: 'left', padding: '10px', width: '52px' }}></th>
                         <th style={{ textAlign: 'left', padding: '10px' }}>Name</th>
                         <th style={{ textAlign: 'left', padding: '10px' }}>Category</th>
                         <th style={{ textAlign: 'left', padding: '10px' }}>Price</th>
@@ -77,9 +78,18 @@ export default function SellerDashboard() {
                     <tbody>
                       {data.products.map((p) => (
                         <tr key={p._id} style={{ borderBottom: '1px solid var(--gray-4)' }}>
-                          <td style={{ padding: '10px' }}>{p.name}</td>
-                          <td style={{ padding: '10px' }}>{p.category}</td>
-                          <td style={{ padding: '10px' }}>N{Number(p.price || 0).toLocaleString()}</td>
+                          <td style={{ padding: '10px' }}>
+                            {p.images?.[0] ? (
+                              <img src={p.images[0]} alt={p.name} style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '6px', display: 'block' }} />
+                            ) : (
+                              <div style={{ width: '42px', height: '42px', background: 'var(--gray-5)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <i className="fas fa-image" style={{ color: 'var(--gray-2)', fontSize: '.9rem' }} />
+                              </div>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px', fontWeight: 600 }}>{p.name}</td>
+                          <td style={{ padding: '10px', textTransform: 'capitalize', color: 'var(--gray-1)' }}>{p.category}</td>
+                          <td style={{ padding: '10px', fontWeight: 700 }}>₦{Number(p.price || 0).toLocaleString()}</td>
                           <td style={{ padding: '10px' }}>{p.stock}</td>
                         </tr>
                       ))}

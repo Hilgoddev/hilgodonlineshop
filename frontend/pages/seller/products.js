@@ -114,7 +114,7 @@ export default function SellerProducts() {
           </div>
         ) : null}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px', marginBottom: '24px' }}>
+        <div className="seller-metrics-grid">
           <div className="card" style={{ padding: '20px' }}>
             <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>My products</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{data.products?.length || 0}</div>
@@ -134,7 +134,7 @@ export default function SellerProducts() {
         <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
           <h3 style={{ marginBottom: '12px', fontWeight: 700 }}>Upload Product</h3>
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: '12px' }}>
+            <div className="seller-product-form-grid">
               <input className="form-input" placeholder="Product name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
               <select className="form-input" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
                 <option value="electronics">Electronics</option>

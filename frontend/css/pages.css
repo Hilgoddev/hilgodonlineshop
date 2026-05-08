@@ -1200,3 +1200,37 @@
 @media (max-width: 576px) {
   .related-grid { grid-template-columns: 1fr; max-width: 320px; }
 }
+
+/* ============ SELLER PAGES — MOBILE ============ */
+.seller-metrics-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-bottom: 24px; }
+.seller-product-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.seller-dash-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+
+@media (max-width: 640px) {
+  .seller-metrics-grid { grid-template-columns: 1fr; }
+  .seller-product-form-grid { grid-template-columns: 1fr; }
+  .seller-benefits { grid-template-columns: 1fr !important; }
+  .seller-hero h1 { font-size: 1.6rem; }
+  .seller-hero { padding: var(--space-10) var(--space-4); }
+  .form-row { grid-template-columns: 1fr; }
+  .checkout-steps { flex-wrap: wrap; gap: 8px; }
+  .step-line { display: none; }
+}
+
+/* ============ GENERAL MOBILE POLISH ============ */
+@media (max-width: 768px) {
+  .seller-metrics-grid { grid-template-columns: repeat(2,1fr); }
+  .pdp-actions { flex-direction: column; }
+  .pdp-actions .btn { width: 100%; }
+  .cart-layout { grid-template-columns: 1fr; }
+  .checkout-layout { grid-template-columns: 1fr; }
+  .quick-actions-grid { grid-template-columns: repeat(2,1fr); }
+}
+
+@media (max-width: 480px) {
+  .container { padding: 0 12px; }
+  .section { padding: var(--space-8) 0; }
+  .btn { padding: 9px 16px; font-size: .85rem; }
+  .cart-table-head { display: none; }
+  .cart-table-row { grid-template-columns: auto 1fr auto; }
+}

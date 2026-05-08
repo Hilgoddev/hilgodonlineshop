@@ -40,13 +40,17 @@ export default function ShopProvider({ children }) {
   }, []);
 
   const loadServerData = useCallback(async () => {
+    const safeJson = async (res) => {
+      if (!res.ok) return null;
+      const text = await res.text();
+      if (!text || text.trimStart().startsWith('<')) return null;
+      try { return JSON.parse(text); } catch { return null; }
+    };
     try {
       const [cartRes, wishRes] = await Promise.all([apiFetch('/api/cart'), apiFetch('/api/wishlist')]);
-      const cartData = await cartRes.json();
-      const wishData = await wishRes.json();
-
-      if (cartData.success) setCart(cartData.data || []);
-      if (wishData.success) setWishlist(wishData.data || []);
+      const [cartData, wishData] = await Promise.all([safeJson(cartRes), safeJson(wishRes)]);
+      if (cartData?.success) setCart(cartData.data || []);
+      if (wishData?.success) setWishlist(wishData.data || []);
     } catch (err) {
       console.error('Failed to load server cart/wishlist', err);
     }

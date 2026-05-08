@@ -62,37 +62,35 @@ export default function Navbar() {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
+    const FALLBACK_CATS = [
+      { name: 'Beauty & Personal Care', slug: 'beauty', icon: 'fa-sparkles' },
+      { name: 'Womenswear & Underwear', slug: 'womenswear', icon: 'fa-person-dress' },
+      { name: 'Menswear & Underwear', slug: 'menswear', icon: 'fa-person' },
+      { name: 'Phones & Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
+      { name: 'Fashion Accessories', slug: 'accessories', icon: 'fa-glasses' },
+      { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
+      { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
+      { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' },
+      { name: 'Sports', slug: 'sports', icon: 'fa-basketball' },
+      { name: 'Toys', slug: 'toys', icon: 'fa-gamepad' },
+      { name: 'Food', slug: 'food', icon: 'fa-utensils' },
+      { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' },
+    ];
     const fetchCategories = async () => {
       try {
         const res = await fetch('/api/categories');
-        const data = await res.json();
-        if (data.success && data.data && data.data.length > 0) {
-          // Use dynamic categories, map to include an icon fallback
-          const cats = data.data.map(c => ({
-            name: c.name,
-            slug: c.slug,
-            icon: c.icon || 'fa-tags'
-          }));
-          setCategories(cats);
+        if (!res.ok) { setCategories(FALLBACK_CATS); return; }
+        const text = await res.text();
+        if (!text || text.trimStart().startsWith('<')) { setCategories(FALLBACK_CATS); return; }
+        const data = JSON.parse(text);
+        if (data.success && data.data?.length > 0) {
+          setCategories(data.data.map(c => ({ name: c.name, slug: c.slug, icon: c.icon || 'fa-tags' })));
         } else {
-          // Fallback if db is empty
-          setCategories([
-            { name: 'Beauty & Personal Care', slug: 'beauty', icon: 'fa-sparkles' },
-            { name: 'Womenswear & Underwear', slug: 'womenswear', icon: 'fa-person-dress' },
-            { name: 'Menswear & Underwear', slug: 'menswear', icon: 'fa-person' },
-            { name: 'Phones & Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
-            { name: 'Fashion Accessories', slug: 'accessories', icon: 'fa-glasses' },
-            { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
-            { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
-            { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' },
-            { name: 'Sports', slug: 'sports', icon: 'fa-basketball' },
-            { name: 'Toys', slug: 'toys', icon: 'fa-gamepad' },
-            { name: 'Food', slug: 'food', icon: 'fa-utensils' },
-            { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' }
-          ]);
+          setCategories(FALLBACK_CATS);
         }
       } catch (err) {
         console.error('Failed to fetch categories:', err);
+        setCategories(FALLBACK_CATS);
       }
     };
     fetchCategories();
