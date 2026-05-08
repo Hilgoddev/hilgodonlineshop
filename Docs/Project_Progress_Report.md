@@ -1,7 +1,7 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-08 (Updated — Session 6)  
+**Report Date:** 2026-05-08 (Updated — Session 7)  
 **Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack  
 **Hosting:** Render (two live Web Services — auto-deploy on push to `main`)  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
@@ -123,6 +123,22 @@ RESEND (transactional email)
 | **JSON `SyntaxError` on categories/cart/wishlist** | Render cold-start returns 502 HTML; `JSON.parse()` was called on it without checking content type | Added `safeJson` HTML-detection helper to `ShopProvider.js`. `Navbar.js` also rewritten with same pattern and `FALLBACK_CATS` constants on failure. |
 | **Render cold-start delay** | Backend sleeps after 15 min inactivity on free tier; first request takes 30–60 s | Added fire-and-forget health ping in `_app.js` `useEffect` — wakes backend immediately on first page load before user navigates to data-heavy page. |
 | **Rate limits too low in production** | General limit was 100 req/15 min; admin limit was 50 req/15 min — legitimate use hit limits | Raised general limit to 500, admin limit to 300 in `rateLimit.js`. |
+
+---
+
+### 1.13 Track Order Cleanup & Client Documentation (Session 7)
+
+| Change | Detail |
+|---|---|
+| **Hardcoded delivery estimate removed** | Estimated delivery now calculated as 3 days from `orderData.createdAt`; delivered orders show actual `updatedAt` timestamp |
+| **Hardcoded dispatch timestamp removed** | "Dispatched" step now shows `orderData.updatedAt` when order is shipped/delivered — no more fake "yesterday" timestamp |
+| **Hardcoded rider name removed** | "Your rider Ade" → "Your rider" |
+| **Hardcoded delivery window removed** | "Estimated: Today between 4:00–6:00 PM" → "Your delivery will arrive soon." |
+| **`alert()` stubs removed** | "Contact Rider" button disabled until order status is `shipped` (tooltip explains why); "Get Help" is now a `Link` to `/account` |
+| **`onKeyPress` (deprecated)** | Replaced with inline `onKeyDown` on the order ID input; removed the now-unused `handleKeyPress` function |
+| **Unused `session` variable** | Removed from `useSession()` destructure in `track-order.js` |
+| **Client-facing README** | `README.md` rewritten as a clean, professional document for the client — features, deployment, setup steps, API reference. No test credentials or dev-internal notes |
+| **Developer README** | Original developer README saved as `README.dev.md` with full internal detail intact |
 
 ---
 

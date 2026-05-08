@@ -9,7 +9,7 @@ export default function TrackOrder() {
   const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   const trackOrder = async () => {
     if (!orderId.trim()) {
@@ -42,12 +42,6 @@ export default function TrackOrder() {
       setOrderData(null);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      trackOrder();
     }
   };
 
@@ -97,7 +91,7 @@ export default function TrackOrder() {
               autoComplete="off"
               value={orderId}
               onChange={(e) => setOrderId(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={(e) => e.key === 'Enter' && trackOrder()}
             />
             <button 
               className="track-btn" 
@@ -149,7 +143,9 @@ export default function TrackOrder() {
               <div>
                 <div style={{ fontSize: '.82rem', color: 'var(--gray-1)' }}>Estimated Delivery</div>
                 <div style={{ fontWeight: '600', color: 'var(--success)' }}>
-                  {formatDate(new Date(Date.now() + 24 * 60 * 60 * 1000))}
+                  {orderData.status === 'delivered'
+                    ? formatDate(orderData.updatedAt || orderData.createdAt)
+                    : formatDate(new Date(new Date(orderData.createdAt).getTime() + 3 * 24 * 60 * 60 * 1000))}
                 </div>
               </div>
               <span 
@@ -230,8 +226,8 @@ export default function TrackOrder() {
                   <h4>Dispatched from Warehouse</h4>
                   <p>Order left our fulfillment center.</p>
                   <div className="time">
-                    {orderData.status === 'shipped' || orderData.status === 'delivered' ? 
-                      formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000)) : 
+                    {orderData.status === 'shipped' || orderData.status === 'delivered' ?
+                      formatDate(new Date(orderData.updatedAt || orderData.createdAt)) :
                       'Pending'
                     }
                   </div>
@@ -248,7 +244,7 @@ export default function TrackOrder() {
                 </div>
                 <div className="progress-text">
                   <h4>Out for Delivery</h4>
-                  <p>Your rider Ade is on the way to your address.</p>
+                  <p>Your rider is on the way to your address.</p>
                   <div className="time">
                     {orderData.status === 'shipped' || orderData.status === 'delivered' ? 
                       formatDate(new Date()) : 
@@ -264,7 +260,7 @@ export default function TrackOrder() {
                 </div>
                 <div className="progress-text">
                   <h4>Delivered</h4>
-                  <p>Estimated: Today between 4:00–6:00 PM</p>
+                  <p>Your delivery will arrive soon.</p>
                 </div>
               </div>
             </div>
@@ -275,18 +271,16 @@ export default function TrackOrder() {
               marginTop: 'var(--space-6)', 
               flexWrap: 'wrap' 
             }}>
-              <button 
-                className="btn btn-outline" 
-                onClick={() => alert('Rider contacted!')}
+              <button
+                className="btn btn-outline"
+                disabled={orderData.status !== 'shipped'}
+                title={orderData.status !== 'shipped' ? 'Available once your order is dispatched' : 'Call your rider'}
               >
                 <i className="fas fa-phone"></i> Contact Rider
               </button>
-              <button 
-                className="btn btn-outline" 
-                onClick={() => alert('Support ticket created')}
-              >
+              <Link href="/account" className="btn btn-outline">
                 <i className="fas fa-headset"></i> Get Help
-              </button>
+              </Link>
               <Link href="/account" className="btn btn-primary">
                 <i className="fas fa-box"></i> All Orders
               </Link>
