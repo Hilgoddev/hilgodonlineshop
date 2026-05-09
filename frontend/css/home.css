@@ -719,7 +719,11 @@
   }
 
   .hero-product-img {
-    display: none;
+    width: 120px;
+    max-width: 120px;
+    max-height: 150px;
+    right: 3%;
+    opacity: 0.9;
   }
 
   .product-grid-5,
@@ -778,6 +782,10 @@
   .hero-content {
     padding: 0 var(--space-3);
     max-width: 100%;
+  }
+
+  .hero-product-img {
+    display: none;
   }
 
   /* Flash header stacks vertically so countdown doesn't overflow */
