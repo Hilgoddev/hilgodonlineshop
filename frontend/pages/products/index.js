@@ -404,7 +404,8 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
 }
 
 // Server-side props to fetch initial data
-export async function getServerSideProps({ query }) {
+export async function getServerSideProps({ query, res }) {
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120');
   try {
     const { category, page = 1 } = query;
     

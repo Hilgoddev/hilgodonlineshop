@@ -478,39 +478,34 @@ export default function ProductDetail({ product, relatedProducts }) {
   );
 }
 
-// Fetch product data on the server side
-export async function getServerSideProps({ params }) {
+export async function getStaticProps({ params }) {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    
-    // Fetch product
-    const res = await fetch(`${baseUrl}/api/products/${params.id}`);
-    const data = await res.json();
-    
-    if (data.success && data.data) {
-      // Fetch related products from same category
-      let relatedProducts = [];
-      try {
-        const relRes = await fetch(`${baseUrl}/api/products?category=${data.data.category}&limit=4`);
-        const relData = await relRes.json();
-        if (relData.success) {
-          relatedProducts = (relData.data || []).filter(p => p._id !== params.id).slice(0, 3);
-        }
-      } catch (e) {
-        console.error('Error fetching related products:', e);
-      }
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-      return {
-        props: {
-          product: data.data,
-          relatedProducts,
-        },
-      };
-    }
-    
-    return { notFound: true };
+    const res = await fetch(`${apiBase}/products/${params.id}`);
+    const data = await res.json();
+
+    if (!data.success || !data.data) return { notFound: true };
+
+    let relatedProducts = [];
+    try {
+      const relRes = await fetch(`${apiBase}/products?category=${data.data.category}&limit=4`);
+      const relData = await relRes.json();
+      if (relData.success) {
+        relatedProducts = (relData.data || []).filter(p => p._id !== params.id).slice(0, 3);
+      }
+    } catch (_) {}
+
+    return {
+      props: { product: data.data, relatedProducts },
+      revalidate: 60, // regenerate in background every 60 seconds
+    };
   } catch (error) {
-    console.error('Error fetching product:', error);
-    return { props: { product: null, relatedProducts: [] } };
+    return { notFound: true };
   }
+}
+
+// Don't pre-build any paths at deploy time — generate on first request then cache.
+export async function getStaticPaths() {
+  return { paths: [], fallback: 'blocking' };
 }
