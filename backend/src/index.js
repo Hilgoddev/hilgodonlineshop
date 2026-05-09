@@ -16,8 +16,9 @@ app.use(cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true
 }));
-// Note: for Paystack webhooks, we need raw body parsing before JSON parsing.
+// Webhooks require raw body before the global JSON parser runs
 app.use('/api/payment/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -46,6 +47,7 @@ const categoryRoutes = require('./routes/categories');
 const storeRoutes = require('./routes/stores');
 const reviewRoutes = require('./routes/reviews');
 const uploadRoutes = require('./routes/upload');
+const stripeRoutes = require('./routes/stripe');
 const supabase = require('./config/supabase');
 const { generalApiLimiter, adminApiLimiter } = require('./middleware/rateLimit');
 
@@ -64,6 +66,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 // Basic DB connectivity route used by frontend system test page
 app.get('/api/db-test', async (req, res, next) => {

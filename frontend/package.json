@@ -11,6 +11,8 @@
     "seed": "node scripts/seed-products.js"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.3.0",
+    "@stripe/stripe-js": "^9.4.0",
     "@supabase/supabase-js": "^2.105.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

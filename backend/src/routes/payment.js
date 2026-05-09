@@ -158,4 +158,18 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     }
 });
 
+// GET /api/payment/bank-details
+// Returns bank account info from env vars. Client sets these when they onboard.
+router.get('/bank-details', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      bankName: process.env.BANK_NAME || 'First Bank Nigeria',
+      accountName: process.env.BANK_ACCOUNT_NAME || 'Hilgod Online Store Ltd',
+      accountNumber: process.env.BANK_ACCOUNT_NUMBER || '0000000000',
+      sortCode: process.env.BANK_SORT_CODE || '011',
+    },
+  });
+});
+
 module.exports = router;
