@@ -7,7 +7,8 @@ import { apiFetch } from '../lib/apiClient';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+const stripeEnabled = process.env.NEXT_PUBLIC_STRIPE_ENABLED === 'true';
+const stripePromise = stripeEnabled && process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
@@ -224,7 +225,7 @@ export default function Checkout() {
   }
 
   // ── STRIPE PAYMENT VIEW ─────────────────────────────────────────────────────
-  if (view === 'stripe' && stripeClientSecret && stripePromise) {
+  if (view === 'stripe' && stripeClientSecret && stripePromise && stripeEnabled) {
     return (
       <Layout title="Pay with Stripe — Hilgod Online Store">
         <nav className="breadcrumb">
@@ -491,13 +492,22 @@ export default function Checkout() {
                 ))}
               </div>
 
-              {selectedPayment === 'stripe' && !stripePromise && (
+              {selectedPayment === 'stripe' && !stripeEnabled && (
                 <div style={{
-                  marginTop: 'var(--space-3)', padding: '10px var(--space-3)',
-                  background: 'var(--warning-light)', borderRadius: 'var(--radius)',
-                  fontSize: '.83rem', color: 'var(--warning)',
+                  marginTop: 'var(--space-3)', padding: 'var(--space-4)',
+                  background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                  borderRadius: 'var(--radius)', border: '1px solid #c4b5fd',
+                  textAlign: 'center',
                 }}>
-                  <i className="fas fa-triangle-exclamation"></i> Stripe is not yet configured on this platform. Please choose another payment method.
+                  <div style={{ fontSize: '1.6rem', marginBottom: '6px' }}>
+                    <i className="fas fa-credit-card" style={{ color: '#7c3aed' }}></i>
+                  </div>
+                  <div style={{ fontWeight: '700', color: '#7c3aed', fontSize: '.95rem', marginBottom: '4px' }}>
+                    Stripe Payments — Coming Soon
+                  </div>
+                  <div style={{ fontSize: '.82rem', color: '#6d28d9', lineHeight: '1.5' }}>
+                    We're setting up card payments via Stripe. In the meantime, please use Paystack, bank transfer, or pay on delivery.
+                  </div>
                 </div>
               )}
 
@@ -509,7 +519,7 @@ export default function Checkout() {
                   className="btn btn-primary btn-lg"
                   style={{ flex: 1 }}
                   onClick={() => setCurrentStep(3)}
-                  disabled={selectedPayment === 'stripe' && !stripePromise}
+                  disabled={selectedPayment === 'stripe' && !stripeEnabled}
                 >
                   Review Order <i className="fas fa-arrow-right"></i>
                 </button>
