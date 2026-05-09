@@ -182,4 +182,14 @@
 @media (max-width: 480px) {
   .footer-promo .container { grid-template-columns: 1fr; }
   .footer-body .container { grid-template-columns: 1fr; }
+  .newsletter-form { flex-direction: column; }
+  .newsletter-input {
+    border-radius: var(--radius) var(--radius) 0 0;
+    border-right: 1.5px solid rgba(255,255,255,.15);
+    border-bottom: none;
+  }
+  .newsletter-btn {
+    border-radius: 0 0 var(--radius) var(--radius);
+    width: 100%;
+  }
 }
