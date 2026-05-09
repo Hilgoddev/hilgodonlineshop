@@ -13,7 +13,7 @@ A multi-vendor e-commerce platform built for the Nigerian market. Customers can 
 ### For Customers
 - Browse, search, and filter thousands of products by category
 - Persistent shopping cart and wishlist (survives browser close and device switch)
-- Paystack card payment and pay-on-delivery checkout
+- Paystack card payment, Stripe card payment, bank transfer, and pay-on-delivery checkout
 - Order history and real-time order tracking with a step-by-step timeline
 - Product reviews and star ratings
 - Google Sign-In support
@@ -42,7 +42,7 @@ A multi-vendor e-commerce platform built for the Nigerian market. Customers can 
 | Database | Supabase (PostgreSQL + Row Level Security) |
 | Auth | Supabase Auth (email/password + Google OAuth) |
 | Storage | Supabase Storage (product images) |
-| Payments | Paystack |
+| Payments | Paystack, Stripe, Bank Transfer |
 | Email | Resend |
 | Hosting | Render (two Node.js Web Services) |
 
@@ -63,6 +63,12 @@ Both services deploy automatically from the `main` branch on Render.
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 PAYSTACK_SECRET_KEY=sk_live_your-key
+STRIPE_SECRET_KEY=sk_live_your-stripe-key
+STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+BANK_NAME=Your Bank Name
+BANK_ACCOUNT_NAME=Your Business Name
+BANK_ACCOUNT_NUMBER=0000000000
+BANK_SORT_CODE=000
 RESEND_API_KEY=your-resend-api-key
 ADMIN_EMAIL=your-admin@email.com
 FRONTEND_URL=https://your-frontend.onrender.com
@@ -76,6 +82,7 @@ EMAIL_VERIFICATION_ENABLED=true
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 NEXT_PUBLIC_API_URL=https://your-backend.onrender.com/api
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_your-stripe-key
 GOOGLE_CLIENT_ID=your-google-client-id
 ```
 
@@ -98,6 +105,28 @@ GOOGLE_CLIENT_ID=your-google-client-id
    https://your-backend.onrender.com/api/payment/webhook
    ```
    Enable the `charge.success` event.
+
+### 2b. Payments (Stripe)
+
+1. Register at https://stripe.com and activate your account.
+2. From **Developers → API Keys**, copy your **Live Secret Key** (`sk_live_...`) and **Live Publishable Key** (`pk_live_...`).
+3. Set `STRIPE_SECRET_KEY` on your backend Render service and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` on your frontend Render service.
+4. Go to **Developers → Webhooks → Add endpoint** and enter:
+   ```
+   https://your-backend.onrender.com/api/stripe/webhook
+   ```
+   Enable the `payment_intent.succeeded` event. Copy the **Signing Secret** (`whsec_...`) and set it as `STRIPE_WEBHOOK_SECRET` on Render.
+
+### 2c. Bank Transfer
+
+Set your business bank account details as environment variables on the backend Render service:
+```
+BANK_NAME=Your Bank Name
+BANK_ACCOUNT_NAME=Your Business Name
+BANK_ACCOUNT_NUMBER=Your Account Number
+BANK_SORT_CODE=Your Sort Code
+```
+Customers will be shown these details at checkout and instructed to include their order reference in the payment narration.
 
 ### 3. Email (Resend)
 
@@ -167,6 +196,9 @@ Create `backend/.env` and `frontend/.env.local` using the variable names above, 
 | `PUT` | `/api/orders/:id` | Admin | Update order status |
 | `POST` | `/api/payment/initialize` | User | Start Paystack payment |
 | `POST` | `/api/payment/webhook` | Paystack | Payment confirmation callback |
+| `GET` | `/api/payment/bank-details` | None | Retrieve bank transfer account details |
+| `POST` | `/api/stripe/create-payment-intent` | User | Create Stripe PaymentIntent |
+| `POST` | `/api/stripe/webhook` | Stripe | Stripe HMAC payment callback |
 | `GET` | `/api/seller/dashboard` | Seller | Sales metrics + product list |
 | `GET` | `/api/seller/analytics` | Seller | Per-product revenue breakdown |
 | `GET` | `/api/seller/orders` | Seller | Customer orders for seller's products |

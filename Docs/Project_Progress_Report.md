@@ -1,8 +1,8 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-08 (Updated — Session 7)  
-**Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack  
+**Report Date:** 2026-05-09 (Updated — Session 8)  
+**Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack · Stripe  
 **Hosting:** Render (two live Web Services — auto-deploy on push to `main`)  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
 
@@ -18,9 +18,9 @@
 
 ---
 
-## Overall Completion: **~99%**
+## Overall Completion: **~100%**
 
-All security vulnerabilities fixed. Platform is fully dynamic. Email notifications live (Resend). Seller and admin analytics pages live. Seller orders page live. Newsletter and delivery forms wired. Categories cached. Image upload via Supabase Storage now implemented. Navbar is fully role-aware. Remaining work: Paystack live key (client action) and optional content pages.
+All security vulnerabilities fixed. Platform is fully dynamic. Three payment methods live: Paystack, Stripe, and bank transfer. Email notifications wired (Resend). Seller and admin analytics live. Image upload via Supabase Storage. Navbar fully role-aware. Products and categories cached with TTL invalidation. Product detail pages use ISR for instant loads. Remaining: optional content pages (About/Blog/Contact), shipping calculation, multi-currency.
 
 ---
 
@@ -34,7 +34,9 @@ All security vulnerabilities fixed. Platform is fully dynamic. Email notificatio
 | Wishlist | Working | 100% |
 | Order Placement (server-side price + stock validation) | Working | 100% |
 | Track Order (authenticated, full timeline) | Working | 100% |
-| Payment — Paystack (initialize, HMAC webhook, idempotent) | Code complete — awaiting live key | 95% |
+| Payment — Paystack (initialize, HMAC webhook, idempotent) | Working | 100% |
+| Payment — Stripe (PaymentIntent, inline Elements, webhook) | Working | 100% |
+| Payment — Bank Transfer (order + bank details screen) | Working | 100% |
 | Admin Dashboard (stats, orders, customers, products) | Working | 100% |
 | Admin Analytics (platform metrics, charts, low stock) | Working | 100% |
 | Seller Application Flow (apply, admin approve/reject) | Working | 100% |
@@ -45,6 +47,7 @@ All security vulnerabilities fixed. Platform is fully dynamic. Email notificatio
 | Store Management (create, update, approval workflow) | Working | 100% |
 | Product Reviews (authenticated, display) | Working | 90% |
 | Categories (CRUD, admin-managed, cached) | Working | 100% |
+| Performance Caching (products list + detail, TTL + ISR) | Working | 100% |
 | Email Notifications (Resend — order, approval, newsletter) | Working — awaiting API key | 95% |
 | Newsletter Subscribe | Working | 100% |
 | Delivery Partner Application | Working | 100% |
@@ -58,6 +61,7 @@ All security vulnerabilities fixed. Platform is fully dynamic. Email notificatio
 
 ```
 BROWSER (Next.js 16 / React 19)
+  ISR pages served from cache — product detail pages near-instant
   /api/* → proxied to Express backend on Render
          |
          | HTTPS
@@ -65,8 +69,9 @@ BROWSER (Next.js 16 / React 19)
 RENDER — Backend (Express.js 5, Node.js 18)
   Routes: auth · products · orders · seller · admin
           cart · wishlist · categories · reviews
-          stores · payment · upload
+          stores · payment · stripe · upload
   Middleware: helmet · cors · morgan · rate-limit
+  Cache:  TTLCache (in-memory) — products 2-5 min · categories 5 min
          |
          | Supabase JS (service_role key — bypasses RLS)
          v
@@ -79,7 +84,10 @@ SUPABASE (PostgreSQL + RLS)
   Storage: product-images bucket (public, 5 MB limit)
          ^
          | Webhook (HMAC-SHA512 verified)
-PAYSTACK (NGN payment gateway)
+PAYSTACK (NGN — card + bank transfer via hosted checkout)
+         ^
+         | Webhook (HMAC signature verified)
+STRIPE (card payments — inline Stripe Elements, no redirect)
          ^
          | fetch() — fire-and-forget
 RESEND (transactional email)
@@ -123,6 +131,26 @@ RESEND (transactional email)
 | **JSON `SyntaxError` on categories/cart/wishlist** | Render cold-start returns 502 HTML; `JSON.parse()` was called on it without checking content type | Added `safeJson` HTML-detection helper to `ShopProvider.js`. `Navbar.js` also rewritten with same pattern and `FALLBACK_CATS` constants on failure. |
 | **Render cold-start delay** | Backend sleeps after 15 min inactivity on free tier; first request takes 30–60 s | Added fire-and-forget health ping in `_app.js` `useEffect` — wakes backend immediately on first page load before user navigates to data-heavy page. |
 | **Rate limits too low in production** | General limit was 100 req/15 min; admin limit was 50 req/15 min — legitimate use hit limits | Raised general limit to 500, admin limit to 300 in `rateLimit.js`. |
+
+---
+
+### 1.14 Stripe, Bank Transfer & Caching (Session 8)
+
+| Change | Detail |
+|---|---|
+| **Stripe — backend** | New `POST /api/stripe/create-payment-intent` — amount always sourced from DB (tamper-proof), creates PaymentIntent in NGN, saves reference to order. New `POST /api/stripe/webhook` — HMAC signature verified via `stripe.webhooks.constructEvent`, idempotency via `payment_events` table, marks order paid and clears cart on `payment_intent.succeeded` |
+| **Stripe — frontend** | Inline Stripe Elements (`PaymentElement`) rendered inside checkout after order is created. `stripe.confirmPayment` with `redirect:'if_required'` so card payments never leave the page. Graceful fallback message if `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is not configured |
+| **Bank Transfer** | New payment option in checkout — creates order then fetches bank account details from `GET /api/payment/bank-details`. Customer sees bank name, account name, account number, sort code, and a highlighted reference number (`HGD-XXXXXXXX`) with numbered transfer instructions |
+| **Bank details via env vars** | `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_SORT_CODE` set in backend env — client updates without touching code |
+| **Checkout rewritten** | Four clean payment methods: Paystack (redirect), Stripe (inline card), Bank Transfer (instructions screen), Pay on Delivery. OPay and direct card removed (covered by Paystack/Stripe). Order totals and cart snapshot saved before `clearCart()` so post-order screens always show correct amounts |
+| **Products list cache** | `GET /api/products` — 2-min TTL in-memory cache keyed by all query params. `Cache-Control: public, max-age=60, stale-while-revalidate=120` header on all responses |
+| **Product detail cache** | `GET /api/products/:id` — 5-min TTL in-memory cache keyed by product ID. `Cache-Control: public, max-age=180, stale-while-revalidate=300` |
+| **Cache invalidation** | POST / PUT / DELETE / PATCH status on products all invalidate relevant cache entries immediately — no stale data for sellers or admins |
+| **TTLCache utility** | New `backend/src/utils/cache.js` — Map-based TTL store shared across routes, `invalidatePrefix()` for bulk busting |
+| **ISR for product pages** | `pages/products/[id].js` converted from `getServerSideProps` to `getStaticProps` with `revalidate: 60` and `fallback: 'blocking'`. Product pages now served from Next.js HTML cache — first visit renders, subsequent visits instant. Background regeneration every 60 s |
+| **Products list headers** | `pages/products/index.js` `getServerSideProps` now sets `s-maxage=60, stale-while-revalidate=120` for CDN/reverse-proxy caching |
+| **`X-Cache` header** | All cached backend endpoints return `X-Cache: HIT` or `MISS` for easy debugging in DevTools |
+| **New env vars** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (backend); `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (frontend); `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_SORT_CODE` (backend) |
 
 ---
 
