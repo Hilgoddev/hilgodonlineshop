@@ -1,7 +1,7 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-09 (Updated — Session 8)  
+**Report Date:** 2026-05-09 (Updated — Session 9)  
 **Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack · Stripe  
 **Hosting:** Render (two live Web Services — auto-deploy on push to `main`)  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
@@ -151,6 +151,17 @@ RESEND (transactional email)
 | **Products list headers** | `pages/products/index.js` `getServerSideProps` now sets `s-maxage=60, stale-while-revalidate=120` for CDN/reverse-proxy caching |
 | **`X-Cache` header** | All cached backend endpoints return `X-Cache: HIT` or `MISS` for easy debugging in DevTools |
 | **New env vars** | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (backend); `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (frontend); `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_SORT_CODE` (backend) |
+
+---
+
+### 1.15 Render Environment Variables & render.yaml (Session 9)
+
+| Change | Detail |
+|---|---|
+| **`render.yaml` created** | Infrastructure-as-code file at repo root defines both Render services (backend + frontend), build/start commands, and all env var keys. Non-secret values pre-filled; secrets marked `sync: false` so they register as placeholders in Render and are never committed to git |
+| **Backend env vars updated via Render API** | `PAYSTACK_SECRET_KEY` corrected (was placeholder, now real live key). `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` added (placeholders pending real Stripe keys). `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_SORT_CODE` added. `RESEND_API_KEY`, `ADMIN_EMAIL` added. `GOOGLE_CLIENT_SECRET` added (was missing from Render) |
+| **Frontend env vars updated via Render API** | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` added (live key). `GOOGLE_CLIENT_SECRET` added (was missing) |
+| **Documentation updated** | Both READMEs (`README.md` client-facing, `README.dev.md` developer) updated with Stripe, bank transfer, caching, ISR, and all new env vars |
 
 ---
 
@@ -414,13 +425,21 @@ All seller and admin routes are now live. No real 404 routes remain from nav/foo
 
 ## Part 4 — Missing API Keys & Credentials
 
-### 4.1 Blocking (Platform Cannot Function Without These)
+### 4.1 Still Needs Real Values (Set on Render but Placeholder)
 
-| Key | Service | Current Status | What Breaks Without It |
-|---|---|---|---|
-| `PAYSTACK_SECRET_KEY` | Paystack | **Placeholder: `your-paystack-secret-key`** | Payment initialization returns 500; no payments accepted |
-| `RESEND_API_KEY` | Resend | **Not set** | All email notifications silently skipped (platform still works, just no emails) |
-| `ADMIN_EMAIL` | Any email | **Not set** | Delivery partner applications emailed to applicant instead of admin |
+| Key | Service | Action Required |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | Stripe | Replace `sk_test_your-stripe-secret-key` with `sk_live_...` from Stripe Dashboard → Developers → API Keys |
+| `STRIPE_WEBHOOK_SECRET` | Stripe | Register webhook URL in Stripe Dashboard → Developers → Webhooks, then paste the `whsec_...` signing secret |
+| `RESEND_API_KEY` | Resend | Register at https://resend.com → replace placeholder with real API key |
+| `BANK_ACCOUNT_NUMBER` | Bank | Replace `0000000000` with real business account number |
+| `BANK_NAME` / `BANK_ACCOUNT_NAME` / `BANK_SORT_CODE` | Bank | Confirm or update with real bank details |
+
+**Stripe webhook URL to register:**
+```
+https://hilgodonlineshop.onrender.com/api/stripe/webhook
+```
+Enable event: `payment_intent.succeeded`
 
 ### 4.2 Required for Full Feature Set
 
@@ -431,13 +450,7 @@ All seller and admin routes are now live. No real 404 routes remain from nav/foo
 | **Google OAuth JS Origin** | Google Cloud Console | **Already configured ✓** — `https://hilgod-frontend.onrender.com` |
 | **Paystack Webhook URL** | Paystack Dashboard | Must add `https://hilgodonlineshop.onrender.com/api/payment/webhook` |
 
-### 4.3 Needed When Adding Future Features
-
-| Feature | Service | Key(s) Needed |
-|---|---|---|
-| Email notifications | Resend | `RESEND_API_KEY` (free up to 3,000/month) |
-
-### 4.4 Currently Active (Developer's Accounts — Rotate at Handover)
+### 4.3 Currently Active (Developer's Accounts — Rotate at Handover)
 
 | Key | Service | Location |
 |---|---|---|
@@ -696,28 +709,38 @@ PAYSTACK — Nigerian NGN payment gateway
 
 ## Part 11 — Environment Variables Reference
 
-### Backend (`HilgodOnlineShop` on Render)
+### Backend (`HilgodOnlineShop` on Render) — 17 vars
 
 | Variable | Value / Status | Notes |
 |---|---|---|
 | `SUPABASE_URL` | Set ✓ | Rotate at handover |
 | `SUPABASE_SERVICE_ROLE_KEY` | Set ✓ | Never expose to frontend |
-| `PAYSTACK_SECRET_KEY` | **PLACEHOLDER ✗** | Replace with `sk_live_...` |
+| `PAYSTACK_SECRET_KEY` | Set ✓ (live key) | Updated from placeholder this session |
+| `STRIPE_SECRET_KEY` | **Placeholder ✗** | Replace with `sk_live_...` from Stripe |
+| `STRIPE_WEBHOOK_SECRET` | **Placeholder ✗** | Replace with `whsec_...` after registering webhook |
+| `BANK_NAME` | Set ✓ (`First Bank Nigeria`) | Update with real bank |
+| `BANK_ACCOUNT_NAME` | Set ✓ (`Hilgod Online Store Ltd`) | Update with real account name |
+| `BANK_ACCOUNT_NUMBER` | **Placeholder ✗** (`0000000000`) | Replace with real account number |
+| `BANK_SORT_CODE` | Set ✓ (`011`) | Update if different |
+| `RESEND_API_KEY` | **Placeholder ✗** | Replace with real Resend key |
+| `ADMIN_EMAIL` | Set ✓ (`hilgoddev@gmail.com`) | Update to client's email at handover |
 | `GOOGLE_CLIENT_ID` | Set ✓ | Developer's Google project |
-| `GOOGLE_CLIENT_SECRET` | Set ✓ | Developer's Google project |
+| `GOOGLE_CLIENT_SECRET` | Set ✓ | Added this session — was missing |
 | `FRONTEND_URL` | Set ✓ (`https://hilgod-frontend.onrender.com`) | CORS origin |
 | `NODE_ENV` | Set ✓ (`production`) | — |
 | `PORT` | Set ✓ (`5000`) | Render overrides automatically |
-| `EMAIL_VERIFICATION_ENABLED` | Set ✓ (`false`) | Change to `"true"` when SMTP configured |
+| `EMAIL_VERIFICATION_ENABLED` | Set ✓ (`false`) | Change to `true` when Resend is configured |
 
-### Frontend (`hilgod-frontend` on Render)
+### Frontend (`hilgod-frontend` on Render) — 7 vars
 
 | Variable | Value / Status | Notes |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Set ✓ | Developer's project |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Set ✓ | Corrected (was typo) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Set ✓ | — |
 | `NEXT_PUBLIC_API_URL` | Set ✓ (`https://hilgodonlineshop.onrender.com/api`) | Backend proxy target |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Set ✓ (live key) | Added this session |
 | `GOOGLE_CLIENT_ID` | Set ✓ | OAuth button |
+| `GOOGLE_CLIENT_SECRET` | Set ✓ | Added this session — was missing |
 | `NODE_ENV` | Set ✓ (`production`) | — |
 
 ---
