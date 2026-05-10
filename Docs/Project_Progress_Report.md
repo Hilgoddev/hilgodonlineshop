@@ -1,20 +1,22 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-09 (Updated — Session 9)  
+**Report Date:** 2026-05-10 (Updated — Session 10)  
 **Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack · Stripe  
-**Hosting:** Render (two live Web Services — auto-deploy on push to `main`)  
+**Hosting:** Render (primary) · Vercel (mirror) — GitHub Actions CI/CD auto-deploys on push to `main`  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
 
 ---
 
 ## Live URLs
 
-| Service | URL | Status |
-|---|---|---|
-| **Customer Frontend** | https://hilgod-frontend.onrender.com | Live |
-| **Backend API** | https://hilgodonlineshop.onrender.com | Live |
-| **API Health Check** | https://hilgodonlineshop.onrender.com/api/health | Healthy |
+| Service | URL | Platform | Status |
+|---|---|---|---|
+| **Customer Frontend (primary)** | https://hilgod-frontend.onrender.com | Render | Live |
+| **Customer Frontend (mirror)** | https://hilgod.vercel.app | Vercel | Live |
+| **Backend API (primary)** | https://hilgodonlineshop.onrender.com | Render | Live |
+| **Backend API (mirror)** | https://hilgod-api.vercel.app | Vercel | Live |
+| **API Health Check** | https://hilgodonlineshop.onrender.com/api/health | Render | Healthy |
 
 ---
 
@@ -162,6 +164,24 @@ RESEND (transactional email)
 | **Backend env vars updated via Render API** | `PAYSTACK_SECRET_KEY` corrected (was placeholder, now real live key). `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` added (placeholders pending real Stripe keys). `BANK_NAME`, `BANK_ACCOUNT_NAME`, `BANK_ACCOUNT_NUMBER`, `BANK_SORT_CODE` added. `RESEND_API_KEY`, `ADMIN_EMAIL` added. `GOOGLE_CLIENT_SECRET` added (was missing from Render) |
 | **Frontend env vars updated via Render API** | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` added (live key). `GOOGLE_CLIENT_SECRET` added (was missing) |
 | **Documentation updated** | Both READMEs (`README.md` client-facing, `README.dev.md` developer) updated with Stripe, bank transfer, caching, ISR, and all new env vars |
+
+---
+
+### 1.16 Vercel Hosting, CI/CD Pipeline & Repo Cleanup (Session 10)
+
+| Change | Detail |
+|---|---|
+| **Vercel — frontend deployed** | Next.js app deployed to `hilgod.vercel.app` via Vercel CLI. All 30 pages build and serve. All env vars set on Vercel project (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, etc.) |
+| **Vercel — backend deployed** | Express app deployed to `hilgod-api.vercel.app` via Vercel CLI. `vercel.json` routes all traffic through `src/index.js`. `module.exports = app` added so serverless runtime can import the Express instance; `app.listen()` guarded by `require.main === module` to prevent double-start on Render |
+| **Multi-origin CORS** | Backend now accepts comma-separated origins in `FRONTEND_URL` env var. Render backend env updated to `https://hilgod-frontend.onrender.com,https://hilgod.vercel.app` so both frontends can call the API |
+| **Stripe coming-soon gate** | If `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is not set (or is a placeholder), the "Pay with Stripe" checkout option shows a "Coming Soon" notice instead of a broken payment form |
+| **Mobile hero image fix** | Hero product image no longer disappears on phones. Responsive ladder: tablet → 120 px image, ≤420 px → 85 px image with text constrained to 58% width, ≤315 px → image hidden |
+| **Footer newsletter overflow fix** | At ≤480 px, newsletter input and button now stack vertically (column flex); input top-radius, button bottom-radius, button full-width — no horizontal overflow |
+| **Unused file cleanup** | Deleted 279 files: 13 static HTML prototype pages, all vanilla JS (`frontend/js/`), the stale `frontend/dev/` directory (≈250 files), `update_topbar.js`, `public/api-test.html`, and `lib/products-data.js` |
+| **GitHub Actions CI/CD** | New `.github/workflows/deploy.yml` created. Triggers on push to `main`. Two parallel jobs: `Backend` and `Frontend`. Each installs deps, runs `npm test --if-present`, then deploys to Vercel using CLI (`vercel pull → vercel build → vercel deploy --prebuilt --prod`). Old stub workflows (`ci.yml`, `ci-cd.yml`) removed |
+| **`.gitignore` fixed** | `.github` was incorrectly listed in `.gitignore`, preventing workflow files from being tracked in git. Entry removed; all workflow files are now committed |
+| **Pending user action — GitHub Secrets** | Four secrets must be added at `github.com/Walter-sdq/HilgodOnlineShop/settings/secrets/actions`: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_FRONTEND_PROJECT_ID`, `VERCEL_BACKEND_PROJECT_ID` — see values in Part 4 |
+| **Pending user action — Vercel GitHub App** | Install at `github.com/apps/vercel` then link each Vercel project to the repo (frontend → root dir `frontend`, backend → root dir `backend`) for Vercel's own deployment status on PRs |
 
 ---
 
@@ -441,6 +461,21 @@ https://hilgodonlineshop.onrender.com/api/stripe/webhook
 ```
 Enable event: `payment_intent.succeeded`
 
+### 4.1b GitHub Secrets Required for CI/CD (Workflow Will Fail Without These)
+
+Go to `https://github.com/Walter-sdq/HilgodOnlineShop/settings/secrets/actions/new` and add:
+
+| Secret Name | Value |
+|---|---|
+| `VERCEL_TOKEN` | `vcp_0ZSPu0wodjCPJrleRwBiz0RTBTjHoxR3WEQfkzMorjoPx4LWT32mvOMD` |
+| `VERCEL_ORG_ID` | `team_zgtPrz2Aha7ZfsKF5RUDbGQ9` |
+| `VERCEL_FRONTEND_PROJECT_ID` | `prj_a27aUCUFFHEtVGbUpcf8bZesyVo6` |
+| `VERCEL_BACKEND_PROJECT_ID` | `prj_W5FvcYicHNdfC2lq6jk8svrWrhqt` |
+
+Once set, every push to `main` will automatically deploy both services to Vercel.
+
+---
+
 ### 4.2 Required for Full Feature Set
 
 | Key / Setting | Service | Status |
@@ -580,55 +615,6 @@ The developer's Google OAuth client is **fully configured** for the current live
 
 ---
 
-## Part 8 — Unused Files (Safe to Delete)
-
-These files are remnants of the old static HTML prototype site and are entirely superseded by the Next.js app. They serve no function and add noise to the repo.
-
-### Old Static HTML Site (frontend root)
-```
-frontend/index.html
-frontend/account.html
-frontend/categories.html
-frontend/checkout.html
-frontend/delivery.html
-frontend/login.html
-frontend/product-detail.html
-frontend/products.html
-frontend/seller-zone.html
-frontend/signup.html
-frontend/track-order.html
-frontend/cart.html
-frontend/wishlist.html
-```
-
-### Old Vanilla JS (frontend/js/)
-```
-frontend/js/auth.js
-frontend/js/ui.js
-frontend/js/slider.js
-frontend/js/products-data.js
-frontend/js/wishlist.js
-frontend/js/main.js
-frontend/js/cart.js
-```
-
-### Other Unused Files
-```
-frontend/update_topbar.js          — old static site utility
-frontend/public/api-test.html      — dev test file
-frontend/lib/products-data.js      — static fallback data, now fully removed from all pages
-```
-
-### Stray Dev Directory
-```
-frontend/dev/                      — abandoned dev attempt with mongoose, next-auth, bcryptjs,
-                                     zod node_modules — entire directory can be deleted
-```
-
-> None of these are imported by any Next.js page or component. Deleting them will not break anything.
-
----
-
 ## Part 8 — Current Database State
 
 | Table | Rows | Notes |
@@ -652,7 +638,7 @@ frontend/dev/                      — abandoned dev attempt with mongoose, next
 
 | Module | Status | Completion |
 |---|---|---|
-| Hosting & Deployment | Live, auto-deploys on push | **95%** |
+| Hosting & Deployment | Render + Vercel both live; GitHub Actions CI/CD wired (secrets pending) | **98%** |
 | Authentication (signup, login, JWT, Google OAuth, role redirect) | Fully working | **95%** |
 | Shopping Cart (add, update, remove, persist, merge on login) | Fixed & working | **98%** |
 | Product Catalog (listing, search, filter, detail, 40 real products) | Fully dynamic, all data from DB | **95%** |
@@ -680,20 +666,31 @@ frontend/dev/                      — abandoned dev attempt with mongoose, next
 ## Part 10 — Architecture Overview
 
 ```
+GITHUB (Walter-sdq/HilgodOnlineShop)
+  Push to main → GitHub Actions deploy.yml triggers
+  Job: Backend → vercel deploy --prod (hilgod-api.vercel.app)
+  Job: Frontend → vercel deploy --prod (hilgod.vercel.app)
+  Render also auto-deploys from the same push (independent)
+         |
+         v
 BROWSER (Customer / Seller / Admin)
-  Next.js 16 (React 19) — https://hilgod-frontend.onrender.com
+  Next.js 16 (React 19)
+  Render:  https://hilgod-frontend.onrender.com  [primary]
+  Vercel:  https://hilgod.vercel.app             [mirror]
   All /api/* requests proxied server-side via next.config.js rewrites
   No hardcoded product data — all content fetched from API
          |
          | Server-to-server HTTPS (no browser CORS)
          v
-RENDER — EXPRESS.JS 5 BACKEND
-  URL: https://hilgodonlineshop.onrender.com
+EXPRESS.JS 5 BACKEND
+  Render:  https://hilgodonlineshop.onrender.com  [primary]
+  Vercel:  https://hilgod-api.vercel.app          [mirror — serverless]
   Routes: /api/auth · /api/products · /api/orders · /api/payment
           /api/cart · /api/wishlist · /api/categories · /api/stores
           /api/reviews · /api/seller · /api/admin · /api/user
-  Security: Helmet · CORS · Morgan · express-rate-limit
+  Security: Helmet · CORS (multi-origin) · Morgan · express-rate-limit
   Auth: Supabase JWT verification on every protected route
+  CORS origins: hilgod-frontend.onrender.com + hilgod.vercel.app
          |
          | supabase-js client (service_role key — bypasses RLS)
          v
@@ -726,7 +723,7 @@ PAYSTACK — Nigerian NGN payment gateway
 | `ADMIN_EMAIL` | Set ✓ (`hilgoddev@gmail.com`) | Update to client's email at handover |
 | `GOOGLE_CLIENT_ID` | Set ✓ | Developer's Google project |
 | `GOOGLE_CLIENT_SECRET` | Set ✓ | Added this session — was missing |
-| `FRONTEND_URL` | Set ✓ (`https://hilgod-frontend.onrender.com`) | CORS origin |
+| `FRONTEND_URL` | Set ✓ (`https://hilgod-frontend.onrender.com,https://hilgod.vercel.app`) | Comma-separated CORS origins |
 | `NODE_ENV` | Set ✓ (`production`) | — |
 | `PORT` | Set ✓ (`5000`) | Render overrides automatically |
 | `EMAIL_VERIFICATION_ENABLED` | Set ✓ (`false`) | Change to `true` when Resend is configured |
