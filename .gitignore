@@ -3,6 +3,7 @@
 .env.local
 .env.production
 client_secret_662682454869-6asvl7hu34sts9tcl9rd95ot9c1hegi7.apps.googleusercontent.com.json
+.mcp.json
 
 # Dependencies
 node_modules/
@@ -46,6 +47,5 @@ logs/
 .agent
 .agents/
 .claude/*
-.github
 .cursor/
 # skills/
