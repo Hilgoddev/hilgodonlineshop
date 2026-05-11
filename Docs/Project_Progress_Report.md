@@ -1,7 +1,7 @@
 # Hilgod Online Shop — Full Project Progress Report
 
 **Prepared by:** Development Team  
-**Report Date:** 2026-05-10 (Updated — Session 10)  
+**Report Date:** 2026-05-10 (Updated — Session 11)  
 **Stack:** Next.js 16 · React 19 · Express.js 5 · Supabase (PostgreSQL + Auth) · Paystack · Stripe  
 **Hosting:** Render (primary) · Vercel (mirror) — GitHub Actions CI/CD auto-deploys on push to `main`  
 **Repository:** https://github.com/Walter-sdq/HilgodOnlineShop
@@ -182,6 +182,21 @@ RESEND (transactional email)
 | **`.gitignore` fixed** | `.github` was incorrectly listed in `.gitignore`, preventing workflow files from being tracked in git. Entry removed; all workflow files are now committed |
 | **Pending user action — GitHub Secrets** | Four secrets must be added at `github.com/Walter-sdq/HilgodOnlineShop/settings/secrets/actions`: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_FRONTEND_PROJECT_ID`, `VERCEL_BACKEND_PROJECT_ID` — see values in Part 4 |
 | **Pending user action — Vercel GitHub App** | Install at `github.com/apps/vercel` then link each Vercel project to the repo (frontend → root dir `frontend`, backend → root dir `backend`) for Vercel's own deployment status on PRs |
+
+---
+
+### 1.17 Mobile Responsiveness Audit & Fixes (Session 11)
+
+| Change | Detail |
+|---|---|
+| **Seller Zone — grid overflow fixed** | Stats row (4-col), "How It Works" (3-col), and "Why Sell" features (3-col) were inline `style` grids with no media queries. Extracted each to a CSS class (`.seller-zone-stats`, `.seller-zone-steps`, `.seller-zone-features`) with breakpoints: 2-col at ≤768px, 1-col at ≤480px |
+| **Delivery page — grid overflow fixed** | Hero stats (3-col) and Rider Benefits (3-col) extracted to `.delivery-stats` and `.delivery-benefits` CSS classes. Benefits go 2-col at ≤768px and 1-col at ≤480px; stats collapse to 1-col at ≤480px |
+| **Unused import removed** | `import Link from 'next/link'` removed from `delivery.js` (was imported but never used) |
+| **Landing page — 640px breakpoint added** | Flash header text shrinks to prevent early overflow; trust bar switches to 2-per-row items; section titles and "See All" links scale down; sell banner side padding reduced |
+| **Landing page — 480px breakpoint added** | Flash header stacks vertically so the countdown never overflows; flash products and product section inner padding reduced; hero action buttons wrap and fill available width; sell banner stacks to a column with a full-width CTA button; trust items constrained to 50% width |
+| **Sell banner extracted to CSS class** | The bottom "Start Selling on Hilgod" banner used a large inline style object (`padding: var(--space-8) var(--space-12)`) that could not be targeted by media queries. Extracted to `.sell-banner-inner` CSS class so breakpoints can adjust padding and layout |
+| **Sell banner headline uses `clamp()`** | h2 font size changed from fixed `1.8rem` to `clamp(1.2rem, 4vw, 1.8rem)` so it scales fluidly on all screen widths without a hard breakpoint |
+| **Deployed to Vercel** | Both frontend (`hilgod.vercel.app`) and backend (`hilgod-api.vercel.app`) redeployed with all responsive fixes |
 
 ---
 
