@@ -491,17 +491,8 @@ export default function Home({ products, categories = [] }) {
       </div>
 
       {/* Sell Banner */}
-      <div className="banner-card" style={{ marginBottom: 'var(--space-6)', height: 'auto' }} onClick={() => window.location.href='/seller-zone'}>
-        <div style={{ 
-          background: 'linear-gradient(135deg,var(--dark),#2d2d2d)', 
-          padding: 'var(--space-8) var(--space-12)', 
-          borderRadius: 'var(--radius-md)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          gap: '20px', 
-          flexWrap: 'wrap' 
-        }}>
+      <div style={{ marginBottom: 'var(--space-6)', cursor: 'pointer' }} onClick={() => window.location.href='/seller-zone'}>
+        <div className="sell-banner-inner">
           <div>
             <div style={{ 
               fontSize: '.78rem', 
@@ -513,7 +504,7 @@ export default function Home({ products, categories = [] }) {
             }}>
               <i className="fas fa-store"></i> SELLER ZONE
             </div>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>
+            <h2 style={{ fontSize: 'clamp(1.2rem,4vw,1.8rem)', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>
               Start Selling on Hilgod
             </h2>
             <p style={{ color: 'rgba(255,255,255,.7)', fontSize: '.95rem' }}>
