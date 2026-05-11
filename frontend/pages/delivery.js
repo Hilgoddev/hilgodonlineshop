@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import Link from 'next/link';
 import Layout from '@/components/Layout';
 
 export default function Delivery() {
@@ -91,15 +90,7 @@ export default function Delivery() {
           </button>
           
           {/* Stats */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(3,1fr)', 
-            gap: 'var(--space-6)', 
-            marginTop: 'var(--space-12)', 
-            maxWidth: '600px', 
-            marginLeft: 'auto', 
-            marginRight: 'auto' 
-          }}>
+          <div className="delivery-stats">
             <div>
               <div style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--primary)' }}>₦5K+</div>
               <div style={{ color: 'rgba(255,255,255,.6)', fontSize: '.85rem' }}>Avg. Daily Earnings</div>
@@ -122,7 +113,7 @@ export default function Delivery() {
           <h2 style={{ textAlign: 'center', fontSize: '1.8rem', fontWeight: '800', marginBottom: 'var(--space-12)' }}>
             Rider Benefits
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)' }}>
+          <div className="delivery-benefits">
             <div style={{ textAlign: 'center', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', border: '2px solid var(--gray-5)' }}>
               <div style={{ fontSize: '2.5rem', color: 'var(--primary)', marginBottom: 'var(--space-4)' }}>
                 <i className="fas fa-money-bill-wave"></i>

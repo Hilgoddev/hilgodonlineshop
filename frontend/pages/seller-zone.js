@@ -131,15 +131,7 @@ export default function SellerZone() {
           </div>
           
           {/* Stats */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(4,1fr)', 
-            gap: 'var(--space-6)', 
-            marginTop: 'var(--space-12)', 
-            maxWidth: '800px', 
-            marginLeft: 'auto', 
-            marginRight: 'auto' 
-          }}>
+          <div className="seller-zone-stats">
             <div>
               <div style={{ fontSize: '2.2rem', fontWeight: '900', color: 'var(--primary)' }}>2M+</div>
               <div style={{ color: 'rgba(255,255,255,.6)', fontSize: '.85rem' }}>Active Customers</div>
@@ -177,7 +169,7 @@ export default function SellerZone() {
               Start Selling in 3 Easy Steps
             </h2>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-6)' }}>
+          <div className="seller-zone-steps">
             <div style={{ 
               textAlign: 'center', 
               padding: 'var(--space-6)', 
@@ -272,7 +264,7 @@ export default function SellerZone() {
           <h2 style={{ textAlign: 'center', fontSize: '1.8rem', fontWeight: '800', marginBottom: 'var(--space-12)' }}>
             Why Sell on Hilgod?
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)' }}>
+          <div className="seller-zone-features">
             <div style={{ display: 'flex', gap: 'var(--space-4)', padding: 'var(--space-4)', backdropFilter: 'blur(4px)' }}>
               <div style={{ 
                 width: '48px', 
