@@ -43,9 +43,18 @@ yarn-error.log*
 logs/
 *.log
 
-#MCP
+#MCP / AI tools — dev only, never ship to client
 .agent
 .agents/
 .claude/*
 .cursor/
 # skills/
+
+# Internal dev docs — only the progress report ships
+Docs/*
+!Docs/Project_Progress_Report.md
+
+# Vercel project links (dev account-specific)
+.vercel/
+frontend/.vercel/
+backend/.vercel/
