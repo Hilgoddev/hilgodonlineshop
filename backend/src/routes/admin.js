@@ -118,7 +118,7 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
 
         const userIds = (profiles || []).map((p) => p.id);
         const { data: orders } = userIds.length
-            ? await supabase.from('orders').select('id, user_id, total_amount')
+            ? await supabase.from('orders').select('id, user_id, total_amount').in('status', ['paid', 'shipped', 'delivered'])
             : { data: [] };
 
         const stats = (orders || []).reduce((map, o) => {
@@ -148,6 +148,26 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
         });
 
         res.status(200).json({ success: true, data, pagination: { total: data.length } });
+    } catch (err) {
+        next(err);
+    }
+});
+
+router.delete('/customers/:id', verifyToken, requireAdmin, async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        if (id === req.user.id)
+            return res.status(400).json({ success: false, error: 'Cannot delete your own account' });
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', id).single();
+        if (!profile)
+            return res.status(404).json({ success: false, error: 'User not found' });
+        if (profile.role === 'admin')
+            return res.status(403).json({ success: false, error: 'Cannot delete admin accounts' });
+
+        const { error } = await supabase.auth.admin.deleteUser(id);
+        if (error) throw error;
+        res.status(200).json({ success: true, message: 'User removed successfully' });
     } catch (err) {
         next(err);
     }

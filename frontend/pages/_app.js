@@ -16,7 +16,7 @@ export default function App({ Component, pageProps }) {
     // Wake up the Render backend immediately on first load so cold-start delay
     // is absorbed in the background rather than blocking the first real request.
     const apiUrl = process.env.NEXT_PUBLIC_API_URL
-    if (apiUrl) fetch(`${apiUrl}/api/health`).catch(() => {})
+    if (apiUrl) fetch(`${apiUrl}/health`).catch(() => {})
   }, [])
 
   return (

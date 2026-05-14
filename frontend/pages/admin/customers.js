@@ -12,6 +12,7 @@ export default function AdminCustomers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
   const [promotingId, setPromotingId] = useState(null);
+  const [removingId, setRemovingId] = useState(null);
 
   const fetchCustomers = async () => {
     try {
@@ -39,6 +40,18 @@ export default function AdminCustomers() {
       else { setMessage({ type: 'error', text: data.error || 'Failed' }); }
     } catch (err) { setMessage({ type: 'error', text: 'Network error' }); }
     finally { setPromotingId(null); setTimeout(() => setMessage({ type: '', text: '' }), 3000); }
+  };
+
+  const handleRemoveUser = async (userId, name) => {
+    if (!confirm(`Permanently remove ${name}? This cannot be undone.`)) return;
+    setRemovingId(userId);
+    try {
+      const res = await apiFetch(`/api/admin/customers/${userId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) { setMessage({ type: 'success', text: 'User removed' }); fetchCustomers(); }
+      else setMessage({ type: 'error', text: data.error || 'Failed to remove user' });
+    } catch { setMessage({ type: 'error', text: 'Network error' }); }
+    finally { setRemovingId(null); setTimeout(() => setMessage({ type: '', text: '' }), 3000); }
   };
 
   const filtered = customers.filter(c => {
@@ -135,6 +148,11 @@ export default function AdminCustomers() {
                               {(isAdmin || isSeller) && (
                                 <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#64748b', borderColor: '#e2e8f0' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'customer')}>
                                   {promotingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Customer'}
+                                </button>
+                              )}
+                              {!isAdmin && (
+                                <button className="btn btn-sm" style={{ fontSize: '.75rem', color: '#fff', background: '#ef4444', border: 'none' }} disabled={!!removingId || !!promotingId} onClick={() => handleRemoveUser(customer._id, `${customer.firstName} ${customer.lastName}`)}>
+                                  {removingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Remove'}
                                 </button>
                               )}
                             </div>
