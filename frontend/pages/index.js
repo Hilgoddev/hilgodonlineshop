@@ -384,39 +384,122 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 
       {/* Flash Sales Section — only visible when active flash sales exist */}
       {flashSales.length > 0 && (
-        <div className="products-section" style={{ background: 'linear-gradient(135deg,#1a0000 0%,#2d0000 100%)', borderRadius: '16px', padding: '24px', marginBottom: 'var(--space-6)' }}>
-          {/* Header row */}
-          <div className="section-header" style={{ marginBottom: '16px' }}>
-            <h2 className="section-title" style={{ color: '#fff' }}>
-              <span className="bar" style={{ background: '#ef4444' }}></span>
+        <div className="products-section">
+          <style jsx>{`
+            .flash-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              flex-wrap: wrap;
+            }
+            .flash-meta {
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              flex-wrap: wrap;
+              justify-content: flex-end;
+            }
+            .flash-timer {
+              display: flex;
+              align-items: flex-start;
+              gap: 3px;
+            }
+            .flash-timer-label {
+              color: #64748b;
+              font-weight: 700;
+              font-size: 0.78rem;
+              padding-top: 6px;
+              white-space: nowrap;
+            }
+            .flash-timer-box {
+              display: inline-block;
+              min-width: 52px;
+              background: transparent;
+              color: #ef4444;
+              font-weight: 900;
+              font-size: 1.5rem;
+              border-radius: 8px;
+              text-align: center;
+              padding: 5px 7px;
+              line-height: 1;
+              box-shadow: none;
+            }
+            .flash-timer-unit {
+              color: #ef4444;
+              font-size: 0.58rem;
+              font-weight: 700;
+              margin-top: 2px;
+              letter-spacing: 0.06em;
+            }
+            .flash-timer-sep {
+              color: #ef4444;
+              font-weight: 900;
+              font-size: 1.5rem;
+              padding-top: 2px;
+            }
+            @media (max-width: 640px) {
+              .flash-header {
+                align-items: flex-start;
+              }
+              .flash-meta {
+                width: 100%;
+                flex-direction: column;
+                justify-content: flex-start;
+                align-items: flex-end;
+                gap: 8px;
+              }
+              .flash-timer {
+                gap: 2px;
+              }
+              .flash-timer-label {
+                font-size: 0.62rem;
+                padding-top: 4px;
+              }
+              .flash-timer-box {
+                min-width: 34px;
+                font-size: 0.98rem;
+                padding: 4px 5px;
+                border-radius: 6px;
+              }
+              .flash-timer-unit {
+                font-size: 0.48rem;
+              }
+              .flash-timer-sep {
+                font-size: 0.95rem;
+                padding-top: 3px;
+              }
+            }
+          `}</style>
+          <div className="section-header flash-header" style={{ background: 'transparent', boxShadow: 'none' }}>
+            <h2 className="section-title">
+              <span className="bar"></span>
               <i className="fas fa-bolt" style={{ color: '#ef4444', marginRight: '6px' }} />
               Flash Sales
             </h2>
-            <Link href="/flash-sales" className="section-link" style={{ color: '#fca5a5' }}>View All Deals <i className="fas fa-arrow-right"></i></Link>
-          </div>
-          {/* Big countdown timer */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <span style={{ color: '#fca5a5', fontWeight: 700, fontSize: '0.9rem', marginRight: '4px' }}>
-              <i className="fas fa-clock" style={{ marginRight: '4px' }} />Ends in:
-            </span>
-            {[
-              { val: flashCountdown.hours, label: 'HRS' },
-              { val: flashCountdown.minutes, label: 'MIN' },
-              { val: flashCountdown.seconds, label: 'SEC' },
-            ].map(({ val, label }, i) => (
-              <span key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <span style={{
-                  display: 'inline-block', minWidth: '56px', background: '#ef4444',
-                  color: '#fff', fontWeight: 900, fontSize: '1.6rem', borderRadius: '8px',
-                  textAlign: 'center', padding: '6px 8px', lineHeight: 1,
-                  boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
-                }}>{formatTime(val)}</span>
-                <span style={{ color: '#fca5a5', fontSize: '0.62rem', fontWeight: 700, marginTop: '3px', letterSpacing: '0.06em' }}>{label}</span>
-              </span>
-            ).reduce((acc, el, i) => i === 0 ? [el] : [...acc,
-              <span key={`sep-${i}`} style={{ color: '#ef4444', fontWeight: 900, fontSize: '1.6rem', alignSelf: 'flex-start', paddingTop: '6px' }}>:</span>,
-              el
-            ], [])}
+            <div className="flash-meta">
+              {/* Countdown timer on the right */}
+              <div className="flash-timer">
+                <span className="flash-timer-label">
+                  <i className="fas fa-clock" style={{ marginRight: '3px' }} />Ends in:
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="flash-timer-box">{formatTime(flashCountdown.hours)}</span>
+                  <span className="flash-timer-unit">HRS</span>
+                </span>
+                <span className="flash-timer-sep">:</span>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="flash-timer-box">{formatTime(flashCountdown.minutes)}</span>
+                  <span className="flash-timer-unit">MIN</span>
+                </span>
+                <span className="flash-timer-sep">:</span>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <span className="flash-timer-box">{formatTime(flashCountdown.seconds)}</span>
+                  <span className="flash-timer-unit">SEC</span>
+                </span>
+              </div>
+              <Link href="/flash-sales" className="section-link">View All Deals <i className="fas fa-arrow-right"></i></Link>
+            </div>
           </div>
           <div className="product-grid-5">
             {flashProductCards.slice(0, 5).map(product => (
@@ -627,7 +710,7 @@ export async function getServerSideProps() {
     
     // Fetch products, categories and active flash sales in parallel
     const [prodRes, catRes, flashRes] = await Promise.all([
-      fetch(`${baseUrl}/products?limit=100`),
+      fetch(`${baseUrl}/products?limit=500`),
       fetch(`${baseUrl}/categories`),
       fetch(`${baseUrl}/flash-sales`),
     ]);

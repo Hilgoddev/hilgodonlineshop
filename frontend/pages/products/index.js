@@ -1,23 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
 
-export default function ProductsPage({ initialProducts, initialPagination }) {
+const PAGE_SIZE = 20;
+
+export default function ProductsPage({ allProducts = [] }) {
   const router = useRouter();
-  const { category, page = 1 } = router.query;
-  
-  const [products, setProducts] = useState(initialProducts);
-  const [pagination, setPagination] = useState(initialPagination);
-  const [loading, setLoading] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState(category ? [category] : []);
-  const [selectedSubcategories, setSelectedSubcategories] = useState(router.query.subcategory ? router.query.subcategory.split(',') : []);
+
+  // Derive initial state from URL query on first render
+  const initCategory = router.query.category ? [router.query.category] : [];
+  const initSubs = router.query.subcategory ? router.query.subcategory.split(',') : [];
+
+  const [selectedCategories, setSelectedCategories] = useState(initCategory);
+  const [selectedSubcategories, setSelectedSubcategories] = useState(initSubs);
   const [sortBy, setSortBy] = useState('default');
   const [viewMode, setViewMode] = useState('grid');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Sync filter state whenever the URL query changes (e.g. navbar category links)
+  // Sync category / subcategory from URL (navbar links change the URL)
   useEffect(() => {
     if (!router.isReady) return;
     const newCat = router.query.category ? [router.query.category] : [];
@@ -31,135 +34,81 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
     } else {
       setSelectedSubcategories([]);
     }
+    setCurrentPage(1);
   }, [router.isReady, router.query.category, router.query.subcategory]);
 
-  // Fetch products based on filters
-  const fetchProducts = async (pageNum = 1) => {
-    setLoading(true);
-    
-    try {
-      const params = new URLSearchParams();
-      if (selectedCategories.length > 0) {
-        params.append('category', selectedCategories.join(','));
-      }
-      if (selectedSubcategories.length > 0) {
-        params.append('subcategory', selectedSubcategories.join(','));
-      }
-      params.append('page', pageNum);
-      params.append('limit', '20');
-      
-      if (sortBy !== 'default') {
-        // Note: The current API doesn't support sorting by these fields directly
-        // We'll handle sorting client-side for now
-      }
+  // All filtering + sorting happens client-side — no network request
+  const filteredAndSorted = useMemo(() => {
+    let list = allProducts;
 
-      const res = await fetch(`/api/products?${params.toString()}`);
-      const data = await res.json();
-      
-      if (data.success) {
-        let sortedProducts = data.data;
-        
-        // Client-side sorting
-        if (sortBy === 'price-asc') {
-          sortedProducts.sort((a, b) => a.price - b.price);
-        } else if (sortBy === 'price-desc') {
-          sortedProducts.sort((a, b) => b.price - a.price);
-        } else if (sortBy === 'rating') {
-          sortedProducts.sort((a, b) => (b.ratings?.average || 0) - (a.ratings?.average || 0));
-        } else if (sortBy === 'new') {
-          sortedProducts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        }
-        
-        setProducts(sortedProducts);
-        setPagination(data.pagination);
-      }
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    } finally {
-      setLoading(false);
+    if (selectedCategories.length > 0) {
+      list = list.filter(p => selectedCategories.includes(p.category));
     }
+    if (selectedSubcategories.length > 0) {
+      list = list.filter(p => selectedSubcategories.includes(p.subcategory));
+    }
+
+    switch (sortBy) {
+      case 'price-asc':  return [...list].sort((a, b) => a.price - b.price);
+      case 'price-desc': return [...list].sort((a, b) => b.price - a.price);
+      case 'rating':     return [...list].sort((a, b) => (b.ratings?.average || 0) - (a.ratings?.average || 0));
+      case 'new':        return [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      default:           return list;
+    }
+  }, [allProducts, selectedCategories, selectedSubcategories, sortBy]);
+
+  // Pagination derived from filteredAndSorted
+  const totalPages = Math.ceil(filteredAndSorted.length / PAGE_SIZE);
+  const pageProducts = filteredAndSorted.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  // Reset to page 1 whenever filters or sort change
+  useEffect(() => { setCurrentPage(1); }, [selectedCategories, selectedSubcategories, sortBy]);
+
+  const goToPage = (p) => {
+    setCurrentPage(p);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handle category selection
   const toggleCategory = (cat) => {
-    const newCategories = selectedCategories.includes(cat)
+    const next = selectedCategories.includes(cat)
       ? selectedCategories.filter(c => c !== cat)
       : [...selectedCategories, cat];
-    
-    setSelectedCategories(newCategories);
-    setSelectedSubcategories([]); // Clear subcategories on main category change
-    router.push({
-      pathname: '/products',
-      query: newCategories.length > 0 ? { category: newCategories[0] } : {}
-    }, undefined, { shallow: true });
+    setSelectedCategories(next);
+    setSelectedSubcategories([]);
+    router.push(
+      { pathname: '/products', query: next.length > 0 ? { category: next[0] } : {} },
+      undefined, { shallow: true }
+    );
   };
 
-  // Handle subcategory selection
-  const toggleSubcategory = (subcat) => {
-    const newSubcats = selectedSubcategories.includes(subcat)
-      ? selectedSubcategories.filter(c => c !== subcat)
-      : [...selectedSubcategories, subcat];
-    
-    setSelectedSubcategories(newSubcats);
-    const query = {};
-    if (category) query.category = category;
-    if (newSubcats.length > 0) query.subcategory = newSubcats.join(',');
-    
-    router.push({
-      pathname: '/products',
-      query
-    }, undefined, { shallow: true });
+  const toggleSubcategory = (sub) => {
+    const next = selectedSubcategories.includes(sub)
+      ? selectedSubcategories.filter(s => s !== sub)
+      : [...selectedSubcategories, sub];
+    setSelectedSubcategories(next);
+    const q = {};
+    if (selectedCategories.length > 0) q.category = selectedCategories[0];
+    if (next.length > 0) q.subcategory = next.join(',');
+    router.push({ pathname: '/products', query: q }, undefined, { shallow: true });
   };
 
-  // Handle sort change
-  const handleSortChange = (e) => {
-    const newSort = e.target.value;
-    setSortBy(newSort);
-  };
-
-  // Re-fetch when filters or page changes
-  useEffect(() => {
-    fetchProducts(Number(page) || 1);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategories, selectedSubcategories, sortBy, page]);
-
-  // Refetch when the user returns to this tab so counts/prices stay current
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchProducts(Number(page));
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, selectedCategories, selectedSubcategories, sortBy]);
-
-  // Update breadcrumb title
   const getBreadcrumbTitle = () => {
-    if (category) {
-      const catData = categoriesData.find(c => c.id === category);
-      return catData ? catData.name : category;
+    if (selectedCategories.length > 0) {
+      const c = categoriesData.find(c => c.id === selectedCategories[0]);
+      return c ? c.name : selectedCategories[0];
     }
     return 'All Products';
   };
 
   const getSidebarFilters = () => {
-    if (category) {
-      const catData = categoriesData.find(c => c.id === category);
-      if (catData) {
-        return {
-          title: 'Subcategories',
-          type: 'subcategory',
-          items: catData.subs.map(sub => ({ value: sub, label: sub }))
-        };
-      }
+    if (selectedCategories.length > 0) {
+      const cat = categoriesData.find(c => c.id === selectedCategories[0]);
+      if (cat) return { title: 'Subcategories', type: 'subcategory', items: cat.subs.map(s => ({ value: s, label: s })) };
     }
-    return {
-      title: 'Category',
-      type: 'category',
-      items: categoriesData.map(c => ({ value: c.id, label: c.name }))
-    };
+    return { title: 'Category', type: 'category', items: categoriesData.map(c => ({ value: c.id, label: c.name })) };
   };
 
   const getCategoryBrands = () => {
@@ -174,63 +123,81 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
       shoes: ['Nike', 'Adidas', 'Puma', 'Vans', 'New Balance', 'Clarks'],
       herbs: ['Organic Herb Co', 'NatureSpice', 'HerbWise', 'AfriHerb', 'PureLeaf', 'GreenRoot'],
       gaming: ['Sony', 'Microsoft', 'Nintendo', 'Razer', 'Logitech', 'SteelSeries'],
-      collectibles: ['Heritage Collectibles', 'Vintage Vault', 'ArtSpace', 'Collectamania'],
       sports: ['Nike', 'Adidas', 'Puma', 'Under Armour', 'Reebok', 'Decathlon'],
       toys: ['Lego', 'Barbie', 'Fisher-Price', 'Hasbro', 'Mattel', 'PlayZone'],
     };
-    return category && brandMap[category] ? brandMap[category] : ['Hilgod Select', 'TopBrand', 'Premium Choice'];
+    const cat = selectedCategories[0];
+    return cat && brandMap[cat] ? brandMap[cat] : ['Hilgod Select', 'TopBrand', 'Premium Choice'];
   };
 
   const currentFilters = getSidebarFilters();
-  const currentBrands = getCategoryBrands();
+
+  // Pagination buttons (max 5 visible)
+  const paginationButtons = () => {
+    if (totalPages <= 1) return null;
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start < maxVisible - 1) start = Math.max(1, end - maxVisible + 1);
+
+    if (start > 1) {
+      pages.push(<div key="1" className="page-btn" onClick={() => goToPage(1)}>1</div>);
+      if (start > 2) pages.push(<div key="s-ellipsis" className="page-btn"><i className="fas fa-ellipsis" /></div>);
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(
+        <div key={i} className={`page-btn ${currentPage === i ? 'active' : ''}`} onClick={() => goToPage(i)}>{i}</div>
+      );
+    }
+    if (end < totalPages) {
+      if (end < totalPages - 1) pages.push(<div key="e-ellipsis" className="page-btn"><i className="fas fa-ellipsis" /></div>);
+      pages.push(<div key={totalPages} className="page-btn" onClick={() => goToPage(totalPages)}>{totalPages}</div>);
+    }
+    if (currentPage < totalPages) {
+      pages.push(
+        <div key="next" className="page-btn" onClick={() => goToPage(currentPage + 1)}>
+          <i className="fas fa-chevron-right" />
+        </div>
+      );
+    }
+    return pages;
+  };
 
   return (
-    <Layout 
+    <Layout
       title={`${getBreadcrumbTitle()} — Hilgod Online Store`}
       description="Browse thousands of products across all categories. Filter by price, brand, rating and more."
     >
-      {/* Breadcrumb */}
       <nav className="breadcrumb">
         <Link href="/">Home</Link>
         <i className="fas fa-chevron-right sep"></i>
-        <span className="current" id="cat-breadcrumb">{getBreadcrumbTitle()}</span>
+        <span className="current">{getBreadcrumbTitle()}</span>
       </nav>
 
-      {/* Page Title */}
-      <h1 id="products-page-title" style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: 'var(--space-4)' }}>
+      <h1 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: 'var(--space-4)' }}>
         {getBreadcrumbTitle()}
       </h1>
 
-      {/* Mobile Filter Toggle */}
       <div className="show-mobile" style={{ marginBottom: 'var(--space-3)' }}>
-        <button 
-          className="btn btn-outline btn-sm" 
-          onClick={() => {
-            const sidebar = document.querySelector('.filters-sidebar');
-            sidebar?.classList.toggle('mobile-open');
-          }}
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={() => document.querySelector('.filters-sidebar')?.classList.toggle('mobile-open')}
         >
           <i className="fas fa-filter"></i> Filter
         </button>
       </div>
 
       <div className="products-page">
-        {/* SIDEBAR FILTERS */}
+        {/* Sidebar */}
         <aside className="filters-sidebar">
           <div className="filter-header">
             <h3><i className="fas fa-sliders"></i> Filters</h3>
-            <span 
-              className="filter-clear" 
-              onClick={() => {
-                setSelectedCategories([]);
-                router.push('/products');
-              }}
-            >
+            <span className="filter-clear" onClick={() => { setSelectedCategories([]); setSelectedSubcategories([]); router.push('/products'); }}>
               Clear All
             </span>
           </div>
 
-          {/* Dynamic Categories / Subcategories */}
           <div className="filter-group">
             <div className="filter-group-title">{currentFilters.title} <i className="fas fa-chevron-down"></i></div>
             <div className="filter-group-body">
@@ -240,7 +207,7 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
                     type="checkbox"
                     className="filter-cat"
                     value={item.value}
-                    checked={currentFilters.type === 'category' 
+                    checked={currentFilters.type === 'category'
                       ? selectedCategories.includes(item.value)
                       : selectedSubcategories.includes(item.value)
                     }
@@ -256,11 +223,10 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
             </div>
           </div>
 
-          {/* Dynamic Brands */}
           <div className="filter-group">
             <div className="filter-group-title">Brand <i className="fas fa-chevron-down"></i></div>
             <div className="filter-group-body">
-              {currentBrands.map(brand => (
+              {getCategoryBrands().map(brand => (
                 <label key={brand} className="filter-check">
                   <input type="checkbox" className="filter-brand" value={brand.toLowerCase()} />
                   <span className="checkmark"></span>
@@ -270,23 +236,16 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
             </div>
           </div>
 
-          {/* Rating */}
           <div className="filter-group">
             <div className="filter-group-title">Min. Rating <i className="fas fa-chevron-down"></i></div>
             <div className="filter-group-body rating-filter">
               <div className="rating-option">
-                <div className="stars">
-                  {[...Array(5)].map((_, i) => (
-                    <i key={i} className="fas fa-star"></i>
-                  ))}
-                </div>
+                <div className="stars">{[...Array(5)].map((_, i) => <i key={i} className="fas fa-star"></i>)}</div>
                 <span className="filter-label">4★ & above</span>
               </div>
               <div className="rating-option">
                 <div className="stars">
-                  {[...Array(4)].map((_, i) => (
-                    <i key={i} className="fas fa-star"></i>
-                  ))}
+                  {[...Array(4)].map((_, i) => <i key={i} className="fas fa-star"></i>)}
                   <i className="far fa-star empty"></i>
                 </div>
                 <span className="filter-label">3★ & above</span>
@@ -294,39 +253,30 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
             </div>
           </div>
 
-          {/* Availability */}
           <div className="filter-group">
             <div className="filter-group-title">Availability <i className="fas fa-chevron-down"></i></div>
             <div className="filter-group-body">
               <label className="filter-check">
-                <input type="checkbox" />
-                <span className="checkmark"></span>
+                <input type="checkbox" /><span className="checkmark"></span>
                 <span className="filter-label">In Stock</span>
               </label>
               <label className="filter-check">
-                <input type="checkbox" />
-                <span className="checkmark"></span>
+                <input type="checkbox" /><span className="checkmark"></span>
                 <span className="filter-label">On Sale</span>
               </label>
             </div>
           </div>
         </aside>
 
-        {/* MAIN CONTENT */}
+        {/* Main content */}
         <div className="products-main">
-          {/* Topbar */}
           <div className="products-topbar">
             <div className="products-count">
-              <strong id="product-count">{pagination.total || products.length}</strong> products found
+              <strong>{filteredAndSorted.length}</strong> products found
             </div>
             <div className="sort-controls">
               <span className="sort-label hide-mobile">Sort by:</span>
-              <select 
-                className="sort-select" 
-                id="sort-select"
-                value={sortBy}
-                onChange={handleSortChange}
-              >
+              <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
                 <option value="default">Featured</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
@@ -334,34 +284,19 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
                 <option value="new">Newest</option>
               </select>
               <div className="view-toggle hide-mobile">
-                <button 
-                  className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} 
-                  id="view-grid" 
-                  aria-label="Grid view"
-                  onClick={() => setViewMode('grid')}
-                >
+                <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} aria-label="Grid view" onClick={() => setViewMode('grid')}>
                   <i className="fas fa-th-large"></i>
                 </button>
-                <button 
-                  className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} 
-                  id="view-list" 
-                  aria-label="List view"
-                  onClick={() => setViewMode('list')}
-                >
+                <button className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} aria-label="List view" onClick={() => setViewMode('list')}>
                   <i className="fas fa-list"></i>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Grid */}
-          {loading ? (
-            <div className="loading-spinner" style={{ textAlign: 'center', padding: '40px' }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem' }}></i>
-            </div>
-          ) : products.length > 0 ? (
-            <div className={`product-catalog-grid ${viewMode === 'list' ? 'list-view' : ''}`} id="products-grid">
-              {products.map(product => (
+          {pageProducts.length > 0 ? (
+            <div className={`product-catalog-grid ${viewMode === 'list' ? 'list-view' : ''}`}>
+              {pageProducts.map(product => (
                 <ProductCard key={product._id} product={product} />
               ))}
             </div>
@@ -374,53 +309,8 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
             </div>
           )}
 
-          {/* Pagination */}
-          {pagination.pages > 1 && (
-            <div className="pagination">
-              {Array.from({ length: Math.min(pagination.pages, 5) }, (_, i) => (
-                <div
-                  key={i + 1}
-                  className={`page-btn ${pagination.page === i + 1 ? 'active' : ''}`}
-                  onClick={() => {
-                    router.push({
-                      pathname: '/products',
-                      query: { ...router.query, page: i + 1 }
-                    });
-                  }}
-                >
-                  {i + 1}
-                </div>
-              ))}
-              {pagination.pages > 5 && (
-                <>
-                  <div className="page-btn"><i className="fas fa-ellipsis"></i></div>
-                  <div
-                    className="page-btn"
-                    onClick={() => {
-                      router.push({
-                        pathname: '/products',
-                        query: { ...router.query, page: pagination.pages }
-                      });
-                    }}
-                  >
-                    {pagination.pages}
-                  </div>
-                </>
-              )}
-              {pagination.page < pagination.pages && (
-                <div
-                  className="page-btn"
-                  onClick={() => {
-                    router.push({
-                      pathname: '/products',
-                      query: { ...router.query, page: pagination.page + 1 }
-                    });
-                  }}
-                >
-                  <i className="fas fa-chevron-right"></i>
-                </div>
-              )}
-            </div>
+          {totalPages > 1 && (
+            <div className="pagination">{paginationButtons()}</div>
           )}
         </div>
       </div>
@@ -428,40 +318,18 @@ export default function ProductsPage({ initialProducts, initialPagination }) {
   );
 }
 
-// Server-side props to fetch initial data
 export async function getServerSideProps({ query, res }) {
-  res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   try {
-    const { category, page = 1 } = query;
-    
-    // Try to fetch from API first
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-    const params = new URLSearchParams();
-    
-    if (category) {
-      params.append('category', category);
-    }
-    params.append('page', page);
-    params.append('limit', '20');
-
-    const res = await fetch(`${baseUrl}/api/products?${params.toString()}`);
-    const data = await res.json();
-    
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+    const response = await fetch(`${baseUrl}/products?limit=1000`);
+    const data = await response.json();
     return {
       props: {
-        initialProducts: data.success ? (data.data || []) : [],
-        initialPagination: data.pagination || { total: 0, page: 1, pages: 0 },
-        categories: []
+        allProducts: data.success ? (data.data || []) : [],
       },
     };
-  } catch (error) {
-    console.error('Error fetching products:', error);
-    return {
-      props: {
-        initialProducts: [],
-        initialPagination: { total: 0, page: 1, pages: 0 },
-        categories: []
-      },
-    };
+  } catch {
+    return { props: { allProducts: [] } };
   }
 }

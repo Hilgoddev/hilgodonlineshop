@@ -142,7 +142,7 @@ export default function Checkout() {
 
   const totals = calculateTotals();
   const displayTotals = orderTotals || totals;
-  const isFormValid = formData.firstName && formData.lastName && formData.email && formData.phone && formData.street && formData.city;
+  const isFormValid = formData.firstName && formData.lastName && formData.email && formData.phone && formData.street && formData.city && formData.state;
 
   const handlePlaceOrder = async () => {
     if (!isFormValid) { showToast('Please fill in all required fields.', 'error'); return; }
@@ -490,14 +490,14 @@ export default function Checkout() {
                   <input className="form-input" type="text" placeholder="City" name="city" value={formData.city} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">State / Province</label>
+                  <label className="form-label">State / Province *</label>
                   {states.length > 0 ? (
-                    <select className="form-select form-input" name="state" value={formData.state} onChange={handleInputChange}>
+                    <select className="form-select form-input" name="state" value={formData.state} onChange={handleInputChange} required>
                       <option value="">Select state</option>
                       {states.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   ) : (
-                    <input className="form-input" type="text" placeholder="State / Province" name="state" value={formData.state} onChange={handleInputChange} />
+                    <input className="form-input" type="text" placeholder="State / Province" name="state" value={formData.state} onChange={handleInputChange} required />
                   )}
                 </div>
               </div>
