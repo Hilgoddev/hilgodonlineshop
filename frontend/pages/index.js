@@ -399,44 +399,49 @@ export default function Home({ products, categories = [], flashSales = [] }) {
               gap: 12px;
               flex-wrap: wrap;
               justify-content: flex-end;
+              flex-direction: column;
+              align-items: flex-end;
             }
             .flash-timer {
               display: flex;
-              align-items: flex-start;
-              gap: 3px;
+              align-items: center;
+              gap: 2px;
+              flex-wrap: nowrap;
+              white-space: nowrap;
             }
             .flash-timer-label {
               color: #64748b;
               font-weight: 700;
-              font-size: 0.78rem;
-              padding-top: 6px;
+              font-size: 0.72rem;
+              padding-top: 0;
               white-space: nowrap;
+              margin-right: 2px;
             }
             .flash-timer-box {
               display: inline-block;
-              min-width: 52px;
+              min-width: 44px;
               background: transparent;
               color: #ef4444;
               font-weight: 900;
-              font-size: 1.5rem;
-              border-radius: 8px;
+              font-size: 1.22rem;
+              border-radius: 6px;
               text-align: center;
-              padding: 5px 7px;
+              padding: 2px 4px;
               line-height: 1;
               box-shadow: none;
             }
             .flash-timer-unit {
               color: #ef4444;
-              font-size: 0.58rem;
+              font-size: 0.5rem;
               font-weight: 700;
-              margin-top: 2px;
+              margin-top: 1px;
               letter-spacing: 0.06em;
             }
             .flash-timer-sep {
               color: #ef4444;
               font-weight: 900;
-              font-size: 1.5rem;
-              padding-top: 2px;
+              font-size: 1.1rem;
+              padding-top: 0;
             }
             @media (max-width: 640px) {
               .flash-header {
@@ -444,30 +449,52 @@ export default function Home({ products, categories = [], flashSales = [] }) {
               }
               .flash-meta {
                 width: 100%;
-                flex-direction: column;
                 justify-content: flex-start;
                 align-items: flex-end;
-                gap: 8px;
+                gap: 6px;
               }
               .flash-timer {
-                gap: 2px;
+                gap: 1px;
               }
               .flash-timer-label {
-                font-size: 0.62rem;
-                padding-top: 4px;
+                font-size: 0.56rem;
+                margin-right: 1px;
               }
               .flash-timer-box {
-                min-width: 34px;
-                font-size: 0.98rem;
-                padding: 4px 5px;
-                border-radius: 6px;
+                min-width: 30px;
+                font-size: 0.86rem;
+                padding: 1px 3px;
+                border-radius: 4px;
               }
               .flash-timer-unit {
-                font-size: 0.48rem;
+                font-size: 0.42rem;
               }
               .flash-timer-sep {
-                font-size: 0.95rem;
-                padding-top: 3px;
+                font-size: 0.8rem;
+                padding-top: 0;
+              }
+            }
+            @media (max-width: 420px) {
+              .flash-header {
+                gap: 8px;
+              }
+              .flash-meta {
+                gap: 4px;
+              }
+              .flash-timer-label {
+                display: none;
+              }
+              .flash-timer-box {
+                min-width: 27px;
+                font-size: 0.78rem;
+                padding: 1px 2px;
+              }
+              .flash-timer-unit {
+                font-size: 0.38rem;
+                letter-spacing: 0.04em;
+              }
+              .flash-timer-sep {
+                font-size: 0.72rem;
               }
             }
           `}</style>
