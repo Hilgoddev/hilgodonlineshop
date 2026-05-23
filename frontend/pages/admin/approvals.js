@@ -1,0 +1,293 @@
+import { useState, useEffect } from 'react';
+import AdminGuard from '@/components/AdminGuard';
+import AdminLayout from '@/components/admin/AdminLayout';
+import { adminJson, errorMessage } from '../../lib/adminApi';
+import { apiFetch } from '../../lib/apiClient';
+
+export default function ApprovalsPage() {
+  const [pendingStores, setPendingStores] = useState([]);
+  const [pendingProducts, setPendingProducts] = useState([]);
+  const [pendingSellerApplications, setPendingSellerApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  const fetchPendingData = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [storesRes, productsRes, sellerAppsRes] = await Promise.all([
+        adminJson('/api/stores/all'),
+        adminJson('/api/products/all?limit=1000'),
+        adminJson('/api/admin/seller-applications?status=pending'),
+      ]);
+
+      if (!storesRes.res.ok || !productsRes.res.ok || !sellerAppsRes.res.ok) {
+        setError(
+          [
+            !storesRes.res.ok && errorMessage(storesRes.json),
+            !productsRes.res.ok && errorMessage(productsRes.json),
+            !sellerAppsRes.res.ok && errorMessage(sellerAppsRes.json),
+          ]
+            .filter(Boolean)
+            .join(' ') || 'Could not load approvals'
+        );
+        setLoading(false);
+        return;
+      }
+
+      setPendingStores((storesRes.json.data || []).filter((s) => s.status === 'pending'));
+      setPendingProducts((productsRes.json.data || []).filter((p) => p.status === 'pending'));
+      setPendingSellerApplications(sellerAppsRes.json.data || []);
+    } catch (err) {
+      console.error(err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingData();
+  }, []);
+
+  const handleStoreStatus = async (id, status) => {
+    setBusyId(`store-${id}`);
+    await apiFetch(`/api/stores/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    setBusyId(null);
+    fetchPendingData();
+  };
+
+  const handleProductStatus = async (id, status) => {
+    setBusyId(`product-${id}`);
+    await apiFetch(`/api/products/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    setBusyId(null);
+    fetchPendingData();
+  };
+
+  const handleSellerApplication = async (userId, action) => {
+    setBusyId(`seller-${userId}`);
+    const endpoint = action === 'approve' ? `/api/admin/approve-seller/${userId}` : `/api/admin/reject-seller/${userId}`;
+    await apiFetch(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({ adminNotes: '' }),
+    });
+    setBusyId(null);
+    fetchPendingData();
+  };
+
+  const tableShell = (title, count, children) => (
+    <section style={{ marginBottom: '32px' }}>
+      <h2 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '12px', color: '#0f172a' }}>
+        {title}{' '}
+        <span style={{ color: '#64748b', fontWeight: 600 }}>({count})</span>
+      </h2>
+      {children}
+    </section>
+  );
+
+  return (
+    <>
+      {error ? (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            background: '#fee2e2',
+            color: '#b91c1c',
+            fontSize: '0.9rem',
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div style={{ padding: '48px', textAlign: 'center' }}>
+          <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)' }} />
+        </div>
+      ) : (
+        <>
+          {tableShell(
+            'Seller applications',
+            pendingSellerApplications.length,
+            pendingSellerApplications.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No pending applications.</p>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', color: '#64748b' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Applicant</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Business</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Contact</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Submitted</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingSellerApplications.map((app) => (
+                        <tr key={app.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 600 }}>{app.full_name}</td>
+                          <td style={{ padding: '12px 16px' }}>{app.business_name}</td>
+                          <td style={{ padding: '12px 16px', color: '#64748b' }}>
+                            {app.email}
+                            <br />
+                            {app.phone}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: '#64748b' }}>{new Date(app.created_at).toLocaleDateString()}</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              style={{ marginRight: '8px' }}
+                              disabled={busyId === `seller-${app.user_id}`}
+                              onClick={() => handleSellerApplication(app.user_id, 'approve')}
+                            >
+                              {busyId === `seller-${app.user_id}` ? <i className="fas fa-spinner fa-spin" /> : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                              disabled={busyId === `seller-${app.user_id}`}
+                              onClick={() => handleSellerApplication(app.user_id, 'reject')}
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          )}
+
+          {tableShell(
+            'Stores',
+            pendingStores.length,
+            pendingStores.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No pending stores.</p>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', color: '#64748b' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Name</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Slug</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Created</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingStores.map((store) => (
+                        <tr key={store.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 600 }}>{store.name}</td>
+                          <td style={{ padding: '12px 16px' }}>{store.slug}</td>
+                          <td style={{ padding: '12px 16px', color: '#64748b' }}>{new Date(store.created_at).toLocaleDateString()}</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              style={{ marginRight: '8px' }}
+                              disabled={busyId === `store-${store.id}`}
+                              onClick={() => handleStoreStatus(store.id, 'approved')}
+                            >
+                              {busyId === `store-${store.id}` ? <i className="fas fa-spinner fa-spin" /> : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                              disabled={busyId === `store-${store.id}`}
+                              onClick={() => handleStoreStatus(store.id, 'rejected')}
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          )}
+
+          {tableShell(
+            'Products',
+            pendingProducts.length,
+            pendingProducts.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No pending products.</p>
+            ) : (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', color: '#64748b' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Product</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Price</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'left' }}>Created</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingProducts.map((product) => (
+                        <tr key={product.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 600 }}>{product.name}</td>
+                          <td style={{ padding: '12px 16px' }}>₦{Number(product.price || 0).toLocaleString()}</td>
+                          <td style={{ padding: '12px 16px', color: '#64748b' }}>
+                            {product.created_at ? new Date(product.created_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary"
+                              style={{ marginRight: '8px' }}
+                              disabled={busyId === `product-${product.id}`}
+                              onClick={() => handleProductStatus(product.id, 'approved')}
+                            >
+                              {busyId === `product-${product.id}` ? <i className="fas fa-spinner fa-spin" /> : 'Approve'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                              disabled={busyId === `product-${product.id}`}
+                              onClick={() => handleProductStatus(product.id, 'rejected')}
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+ApprovalsPage.getLayout = function getLayout(page) {
+  return (
+    <AdminGuard>
+      <AdminLayout title="Approvals">{page}</AdminLayout>
+    </AdminGuard>
+  );
+};
