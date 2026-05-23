@@ -100,17 +100,30 @@ router.post('/webhook', async (req, res) => {
       if (insertError?.code === '23505') return res.sendStatus(200);
       if (insertError) throw insertError;
 
-      await supabase
+      const { data: dbOrder, error: dbOrderErr } = await supabase
         .from('orders')
-        .update({ status: 'paid' })
+        .select('id, user_id, total_amount, payment_reference, status')
         .eq('id', order_id)
-        .eq('payment_reference', pi.id);
+        .single();
+      if (dbOrderErr || !dbOrder) throw dbOrderErr || new Error('Order not found for Stripe webhook');
 
-      if (pi.metadata?.user_id) {
-        await supabase.from('cart_items').delete().eq('user_id', pi.metadata.user_id);
+      const paidAmount = Number(pi.amount_received || pi.amount || 0) / 100;
+      const orderAmount = Number(dbOrder.total_amount || 0);
+      if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - orderAmount) > 0.01) {
+        throw new Error(`Amount mismatch on Stripe webhook for order ${order_id}: paid=${paidAmount}, expected=${orderAmount}`);
       }
 
-      await handlePaymentSuccess(order_id, pi.metadata?.user_id);
+      await supabase
+        .from('orders')
+        .update({ status: 'paid', payment_reference: pi.id })
+        .eq('id', order_id);
+
+      const userId = pi.metadata?.user_id || dbOrder.user_id;
+      if (userId) {
+        await supabase.from('cart_items').delete().eq('user_id', userId);
+      }
+
+      await handlePaymentSuccess(order_id, userId);
 
       await supabase
         .from('payment_events')

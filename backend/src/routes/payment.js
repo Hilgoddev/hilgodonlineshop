@@ -130,25 +130,39 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         if (event.event === 'charge.success') {
             const { reference, metadata } = event.data;
             const webhookOrderId = metadata?.order_id;
-            
-            // Update order status securely bypassing RLS (using service_role key configured in supabase.js)
-            const { error } = await supabase
+            if (!webhookOrderId) throw new Error('Missing order_id in Paystack metadata');
+
+            const { data: dbOrder, error: dbOrderErr } = await supabase
                 .from('orders')
-                .update({ status: 'paid' })
+                .select('id, user_id, total_amount, payment_reference, status')
                 .eq('id', webhookOrderId)
-                .eq('payment_reference', reference);
-                
-            if (error) throw error;
+                .single();
+            if (dbOrderErr || !dbOrder) throw dbOrderErr || new Error('Order not found for webhook');
+
+            // Verify paid amount from gateway against order total to prevent mismatched order updates.
+            const paidAmount = Number(event?.data?.amount || 0) / 100;
+            const orderAmount = Number(dbOrder.total_amount || 0);
+            if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - orderAmount) > 0.01) {
+                throw new Error(`Amount mismatch on webhook for order ${webhookOrderId}: paid=${paidAmount}, expected=${orderAmount}`);
+            }
+
+            // Mark paid by order_id and store final reference from gateway.
+            const { error: updateErr } = await supabase
+                .from('orders')
+                .update({ status: 'paid', payment_reference: reference })
+                .eq('id', webhookOrderId);
+            if (updateErr) throw updateErr;
             
             // Clear user's cart
-            if (metadata?.user_id) {
+            const userId = metadata?.user_id || dbOrder.user_id;
+            if (userId) {
                 await supabase
                     .from('cart_items')
                     .delete()
-                    .eq('user_id', metadata.user_id);
+                    .eq('user_id', userId);
             }
 
-            await handlePaymentSuccess(webhookOrderId, metadata?.user_id);
+            await handlePaymentSuccess(webhookOrderId, userId);
         }
 
         await supabase
