@@ -35,19 +35,19 @@ const requireSeller = async (req, res, next) => {
     }
 };
 
-// Get all stores (Public)
+// Get all stores (Public) - Using 'stores' table
 router.get('/', async (req, res, next) => {
     try {
-        const { data: storefronts, error } = await supabase
-            .from('storefronts')
-            .select('id, store_name, slug, description, logo_url, is_active')
-            .eq('is_active', true);
+        const { data: stores, error } = await supabase
+            .from('stores')
+            .select('id, name, slug, description, logo_url')
+            .eq('status', 'approved');
 
         if (error) throw error;
 
-        const data = (storefronts || []).map(s => ({
+        const data = (stores || []).map(s => ({
             id: s.id,
-            name: s.store_name,
+            name: s.name,
             slug: s.slug,
             description: s.description,
             logo_url: s.logo_url
@@ -62,9 +62,9 @@ router.get('/', async (req, res, next) => {
 // Admin get all stores (including unapproved)
 router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        console.log('[stores.js /all] Admin check passed, fetching storefronts...');
-        const { data: storefronts, error } = await supabase
-            .from('storefronts')
+        console.log('[stores.js /all] Admin check passed, fetching stores...');
+        const { data: stores, error } = await supabase
+            .from('stores')
             .select('*')
             .order('created_at', { ascending: false });
 
@@ -73,17 +73,18 @@ router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
             throw error;
         }
 
-        console.log('[stores.js /all] Storefronts fetched:', storefronts?.length || 0, 'records');
+        console.log('[stores.js /all] Stores fetched:', stores?.length || 0, 'records');
 
-        const data = (storefronts || []).map(s => ({
+        const data = (stores || []).map(s => ({
             id: s.id,
-            name: s.store_name,
+            name: s.name,
             slug: s.slug,
-            status: s.is_active ? 'approved' : 'pending',
+            status: s.status || (s.is_approved ? 'approved' : 'pending'),
             description: s.description,
             logo_url: s.logo_url,
-            seller_id: s.seller_id,
-            created_at: s.created_at
+            owner_id: s.owner_id,
+            created_at: s.created_at,
+            updated_at: s.updated_at
         }));
 
         console.log('[stores.js /all] Mapped data, sending response');
@@ -98,13 +99,13 @@ router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
 router.get('/me', verifyToken, requireSeller, async (req, res, next) => {
     try {
         let query = supabase
-            .from('storefronts')
+            .from('stores')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(1);
 
         if (req.userRole === 'seller') {
-            query = query.eq('seller_id', req.user.id);
+            query = query.eq('owner_id', req.user.id);
         }
 
         const { data, error } = await query;
@@ -119,8 +120,8 @@ router.get('/me', verifyToken, requireSeller, async (req, res, next) => {
 router.get('/:slug', async (req, res, next) => {
     try {
         const { data, error } = await supabase
-            .from('storefronts')
-            .select('id, store_name, slug, description, logo_url, is_active')
+            .from('stores')
+            .select('id, name, slug, description, logo_url')
             .eq('slug', req.params.slug)
             .single();
 
@@ -134,11 +135,32 @@ router.get('/:slug', async (req, res, next) => {
 // Create a store (Seller only)
 router.post('/', verifyToken, requireSeller, async (req, res, next) => {
     try {
-        const { store_name, slug, description, logo_url } = req.body;
+        const { name, slug, description, logo_url } = req.body;
+
+        // Check if seller already has a store
+        const { data: existingStore } = await supabase
+            .from('stores')
+            .select('id')
+            .eq('owner_id', req.user.id)
+            .single();
+
+        if (existingStore) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'You already have a store. Please update it instead.' 
+            });
+        }
 
         const { data, error } = await supabase
-            .from('storefronts')
-            .insert([{ seller_id: req.user.id, store_name, slug, description, logo_url, is_active: true }])
+            .from('stores')
+            .insert([{ 
+                owner_id: req.user.id, 
+                name, 
+                slug, 
+                description, 
+                logo_url,
+                status: 'pending'
+            }])
             .select();
 
         if (error) throw error;
@@ -151,14 +173,14 @@ router.post('/', verifyToken, requireSeller, async (req, res, next) => {
 // Update a store (Seller updates own, Admin updates any)
 router.put('/:id', verifyToken, requireSeller, async (req, res, next) => {
     try {
-        const { store_name, slug, description, logo_url } = req.body;
+        const { name, slug, description, logo_url } = req.body;
 
-        let updateData = { store_name, slug, description, logo_url };
+        let updateData = { name, slug, description, logo_url };
 
-        let query = supabase.from('storefronts').update(updateData).eq('id', req.params.id);
+        let query = supabase.from('stores').update(updateData).eq('id', req.params.id);
 
         if (req.userRole === 'seller') {
-            query = query.eq('seller_id', req.user.id);
+            query = query.eq('owner_id', req.user.id);
         }
 
         const { data, error } = await query.select();
@@ -177,13 +199,13 @@ router.put('/:id', verifyToken, requireSeller, async (req, res, next) => {
 router.patch('/:id/status', verifyToken, requireAdmin, async (req, res, next) => {
     try {
         const { status } = req.body;
-        if (!['pending', 'approved', 'rejected', 'active'].includes(status)) {
+        if (!['pending', 'approved', 'rejected'].includes(status)) {
             return res.status(400).json({ success: false, error: 'Invalid status' });
         }
 
         const { data, error } = await supabase
-            .from('storefronts')
-            .update({ is_active: status === 'active' || status === 'approved' })
+            .from('stores')
+            .update({ status })
             .eq('id', req.params.id)
             .select()
             .single();
