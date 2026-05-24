@@ -165,16 +165,38 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
 
         const sellerIds = (profiles || []).map(p => p.id);
 
-        const [{ data: stores }, { data: products }] = await Promise.all([
-            sellerIds.length
-                ? supabase.from('stores').select('seller_id, name, slug, status, logo_url').in('seller_id', sellerIds)
-                : Promise.resolve({ data: [] }),
-            sellerIds.length
-                ? supabase.from('products').select('id, seller_id').eq('is_active', true).eq('status', 'approved').in('seller_id', sellerIds)
-                : Promise.resolve({ data: [] }),
-        ]);
+        let stores = [];
+        let products = [];
 
-        const storeMap = new Map((stores || []).map(s => [s.seller_id, s]));
+        if (sellerIds.length) {
+            const [storesRes, productsRes] = await Promise.all([
+                supabase.from('storefronts').select('id, seller_id, store_name, slug, is_active, logo_url').in('seller_id', sellerIds),
+                supabase.from('products').select('id, seller_id').eq('status', 'active').in('seller_id', sellerIds)
+            ]);
+
+            if (storesRes.error) {
+                console.error('[ADMIN/SELLERS] Storefronts query error:', storesRes.error);
+            } else {
+                stores = storesRes.data || [];
+            }
+
+            if (productsRes.error) {
+                console.error('[ADMIN/SELLERS] Products query error:', productsRes.error);
+            } else {
+                products = productsRes.data || [];
+            }
+        }
+
+        const storeMap = new Map((stores || []).map(s => [
+            s.seller_id,
+            {
+                id: s.id,
+                name: s.store_name,
+                slug: s.slug,
+                status: s.is_active ? 'active' : 'inactive',
+                logo_url: s.logo_url
+            }
+        ]));
         const productCountMap = (products || []).reduce((map, p) => {
             map.set(p.seller_id, (map.get(p.seller_id) || 0) + 1);
             return map;
@@ -228,8 +250,44 @@ router.put('/promote', verifyToken, requireAdmin, async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Valid userId and newRole are required' });
         }
 
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+        if (profileError || !profile) throw profileError || new Error('User not found');
+
         const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
         if (error) throw error;
+
+        // Auto-create storefront if promoting to seller
+        if (newRole === 'seller' && profile.role !== 'seller') {
+            try {
+                const { data: existingStore } = await supabase
+                    .from('storefronts')
+                    .select('id')
+                    .eq('seller_id', userId)
+                    .maybeSingle();
+
+                if (!existingStore) {
+                    const storeName = profile.store_name || `${profile.full_name || 'My Store'}`;
+                    const baseSlug = storeName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+                    const slug = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${userId.slice(0, 8)}`;
+
+                    await supabase.from('storefronts').insert({
+                        seller_id: userId,
+                        store_name: storeName,
+                        slug,
+                        description: `Welcome to ${storeName}!`,
+                        is_active: true
+                    });
+                }
+            } catch (err) {
+                console.error('[PROMOTE] Storefront creation error:', err.message);
+            }
+        }
+
         res.status(200).json({ success: true, message: `User role updated to ${newRole}` });
     } catch (err) {
         next(err);
@@ -298,9 +356,9 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
         // Auto-generate storefront for the approved seller
         try {
             const { data: existingStore } = await supabase
-                .from('stores')
+                .from('storefronts')
                 .select('id')
-                .eq('owner_id', user_id)
+                .eq('seller_id', user_id)
                 .maybeSingle();
 
             if (!existingStore) {
@@ -309,12 +367,12 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
                 const randomSuffix = Math.floor(1000 + Math.random() * 9000);
                 const slug = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${user_id.slice(0, 8)}`;
 
-                const { error: storeError } = await supabase.from('stores').insert({
-                    owner_id: user_id,
-                    name: businessName,
+                const { error: storeError } = await supabase.from('storefronts').insert({
+                    seller_id: user_id,
+                    store_name: businessName,
                     slug: slug,
                     description: `Welcome to ${businessName}!`,
-                    status: 'approved'
+                    is_active: true
                 });
 
                 if (storeError) {

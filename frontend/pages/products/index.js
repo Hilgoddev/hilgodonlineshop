@@ -181,14 +181,26 @@ export default function ProductsPage({ allProducts = [] }) {
 
       <div className="show-mobile" style={{ marginBottom: 'var(--space-3)' }}>
         <button
-          className="btn btn-outline btn-sm"
-          onClick={() => document.querySelector('.filters-sidebar')?.classList.toggle('mobile-open')}
+          className="btn btn-outline btn-sm btn-mobile-full"
+          onClick={() => {
+            document.querySelector('.filters-sidebar')?.classList.toggle('mobile-open');
+            document.querySelector('.filters-overlay')?.classList.toggle('mobile-open');
+          }}
         >
           <i className="fas fa-filter"></i> Filter
         </button>
       </div>
 
       <div className="products-page">
+        {/* Mobile Sidebar Overlay */}
+        <div 
+          className="filters-overlay" 
+          onClick={() => {
+            document.querySelector('.filters-sidebar')?.classList.remove('mobile-open');
+            document.querySelector('.filters-overlay')?.classList.remove('mobile-open');
+          }}
+        ></div>
+
         {/* Sidebar */}
         <aside className="filters-sidebar">
           <div className="filter-header">

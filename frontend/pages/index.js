@@ -47,19 +47,21 @@ export default function Home({ products, categories = [], flashSales = [] }) {
     }
   };
 
-  // Safe navigation that handles mobile scrolling alignment
   const goToSlide = (index) => {
     setCurrentSlide(index);
+  };
+
+  useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       const container = document.getElementById('hero-slider');
       if (container) {
-        container.scrollTo({
-          left: index * container.clientWidth,
-          behavior: 'smooth'
-        });
+        const targetScroll = currentSlide * container.clientWidth;
+        if (Math.abs(container.scrollLeft - targetScroll) > 5) {
+          container.scrollTo({ left: targetScroll, behavior: 'smooth' });
+        }
       }
     }
-  };
+  }, [currentSlide]);
 
   const baseSlides = [
     {
@@ -126,12 +128,11 @@ export default function Home({ products, categories = [], flashSales = [] }) {
     return [baseSlides[0], flashSlide, ...baseSlides.slice(1)];
   })();
 
-  // Auto-rotate slides
+  // Auto-rotate slides (all devices - including mobile)
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
     const slideTimer = setInterval(() => {
       setCurrentSlide(prev => (prev + 1) % heroSlides.length);
-    }, 2000); // 2 seconds
+    }, 5000); // 5 seconds
 
     return () => clearInterval(slideTimer);
   }, [heroSlides.length]);
@@ -197,38 +198,41 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       title="Hilgod Online Store — Shop Electronics, Phones, Appliances, Fashion & More"
       description="Shop the best deals on Electronics, Phones, Appliances, Fashion, Gadgets and more at Hilgod Online Store. Fast delivery across Nigeria. Secure payments."
     >
-      {/* Hero Slider — negative margins counteract main's 1rem padding so hero stays full-width */}
-      <div className="hero-slider" id="hero-slider" onScroll={handleScroll} style={{ borderRadius: 0, overflow: 'hidden', marginBottom: 'var(--space-4)', position: 'relative', marginLeft: '-1rem', marginRight: '-1rem', marginTop: '-1rem', width: 'calc(100% + 2rem)' }}>
-        {heroSlides.map((slide, index) => (
-          <div key={slide.id} className={`hero-slide ${index === currentSlide ? 'active' : ''}`} style={{ opacity: index === currentSlide ? 1 : 0, transition: 'opacity 0.5s ease-in-out', position: index === currentSlide ? 'relative' : 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: index === currentSlide ? 1 : 0 }}>
-            <div className="hero-bg" style={{ background: slide.bg }}></div>
-            <div className="hero-overlay"></div>
-            <div className="hero-content">
-              <span className="hero-tag" style={{ background: slide.tag.color || 'var(--primary)' }}>
-                <i className={slide.tag.icon}></i> {slide.tag.text}
-              </span>
-              <h1 className="hero-title" dangerouslySetInnerHTML={{ __html: slide.title }}></h1>
-              <p className="hero-sub">{slide.sub}</p>
-              <div className="hero-actions">
-                <a href={slide.btnLink} className="btn btn-primary btn-lg">
-                  <i className="fas fa-shopping-cart"></i> {slide.btnText}
-                </a>
-                {slide.isFlash && (
-                  <a href="/flash-sales" className="btn btn-lg" style={{ background: 'rgba(255,255,255,.15)', color: '#fff', backdropFilter: 'blur(4px)' }}>
-                    View All Deals
+      {/* Hero Slider — Single element with dynamic content for smooth transitions */}
+      <div className="hero-slider" id="hero-slider" style={{ borderRadius: 0, overflow: 'hidden', marginBottom: 'var(--space-4)', position: 'relative', marginLeft: '-1rem', marginRight: '-1rem', marginTop: '-1rem', width: 'calc(100% + 2rem)' }}>
+        {heroSlides.length > 0 && (() => {
+          const slide = heroSlides[currentSlide];
+          return (
+            <div className="hero-slide active" style={{ position: 'relative', width: '100%', height: '100%' }}>
+              <div className="hero-bg" style={{ background: slide.bg }}></div>
+              <div className="hero-overlay"></div>
+              <div className="hero-content">
+                <span className="hero-tag" style={{ background: slide.tag.color || 'var(--primary)' }}>
+                  <i className={slide.tag.icon}></i> {slide.tag.text}
+                </span>
+                <h1 className="hero-title" dangerouslySetInnerHTML={{ __html: slide.title }}></h1>
+                <p className="hero-sub">{slide.sub}</p>
+                <div className="hero-actions" style={{ flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                  <a href={slide.btnLink} className="btn btn-primary btn-lg btn-mobile-full">
+                    <i className="fas fa-shopping-cart"></i> {slide.btnText}
                   </a>
-                )}
+                  {slide.isFlash && (
+                    <a href="/flash-sales" className="btn btn-lg btn-mobile-full" style={{ background: 'rgba(255,255,255,.15)', color: '#fff', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,.2)' }}>
+                      <i className="fas fa-fire"></i> View All Deals
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="hero-product-img">
+                <img 
+                  src={slide.img} 
+                  alt="Product Promotion" 
+                  loading="lazy"
+                />
               </div>
             </div>
-            <div className="hero-product-img">
-              <img 
-                src={slide.img} 
-                alt="Product Promotion" 
-                loading="lazy"
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })()}
 
         {/* Controls */}
         <button 

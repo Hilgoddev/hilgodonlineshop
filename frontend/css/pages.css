@@ -148,13 +148,13 @@ main { padding: 1rem; }
 @media (max-width: 900px) { .cart-layout { grid-template-columns: 1fr; } .cart-summary { position: relative; top: 0; } }
 @media (max-width: 768px) {
   .cart-table-head { display: none; }
-  .cart-table-row { grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; gap: var(--space-2); padding: var(--space-4); }
+  .cart-table-row { grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; gap: var(--space-3); padding: var(--space-4); align-items: start; }
   .cart-item-price { display: none; }
   .cart-item-check  { grid-column: 1; grid-row: 1 / 3; align-self: center; }
-  .cart-item-info   { grid-column: 2; grid-row: 1; }
-  .cart-remove      { grid-column: 3; grid-row: 1; align-self: start; }
+  .cart-item-info   { grid-column: 2; grid-row: 1; min-width: 0; }
+  .cart-remove      { grid-column: 3; grid-row: 1; justify-self: end; }
   .cart-qty-control { grid-column: 2; grid-row: 2; }
-  .cart-item-sub    { grid-column: 3; grid-row: 2; align-self: center; }
+  .cart-item-sub    { grid-column: 3; grid-row: 2; align-self: center; justify-self: end; }
 }
 
 /* ============ AUTH PAGES ============ */
@@ -181,6 +181,12 @@ main { padding: 1rem; }
 .strength-bar-wrap { height: 4px; background: var(--gray-4); border-radius: 2px; margin-top: 6px; }
 .strength-bar { height: 100%; border-radius: 2px; width: 0; transition: width .3s, background .3s; }
 .strength-label { font-size: .72rem; margin-top: 3px; }
+
+@media (max-width: 540px) {
+  .auth-page { padding: 0; align-items: stretch; background: var(--white); }
+  .auth-card { border-radius: 0; box-shadow: none; max-width: 100%; display: flex; flex-direction: column; }
+  .auth-header, .auth-body { padding: var(--space-6) var(--space-4); }
+}
 
 /* ============ CHECKOUT ============ */
 .checkout-layout { display: grid; grid-template-columns: 1fr 380px; gap: var(--space-6); align-items: start; }
@@ -219,6 +225,11 @@ main { padding: 1rem; }
 .order-summary-price { font-size: .9rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 @media (max-width: 900px) { .checkout-layout { grid-template-columns: 1fr; } }
+@media (max-width: 540px) {
+  .step-label { display: none; }
+  .step { justify-content: center; }
+  .checkout-section { padding: var(--space-4); }
+}
 
 /* ============ ACCOUNT ============ */
 .account-layout { display: grid; grid-template-columns: 260px 1fr; gap: var(--space-6); }
@@ -1127,8 +1138,8 @@ main { padding: 1rem; }
 .track-input-card h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: var(--space-2); }
 .track-input-card p { color: var(--gray-1); margin-bottom: var(--space-6); }
 .track-input-wrap { display: flex; gap: 0; max-width: 480px; margin: 0 auto; }
-.track-input { flex: 1; padding: 12px 18px; border: 1.5px solid var(--gray-3); border-radius: var(--radius) 0 0 var(--radius); font-size: .95rem; }
-.track-btn { padding: 12px 24px; background: var(--primary); color: var(--white); border: 1.5px solid transparent; border-radius: 0 var(--radius) var(--radius) 0; font-size: .92rem; font-weight: 700; cursor: pointer; transition: background var(--transition); }
+.track-input { flex: 1; padding: 12px 18px; border: 1.5px solid var(--gray-3); border-radius: var(--radius) 0 0 var(--radius); font-size: .95rem; min-height: 44px; }
+.track-btn { padding: 12px 24px; background: var(--primary); color: var(--white); border: 1.5px solid transparent; border-radius: 0 var(--radius) var(--radius) 0; font-size: .92rem; font-weight: 700; cursor: pointer; transition: background var(--transition); min-height: 44px; display: flex; align-items: center; justify-content: center; }
 .track-btn:hover { background: var(--primary-dark); }
 .track-result { background: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: var(--space-8); display: none; }
 .track-result.show { display: block; }
@@ -1159,6 +1170,15 @@ main { padding: 1rem; }
 .benefit-card p { font-size: .88rem; color: var(--gray-1); line-height: 1.6; }
 .seller-form-card { background: var(--white); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: var(--space-8); max-width: 600px; margin: 0 auto; }
 .seller-form-card h2 { text-align: center; margin-bottom: var(--space-6); }
+
+.seller-form-card .btn,
+.seller-hero .btn {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ============ WISHLIST ============ */
 .wishlist-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
@@ -1342,9 +1362,9 @@ main { padding: 1rem; }
 
 /* ============ TRACK ORDER — MOBILE ============ */
 @media (max-width: 640px) {
-  .track-input-wrap { flex-direction: column; }
-  .track-input { border-radius: var(--radius) !important; }
-  .track-btn { border-radius: var(--radius) !important; width: 100%; }
+  .track-input-wrap { flex-direction: column; gap: var(--space-2); }
+  .track-input { border-radius: var(--radius) !important; min-height: 44px; }
+  .track-btn { border-radius: var(--radius) !important; width: 100%; min-height: 44px; }
   .order-progress { padding-left: 0 !important; }
 }
 

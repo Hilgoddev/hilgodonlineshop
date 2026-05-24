@@ -166,8 +166,17 @@ export default function AdminRiders() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem', minWidth: '720px' }}>
               <thead>
                 <tr style={{ background: 'var(--gray-6)', borderBottom: '2px solid var(--gray-4)' }}>
-                  {['Applicant', 'Contact', 'Vehicle', 'State', 'License', 'Applied', 'Status', 'Actions'].map(h => (
-                    <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--gray-1)', whiteSpace: 'nowrap' }}>{h}</th>
+                  {[
+                    { label: 'Applicant', cls: '' },
+                    { label: 'Contact', cls: '' },
+                    { label: 'Vehicle', cls: 'col-hide-sm' },
+                    { label: 'State', cls: 'col-hide-sm' },
+                    { label: 'License', cls: 'col-hide-md' },
+                    { label: 'Applied', cls: 'col-hide-md' },
+                    { label: 'Status', cls: '' },
+                    { label: 'Actions', cls: '' },
+                  ].map(h => (
+                    <th key={h.label} className={h.cls} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--gray-1)', whiteSpace: 'nowrap' }}>{h.label}</th>
                   ))}
                 </tr>
               </thead>
@@ -185,14 +194,14 @@ export default function AdminRiders() {
                         <div>{r.email}</div>
                         <div style={{ color: 'var(--gray-1)' }}>{r.phone}</div>
                       </td>
-                      <td style={{ padding: '12px' }}>{r.vehicle_type || '—'}</td>
-                      <td style={{ padding: '12px' }}>{r.state || '—'}</td>
-                      <td style={{ padding: '12px' }}>
+                      <td className="col-hide-sm" style={{ padding: '12px' }}>{r.vehicle_type || '—'}</td>
+                      <td className="col-hide-sm" style={{ padding: '12px' }}>{r.state || '—'}</td>
+                      <td className="col-hide-md" style={{ padding: '12px' }}>
                         <span style={{ fontWeight: 600, color: r.has_license ? 'var(--success)' : 'var(--warning)' }}>
                           {r.has_license ? 'Yes' : 'Getting soon'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatDate(r.applied_at)}</td>
+                      <td className="col-hide-md" style={{ padding: '12px', whiteSpace: 'nowrap' }}>{formatDate(r.applied_at)}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={{ padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: '.78rem', fontWeight: 700, background: s.bg, color: s.color }}>
                           {r.status.charAt(0).toUpperCase() + r.status.slice(1)}

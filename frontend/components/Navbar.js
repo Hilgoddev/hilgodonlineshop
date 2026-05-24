@@ -350,7 +350,7 @@ export default function Navbar() {
                   <span className="badge-count cart-badge" style={{ display: cart.reduce((t, i) => t + i.quantity, 0) > 0 ? 'flex' : 'none' }}>{cart.reduce((t, i) => t + i.quantity, 0)}</span>
                 </Link>
               </div>
-              <button className="mobile-search-btn" aria-label="Search" onClick={() => setMobileSearchOpen(o => !o)}>
+              <button className="mobile-search-btn" aria-label="Search" onClick={() => setMobileSearchOpen(o => !o)} style={{ marginTop: '2px' }}>
                 <i className="fas fa-magnifying-glass"></i>
               </button>
               <button className="menu-toggle" id="menu-toggle" aria-label="Menu" onClick={toggleMobileMenu}><span></span><span></span><span></span></button>
@@ -369,20 +369,37 @@ export default function Navbar() {
                     setIsSearching(false);
                   }
                 }}
-                style={{ display: 'flex', gap: '8px' }}
+                style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}
               >
                 <input
                   type="text"
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => searchQuery.trim() && setIsSearching(true)}
+                  onBlur={() => setTimeout(() => setIsSearching(false), 200)}
                   autoFocus
                   className="mobile-search-input"
                 />
-                <button type="submit" className="search-btn" aria-label="Search" style={{ borderRadius: '6px', flexShrink: 0 }}>
+                <button type="submit" className="btn btn-primary btn-sm" aria-label="Search" style={{ borderRadius: '6px', flexShrink: 0, minHeight: '44px', minWidth: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <i className="fas fa-magnifying-glass"></i>
                 </button>
               </form>
+              {isSearching && searchResults.length > 0 && (
+                <div className="search-suggestions open" id="mobile-search-suggestions" style={{ position: 'absolute', top: '100%', left: '16px', right: '16px', background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px' }}>
+                  {searchResults.map(p => (
+                    <div key={p._id} className="suggestion-item" onClick={() => router.push(`/products/${p._id}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}>
+                      <i className="fas fa-search" style={{ color: 'var(--gray-2)' }}></i>
+                      <span style={{ fontSize: '.9rem', fontWeight: '600' }}>{p.name}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700' }}>₦{p.price?.toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div className="suggestion-item" onClick={() => router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'var(--primary-xlight)' }}>
+                    <i className="fas fa-search" style={{ color: 'var(--primary)' }}></i>
+                    <span style={{ color: 'var(--primary)', fontWeight: '600' }}>See all results for "{searchQuery}"</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

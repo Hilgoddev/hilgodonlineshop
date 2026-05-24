@@ -291,7 +291,19 @@
 .mobile-search-bar {
   background: var(--dark);
   border-top: 1px solid rgba(255,255,255,0.1);
-  padding: 10px 0;
+  padding: 10px var(--space-4);
+}
+
+.mobile-search-bar .container {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.mobile-search-bar form {
+  width: 100%;
+  display: flex;
+  gap: var(--space-3);
+  align-items: stretch;
 }
 .mobile-search-input {
   flex: 1;
@@ -302,6 +314,8 @@
   outline: none;
   background: var(--white);
   color: var(--dark);
+  min-height: 44px;
+  min-width: 200px;
 }
 
 /* ---- RESPONSIVE HEADER ---- */

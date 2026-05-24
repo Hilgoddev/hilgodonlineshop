@@ -57,10 +57,10 @@ export default function AboutUs() {
           Hilgod connects millions of shoppers with trusted sellers across Nigeria and beyond — bringing quality products, fair prices, and fast delivery right to your door.
         </p>
         <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap', position: 'relative' }}>
-          <Link href="/products" className="btn btn-primary btn-lg">
+          <Link href="/products" className="btn btn-primary btn-lg btn-mobile-full">
             <i className="fas fa-shopping-cart"></i> Shop Now
           </Link>
-          <Link href="/seller-zone" className="btn btn-lg" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', backdropFilter: 'blur(4px)' }}>
+          <Link href="/seller-zone" className="btn btn-lg btn-mobile-full" style={{ background: 'rgba(255,255,255,.12)', color: '#fff', backdropFilter: 'blur(4px)' }}>
             <i className="fas fa-store"></i> Sell on Hilgod
           </Link>
         </div>
@@ -168,10 +168,10 @@ export default function AboutUs() {
           Have questions, feedback, or want to partner with us? We&apos;d love to hear from you.
         </p>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href="mailto:hilgodonline@gmail.com" className="btn btn-primary">
+          <a href="mailto:hilgodonline@gmail.com" className="btn btn-primary btn-mobile-full">
             <i className="fas fa-envelope"></i> hilgodonline@gmail.com
           </a>
-          <a href="https://wa.me/2348080535728" className="btn btn-outline" target="_blank" rel="noopener noreferrer">
+          <a href="https://wa.me/2348080535728" className="btn btn-outline btn-mobile-full" target="_blank" rel="noopener noreferrer">
             <i className="fab fa-whatsapp"></i> WhatsApp
           </a>
         </div>
