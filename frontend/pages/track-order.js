@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { apiFetch } from '@/lib/apiClient';
 import { useSession } from '@/contexts/AuthContext';
 
 export default function TrackOrder() {
+  const router = useRouter();
   const [orderId, setOrderId] = useState('');
   const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { status } = useSession();
 
-  const trackOrder = async () => {
-    if (!orderId.trim()) {
+  const trackOrder = async (idToTrack = orderId) => {
+    const targetId = (idToTrack || '').trim().replace(/^HGD-/i, '');
+    if (!targetId) {
       setError('Please enter an order ID');
       return;
     }
@@ -21,10 +24,8 @@ export default function TrackOrder() {
     setError('');
 
     try {
-      const cleanOrderId = orderId.trim().replace(/^HGD-/i, '');
-
       if (status === 'authenticated') {
-        const res = await apiFetch(`/api/orders/${cleanOrderId}`);
+        const res = await apiFetch(`/api/orders/${targetId}`);
         const data = await res.json();
         if (data.success) {
           setOrderData(data.data);
@@ -44,6 +45,14 @@ export default function TrackOrder() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (router.isReady && router.query.id && status !== 'loading') {
+      const urlId = String(router.query.id);
+      setOrderId(urlId);
+      trackOrder(urlId);
+    }
+  }, [router.isReady, router.query.id, status]);
 
   const getStatusColor = (status) => {
     const colors = {

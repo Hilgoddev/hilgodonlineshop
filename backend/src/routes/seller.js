@@ -193,10 +193,16 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
     const productIds = (products || []).map((p) => p.id);
     if (!productIds.length) return res.status(200).json({ success: true, data: [] });
 
-    const { data: orderItems, error: oiErr } = await supabase
+    let { data: orderItems, error: oiErr } = await supabase
       .from('order_items')
-      .select('order_id, product_id, quantity, unit_price')
+      .select('id, order_id, product_id, quantity, unit_price, fulfillment_status')
       .in('product_id', productIds);
+    if (oiErr && String(oiErr.message || '').includes('fulfillment_status')) {
+      ({ data: orderItems, error: oiErr } = await supabase
+        .from('order_items')
+        .select('id, order_id, product_id, quantity, unit_price')
+        .in('product_id', productIds));
+    }
     if (oiErr) throw oiErr;
 
     const orderIds = [...new Set((orderItems || []).map((oi) => oi.order_id))];
@@ -220,11 +226,13 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
       const list = map.get(oi.order_id) || [];
       const product = productMap.get(oi.product_id);
       list.push({
+        id: oi.id,
         productId: oi.product_id,
         name: product?.name || 'Product',
         image: product?.images?.[0] || null,
         quantity: Number(oi.quantity),
         price: Number(oi.unit_price),
+        fulfillmentStatus: oi.fulfillment_status || 'pending',
       });
       map.set(oi.order_id, list);
       return map;
@@ -248,6 +256,65 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
     });
 
     res.status(200).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
+  try {
+    const itemId = req.params.id;
+    const { fulfillmentStatus } = req.body || {};
+    const allowed = ['pending', 'packed', 'shipped', 'delivered', 'cancelled'];
+    if (!allowed.includes(fulfillmentStatus)) {
+      return res.status(400).json({ success: false, error: 'Invalid fulfillmentStatus' });
+    }
+
+    const { data: item, error: itemErr } = await supabase
+      .from('order_items')
+      .select('id, order_id, product_id')
+      .eq('id', itemId)
+      .maybeSingle();
+    if (itemErr) throw itemErr;
+    if (!item) return res.status(404).json({ success: false, error: 'Order item not found' });
+
+    // Ensure this item belongs to a product owned by the current seller/admin user.
+    const { data: product, error: productErr } = await supabase
+      .from('products')
+      .select('id, seller_id')
+      .eq('id', item.product_id)
+      .maybeSingle();
+    if (productErr) throw productErr;
+    if (!product || (req.userRole !== 'admin' && product.seller_id !== req.user.id)) {
+      return res.status(403).json({ success: false, error: 'Access denied for this order item' });
+    }
+
+    const { data: updatedItem, error: updateErr } = await supabase
+      .from('order_items')
+      .update({ fulfillment_status: fulfillmentStatus })
+      .eq('id', itemId)
+      .select('id, order_id, product_id, quantity, unit_price, fulfillment_status')
+      .single();
+    if (updateErr) throw updateErr;
+
+    // Best-effort: if all items are delivered/cancelled, bring order status in sync.
+    const { data: allItems, error: allItemsErr } = await supabase
+      .from('order_items')
+      .select('fulfillment_status')
+      .eq('order_id', item.order_id);
+    if (!allItemsErr && allItems?.length) {
+      const statuses = allItems.map((r) => r.fulfillment_status || 'pending');
+      if (statuses.every((s) => s === 'delivered' || s === 'cancelled')) {
+        const nextOrderStatus = statuses.every((s) => s === 'cancelled') ? 'cancelled' : 'delivered';
+        await supabase.from('orders').update({ status: nextOrderStatus }).eq('id', item.order_id);
+      } else if (statuses.some((s) => s === 'shipped' || s === 'delivered')) {
+        await supabase.from('orders').update({ status: 'shipped' }).eq('id', item.order_id);
+      } else if (statuses.some((s) => s === 'packed')) {
+        await supabase.from('orders').update({ status: 'processing' }).eq('id', item.order_id);
+      }
+    }
+
+    return res.status(200).json({ success: true, data: updatedItem });
   } catch (err) {
     next(err);
   }

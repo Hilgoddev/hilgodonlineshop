@@ -22,7 +22,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     const productIds = [...new Set(items.map(i => i.product_id))];
     const { data: products } = await supabase
       .from('products')
-      .select('id, name, stock_quantity, seller_id')
+      .select('id, name, stock, seller_id')
       .in('id', productIds);
 
     const productMap = {};
@@ -33,8 +33,8 @@ async function handlePaymentSuccess(order_id, user_id) {
       items.map(async (item) => {
         const product = productMap[item.product_id];
         if (!product) return;
-        const newStock = Math.max(0, (product.stock_quantity || 0) - item.quantity);
-        return supabase.from('products').update({ stock_quantity: newStock }).eq('id', item.product_id);
+        const newStock = Math.max(0, (product.stock || 0) - item.quantity);
+        return supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
       })
     );
 

@@ -516,6 +516,34 @@ export default function Navbar() {
             <Link href="/delivery" className="mobile-nav-link" onClick={closeMobileMenu}>
               <span><i className="fas fa-motorcycle icon"></i>Delivery Partner</span><i className="fas fa-chevron-right"></i>
             </Link>
+
+            {/* Preferences */}
+            <div className="mobile-nav-title" style={{ marginTop: '15px' }}>Preferences</div>
+            <div className="mobile-nav-link" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default', borderBottom: 'none' }}>
+              <span><i className="fas fa-money-bill-wave icon" style={{ color: 'var(--gray-2)' }}></i>Currency</span>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                disabled={currencyLoading}
+                className="mobile-currency-select"
+                style={{
+                  background: 'var(--gray-6, #f1f5f9)',
+                  border: '1px solid var(--gray-4, #cbd5e1)',
+                  color: 'var(--dark, #334155)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  fontWeight: '600'
+                }}
+              >
+                <option value="USD">USD ($)</option>
+                <option value="NGN">NGN (₦)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="EUR">EUR (€)</option>
+              </select>
+            </div>
           </div>
         </nav>
       )}

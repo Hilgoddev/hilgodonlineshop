@@ -295,6 +295,38 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
             .single();
         if (updateError) throw updateError;
 
+        // Auto-generate storefront for the approved seller
+        try {
+            const { data: existingStore } = await supabase
+                .from('stores')
+                .select('id')
+                .eq('owner_id', user_id)
+                .maybeSingle();
+
+            if (!existingStore) {
+                const businessName = application.business_name || 'My Store';
+                const baseSlug = businessName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+                const slug = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${user_id.slice(0, 8)}`;
+
+                const { error: storeError } = await supabase.from('stores').insert({
+                    owner_id: user_id,
+                    name: businessName,
+                    slug: slug,
+                    description: `Welcome to ${businessName}!`,
+                    status: 'approved'
+                });
+
+                if (storeError) {
+                    console.error('[APPROVE_SELLER] Failed to create store:', storeError.message);
+                } else {
+                    console.log(`[APPROVE_SELLER] Storefront auto-created for seller ${user_id}: ${slug}`);
+                }
+            }
+        } catch (storeCreateErr) {
+            console.error('[APPROVE_SELLER] Storefront creation catch-block error:', storeCreateErr.message);
+        }
+
         res.status(200).json({ success: true, data });
 
         // Fire-and-forget approval email

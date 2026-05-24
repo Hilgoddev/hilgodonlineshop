@@ -20,14 +20,25 @@ export default function SellerOrders() {
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [savingItemId, setSavingItemId] = useState(null);
+  const [itemStatuses, setItemStatuses] = useState({});
 
   useEffect(() => {
     (async () => {
       try {
         const res = await apiFetch('/api/seller/orders');
         const json = await res.json();
-        if (json.success) setOrders(json.data || []);
-        else setError(json.error || 'Could not load orders');
+        if (json.success) {
+          const rows = json.data || [];
+          setOrders(rows);
+          const statusMap = {};
+          rows.forEach((order) => {
+            (order.items || []).forEach((item) => {
+              statusMap[item.id] = item.fulfillmentStatus || 'pending';
+            });
+          });
+          setItemStatuses(statusMap);
+        } else setError(json.error || 'Could not load orders');
       } catch {
         setError('Network error loading orders');
       } finally {
@@ -35,6 +46,33 @@ export default function SellerOrders() {
       }
     })();
   }, []);
+
+  const saveItemStatus = async (itemId) => {
+    const fulfillmentStatus = itemStatuses[itemId];
+    if (!fulfillmentStatus) return;
+    setSavingItemId(itemId);
+    try {
+      const res = await apiFetch(`/api/seller/order-items/${itemId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ fulfillmentStatus }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Failed to update item status');
+
+      setOrders((prev) =>
+        prev.map((order) => ({
+          ...order,
+          items: (order.items || []).map((it) =>
+            it.id === itemId ? { ...it, fulfillmentStatus } : it
+          ),
+        }))
+      );
+    } catch (e) {
+      setError(e.message || 'Failed to update item status');
+    } finally {
+      setSavingItemId(null);
+    }
+  };
 
   const filtered = filter === 'all' ? orders : orders.filter((o) => o.status === filter);
   const statuses = ['all', 'pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
@@ -121,7 +159,7 @@ export default function SellerOrders() {
                     </div>
                     <div style={{ padding: '12px 16px' }}>
                       {order.items.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: i < order.items.length - 1 ? '1px solid var(--gray-4)' : 'none' }}>
+                        <div key={item.id || i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: i < order.items.length - 1 ? '1px solid var(--gray-4)' : 'none' }}>
                           {item.image ? (
                             <img src={item.image} alt={item.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
                           ) : (
@@ -133,7 +171,31 @@ export default function SellerOrders() {
                             <div style={{ fontWeight: 600, fontSize: '.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
                             <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(Number(item.price), 'NGN', false)} each</div>
                           </div>
-                          <div style={{ fontWeight: 700, fontSize: '.9rem', flexShrink: 0 }}>{formatPrice(item.price * item.quantity, 'NGN', false)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <select
+                              className="form-input"
+                              value={itemStatuses[item.id] || item.fulfillmentStatus || 'pending'}
+                              onChange={(e) => setItemStatuses((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                              style={{ padding: '4px 8px', fontSize: '.76rem', minWidth: '120px' }}
+                            >
+                              <option value="pending">pending</option>
+                              <option value="packed">packed</option>
+                              <option value="shipped">shipped</option>
+                              <option value="delivered">delivered</option>
+                              <option value="cancelled">cancelled</option>
+                            </select>
+                            {(itemStatuses[item.id] || item.fulfillmentStatus || 'pending') !== (item.fulfillmentStatus || 'pending') && (
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => saveItemStatus(item.id)}
+                                disabled={savingItemId === item.id}
+                                style={{ padding: '4px 10px', fontSize: '.74rem' }}
+                              >
+                                {savingItemId === item.id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}
+                              </button>
+                            )}
+                            <div style={{ fontWeight: 700, fontSize: '.9rem', flexShrink: 0 }}>{formatPrice(item.price * item.quantity, 'NGN', false)}</div>
+                          </div>
                         </div>
                       ))}
                     </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
@@ -123,65 +123,71 @@ export default function AdminOrders() {
                     const isExpanded = expandedOrder === order._id;
 
                     return (
-                      <tr key={order._id} style={{ borderBottom: '1px solid var(--gray-4)', background: isExpanded ? '#f8fafc' : 'transparent' }}>
-                        <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--primary)', verticalAlign: 'top' }}>#{order._id.slice(-8).toUpperCase()}</td>
-                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
-                          <div style={{ fontWeight: '600' }}>{custName}</div>
-                          <div style={{ fontSize: '.8rem', color: 'var(--gray-1)' }}>{custEmail}</div>
-                        </td>
-                        <td style={{ padding: '14px 16px', verticalAlign: 'top', fontWeight: '600' }}>{order.items?.length || 0}</td>
-                        <td style={{ padding: '14px 16px', fontWeight: '700', verticalAlign: 'top' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</td>
-                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}><span style={badge(order.paymentStatus || 'pending', payColors)}>{order.paymentStatus || 'pending'}</span></td>
-                        <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '120px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
-                              <option value="pending">Pending</option>
-                              <option value="paid">Paid</option>
-                              <option value="processing">Processing</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
-                            {isChanged && (<button className="btn btn-primary btn-sm" onClick={() => handleSaveStatus(order._id)} disabled={updatingId === order._id} style={{ padding: '4px 10px', fontSize: '.78rem' }}>{updatingId === order._id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}</button>)}
-                          </div>
-                        </td>
-                        <td style={{ padding: '14px 16px', fontSize: '.82rem', color: 'var(--gray-1)', verticalAlign: 'top' }}>{formatDate(order.createdAt)}</td>
-                        <td style={{ padding: '14px 16px', textAlign: 'right', verticalAlign: 'top' }}>
-                          <button className="btn btn-sm btn-outline" onClick={() => setExpandedOrder(isExpanded ? null : order._id)} style={{ fontSize: '.8rem' }}>
-                            {isExpanded ? 'Hide' : 'View'}
-                          </button>
-                        </td>
-                      </tr>
+                      <React.Fragment key={order._id}>
+                        <tr style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--gray-4)', background: isExpanded ? '#f8fafc' : 'transparent' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--primary)', verticalAlign: 'top' }}>#{order._id.slice(-8).toUpperCase()}</td>
+                          <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                            <div style={{ fontWeight: '600' }}>{custName}</div>
+                            <div style={{ fontSize: '.8rem', color: 'var(--gray-1)' }}>{custEmail}</div>
+                          </td>
+                          <td style={{ padding: '14px 16px', verticalAlign: 'top', fontWeight: '600' }}>{order.items?.length || 0}</td>
+                          <td style={{ padding: '14px 16px', fontWeight: '700', verticalAlign: 'top' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</td>
+                          <td style={{ padding: '14px 16px', verticalAlign: 'top' }}><span style={badge(order.paymentStatus || 'pending', payColors)}>{order.paymentStatus || 'pending'}</span></td>
+                          <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '120px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
+                                <option value="pending">Pending</option>
+                                <option value="paid">Paid</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                              {isChanged && (<button className="btn btn-primary btn-sm" onClick={() => handleSaveStatus(order._id)} disabled={updatingId === order._id} style={{ padding: '4px 10px', fontSize: '.78rem' }}>{updatingId === order._id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}</button>)}
+                            </div>
+                          </td>
+                          <td style={{ padding: '14px 16px', fontSize: '.82rem', color: 'var(--gray-1)', verticalAlign: 'top' }}>{formatDate(order.createdAt)}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', verticalAlign: 'top' }}>
+                            <button className="btn btn-sm btn-outline" onClick={() => setExpandedOrder(isExpanded ? null : order._id)} style={{ fontSize: '.8rem' }}>
+                              {isExpanded ? 'Hide' : 'View'}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--gray-4)' }}>
+                            <td colSpan={8} style={{ padding: '20px 24px' }}>
+                              <h4 style={{ fontWeight: '700', marginBottom: '12px' }}>Order #{order._id.slice(-8).toUpperCase()} Details</h4>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                                <div><strong>Customer:</strong> {custName}<br /><span style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{custEmail}</span></div>
+                                {order.deliveryAddress && (
+                                  <div><strong>Delivery:</strong><br /><span style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{order.deliveryAddress.street}, {order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}, {order.deliveryAddress.country}<br />Phone: {order.deliveryAddress.phone}</span></div>
+                                )}
+                              </div>
+                              <strong>Items:</strong>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+                                {order.items?.map((item, idx) => (
+                                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--gray-4)', fontSize: '.85rem' }}>
+                                    {item.image && <img src={item.image} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80&auto=format'; }} />}
+                                    <div>
+                                      <div style={{ fontWeight: '600' }}>{item.name}</div>
+                                      <div style={{ color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(item.price || 0, 'NGN', false)}</div>
+                                      {item.fulfillmentStatus && (
+                                        <div style={{ fontSize: '.74rem', color: '#475569', textTransform: 'capitalize' }}>
+                                          Item status: {item.fulfillmentStatus}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
               </table>
-
-              {/* Expanded Order Detail */}
-              {expandedOrder && (() => {
-                const order = orders.find(o => o._id === expandedOrder);
-                if (!order) return null;
-                return (
-                  <div style={{ padding: '20px 24px', borderTop: '2px solid var(--primary)', background: '#f8fafc' }}>
-                    <h4 style={{ fontWeight: '700', marginBottom: '12px' }}>Order #{order._id.slice(-8).toUpperCase()} Details</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                      <div><strong>Customer:</strong> {order.user?.firstName} {order.user?.lastName}<br /><span style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{order.user?.email}</span></div>
-                      {order.deliveryAddress && (
-                        <div><strong>Delivery:</strong><br /><span style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{order.deliveryAddress.street}, {order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}, {order.deliveryAddress.country}<br />Phone: {order.deliveryAddress.phone}</span></div>
-                      )}
-                    </div>
-                    <strong>Items:</strong>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
-                      {order.items?.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--gray-4)', fontSize: '.85rem' }}>
-                          {item.image && <img src={item.image} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80&auto=format'; }} />}
-                          <div><div style={{ fontWeight: '600' }}>{item.name}</div><div style={{ color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(item.price || 0, 'NGN', false)}</div></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
           )}
         </div>
@@ -196,3 +202,5 @@ AdminOrders.getLayout = function getLayout(page) {
     </AdminGuard>
   );
 };
+
+

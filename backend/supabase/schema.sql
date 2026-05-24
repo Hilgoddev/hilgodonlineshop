@@ -91,9 +91,14 @@ CREATE TABLE public.order_items (
   product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit_price DECIMAL(10, 2) NOT NULL,
+  fulfillment_status TEXT DEFAULT 'pending' CHECK (fulfillment_status IN ('pending', 'packed', 'shipped', 'delivered', 'cancelled')),
   subtotal DECIMAL(10, 2) GENERATED ALWAYS AS (quantity * unit_price) STORED,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Backfill safety for existing databases that predate fulfillment_status
+ALTER TABLE public.order_items
+  ADD COLUMN IF NOT EXISTS fulfillment_status TEXT DEFAULT 'pending';
 
 -- 8. Cart Items
 CREATE TABLE public.cart_items (

@@ -1,1 +1,5 @@
 .vercel
+scripts/check-rates.js
+scripts/test-rpc.js
+scripts/print-env.js
+scripts/test-endpoints.js

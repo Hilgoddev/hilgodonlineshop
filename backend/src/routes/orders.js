@@ -31,20 +31,28 @@ router.get('/', verifyToken, async (req, res, next) => {
         let itemMap = new Map();
 
         if (orderIds.length) {
-            const { data: items, error: itemErr } = await supabase
+            let { data: items, error: itemErr } = await supabase
                 .from('order_items')
-                .select('order_id, quantity, unit_price, product:products(id, name, images)')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, product:products(id, name, images)')
                 .in('order_id', orderIds);
+            if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
+                ({ data: items, error: itemErr } = await supabase
+                    .from('order_items')
+                    .select('id, order_id, quantity, unit_price, product:products(id, name, images)')
+                    .in('order_id', orderIds));
+            }
             if (itemErr) throw itemErr;
 
             itemMap = (items || []).reduce((map, it) => {
                 const list = map.get(it.order_id) || [];
                 list.push({
+                    id: it.id,
                     productId: it.product?.id || null,
                     name: it.product?.name || 'Product',
                     image: it.product?.images?.[0] || null,
                     price: Number(it.unit_price || 0),
-                    quantity: it.quantity
+                    quantity: it.quantity,
+                    fulfillmentStatus: it.fulfillment_status || 'pending',
                 });
                 map.set(it.order_id, list);
                 return map;
@@ -240,10 +248,24 @@ router.get('/all', verifyToken, async (req, res, next) => {
         const userIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
         const orderIds = (orders || []).map((o) => o.id);
 
-        const [{ data: profiles }, { data: items }] = await Promise.all([
+        const [{ data: profiles }] = await Promise.all([
             userIds.length ? supabase.from('profiles').select('id, full_name, username').in('id', userIds) : Promise.resolve({ data: [] }),
-            orderIds.length ? supabase.from('order_items').select('order_id, quantity, unit_price, product:products(name, images)').in('order_id', orderIds) : Promise.resolve({ data: [] })
         ]);
+        let items = [];
+        if (orderIds.length) {
+            let itemErr;
+            ({ data: items, error: itemErr } = await supabase
+                .from('order_items')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, product:products(name, images)')
+                .in('order_id', orderIds));
+            if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
+                ({ data: items, error: itemErr } = await supabase
+                    .from('order_items')
+                    .select('id, order_id, quantity, unit_price, product:products(name, images)')
+                    .in('order_id', orderIds));
+            }
+            if (itemErr) throw itemErr;
+        }
 
         const userMap = new Map((profiles || []).map((p) => {
             const names = (p.full_name || '').split(' ');
@@ -251,7 +273,14 @@ router.get('/all', verifyToken, async (req, res, next) => {
         }));
         const itemMap = (items || []).reduce((map, it) => {
             const list = map.get(it.order_id) || [];
-            list.push({ name: it.product?.name || 'Product', image: it.product?.images?.[0] || null, price: Number(it.unit_price || 0), quantity: it.quantity });
+            list.push({
+                id: it.id,
+                name: it.product?.name || 'Product',
+                image: it.product?.images?.[0] || null,
+                price: Number(it.unit_price || 0),
+                quantity: it.quantity,
+                fulfillmentStatus: it.fulfillment_status || 'pending',
+            });
             map.set(it.order_id, list);
             return map;
         }, new Map());
@@ -294,17 +323,26 @@ router.get('/:id', verifyToken, async (req, res, next) => {
             }
         }
 
-        const { data: items } = await supabase
+        let { data: items, error: itemsErr } = await supabase
             .from('order_items')
-            .select('quantity, unit_price, product:products(id, name, images)')
+            .select('id, quantity, unit_price, fulfillment_status, product:products(id, name, images)')
             .eq('order_id', order.id);
+        if (itemsErr && String(itemsErr.message || '').includes('fulfillment_status')) {
+            ({ data: items, error: itemsErr } = await supabase
+                .from('order_items')
+                .select('id, quantity, unit_price, product:products(id, name, images)')
+                .eq('order_id', order.id));
+        }
+        if (itemsErr) throw itemsErr;
 
         const mappedItems = (items || []).map((it) => ({
+            id: it.id,
             productId: it.product?.id || null,
             name: it.product?.name || 'Product',
             image: it.product?.images?.[0] || null,
             price: Number(it.unit_price || 0),
-            quantity: it.quantity
+            quantity: it.quantity,
+            fulfillmentStatus: it.fulfillment_status || 'pending',
         }));
 
         res.status(200).json({ success: true, data: mapOrder(order, mappedItems) });
