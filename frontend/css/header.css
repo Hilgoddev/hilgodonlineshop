@@ -267,6 +267,11 @@
   gap: var(--space-3);
 }
 
+/* Mobile currency select inside the drawer */
+.mobile-currency-select {
+  font-family: inherit;
+}
+
 /* ---- MOBILE SEARCH ---- */
 .mobile-search-btn {
   display: none;
@@ -307,6 +312,8 @@
   .menu-toggle { display: flex; }
   .mobile-search-btn { display: flex; }
   .mobile-search-bar .search-btn { width: auto; height: auto; padding: 9px 14px; border-radius: 6px; }
+  /* Hide desktop currency selector — it lives inside the mobile menu drawer instead */
+  .header-currency-wrap { display: none; }
 }
 /* Removed breakpoint hiding currency on mobile to keep it visible */
 @media (max-width: 768px) {

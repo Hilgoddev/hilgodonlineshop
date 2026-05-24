@@ -519,7 +519,7 @@ export default function Navbar() {
 
             {/* Preferences */}
             <div className="mobile-nav-title" style={{ marginTop: '15px' }}>Preferences</div>
-            <div className="mobile-nav-link" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default', borderBottom: 'none' }}>
+            <div className="mobile-nav-link" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'default' }}>
               <span><i className="fas fa-money-bill-wave icon" style={{ color: 'var(--gray-2)' }}></i>Currency</span>
               <select
                 value={currency}
