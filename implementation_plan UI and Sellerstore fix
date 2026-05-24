@@ -1,0 +1,109 @@
+# Hilgod Online Shop — Frontend Implementation Plan (Phase 2+)
+
+This implementation plan merges the UI/UX frontend refactoring based on the design audit, the **Mobile-First CSS Architecture** strategy, and the new seller store/order management features detailed in the project list.
+
+## User Review Required
+
+> [!IMPORTANT]
+> This plan covers a massive surface area of the frontend and introduces a systemic shift to a **Mobile-First CSS Architecture**. We will proceed phase by phase. Please review the proposed order and confirm if we should begin executing **Phase 1 (Mobile-First CSS Foundation & Critical Layouts)** first.
+
+## Finalized Requirements
+- **Seller "Surname":** Confirmed this means **Store Name / Business Name** is mandatory for new sellers.
+- **Real-time Updates:** We will use **Supabase Realtime** as the best-in-class solution for live syncing product and order statuses.
+- **My Orders Page:** Personal purchases will be strictly isolated at `/account?tab=orders` for ALL users (Customers, Sellers, Admins). Admins and Sellers will use their respective dashboard tabs (`/admin/orders` and `/seller/orders`) to view global/customer orders.
+- **Button Placement:** Extra care will be taken to ensure buttons (`.btn`) are not displaced, misaligned, or overflowing across different screen sizes.
+
+---
+
+## Proposed Changes
+
+---
+
+### Phase 1: Mobile-First CSS Foundation & Critical Overflows
+*Establish the unified breakpoint scale (`sm`: 480px, `md`: 768px, `lg`: 992px, `xl`: 1280px), transition to `min-width` media queries, and fix the most severe mobile shatters.*
+
+#### [MODIFY] [frontend/css/main.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/main.css)
+- Implement fluid typography using `clamp()` for headings and `.section-title`.
+- Create a global button layout system (`.btn-mobile-full`, `.btn-group`, `.btn-sm` with min-height 44px).
+- Harmonize solid button heights with outline buttons by adding transparent borders.
+
+#### [MODIFY] [frontend/css/products.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/products.css)
+- Fix the **Mobile List-View shatter**. Remove the hardcoded 200px width on `.product-card__img-wrapper` on small screens.
+- **Mobile Filter Sidebar:** Convert the sidebar to a clean, premium **bottom-sheet slide-up drawer** on `< lg` viewports.
+- Update product catalog grids (`.product-catalog-grid`) to step up uniformly from 2 columns on mobile instead of crushing.
+- Add ellipsis logic (text-overflow) to product descriptions to prevent them from breaking flex boundaries.
+
+#### [MODIFY] [frontend/pages/admin/index.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/admin/index.js) & [frontend/pages/admin/riders.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/admin/riders.js)
+- Fix the **Recent Orders Table horizontal overflow**. Set `min-width` on the table to ensure it scrolls horizontally instead of crushing text.
+- Fix the **Revenue Stat Card clipping**. Adjust grid template columns so odd-numbered stat cards do not stretch or wrap awkwardly.
+- Fix the 8-column Riders table overflow by implementing `col-hide-sm`/`md` and allowing horizontal scrolling.
+
+#### [MODIFY] [frontend/css/pages.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/pages.css) (Cart, Checkout, Account)
+- Fix the **Mobile Cart Item Row** layout. Define proper `grid-column` and `grid-row` spans for cart components on mobile.
+- Fix the **Checkout Step Indicator**. Hide step labels on `< sm`, showing only numbers to prevent text overlaps.
+- Make Auth cards full-width on phones with reduced padding.
+
+#### [MODIFY] [frontend/components/Navbar.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/components/Navbar.js) & [frontend/css/header.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/header.css)
+- Fix the **Mobile Search Toggle Icon** vertical misalignment next to Cart/Account.
+- Apply the correct `.btn-sm` classes for the mobile search submit button.
+- Un-hide `#search-suggestions` on mobile so mobile autocomplete works correctly.
+
+---
+
+### Phase 2: Home Page & Component Consistency
+
+#### [MODIFY] [frontend/css/home.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/home.css) & [frontend/pages/index.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/index.js)
+- **Hero Carousel Layout:** Fix the hero slider on mobile so the image shifts to the right or acts as a gradient background, keeping the Call-to-Action buttons visible. Ensure slider height scales (200px mobile → 480px desktop).
+- **Infinite Auto-Scroll:** Implement auto-play and infinite looping for the hero carousel with visible slide indicators.
+- **Category Carousel:** Fix the "Ghost" scroll right button (hide if no overflow) and add a "Scroll Left" button on desktop.
+- Align the **Flash Sale header** and **Brand header**. Ensure "View All" link-buttons do not overlap countdowns.
+
+#### [MODIFY] [Specific Page Button Alignments]
+- Fix button layouts in `about.js`, `careers.js`, `track-order.js` (Track button full width), and seller/store sections to span 100% width on mobile using the new `.btn-mobile-full` class.
+- PDP actions ("Add to Cart" + "Buy Now") must stack vertically (`width: 100%`) on `< sm` and sit side-by-side on `sm+`.
+
+#### [MODIFY] [frontend/pages/track-order.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/track-order.js)
+- Fix the inactive order tracking timeline so "Placed" correctly highlights even when the status is `pending`.
+
+---
+
+### Phase 3: Seller Integration & "Uploaded By" Tracking
+
+#### [MODIFY] [backend/supabase/migrations/004_store_name.sql] (To be created)
+- Ensure the `stores` table and registration flow require a store name, falling back to `Hilgod-[suffix]`.
+- Add mandatory surname field for new seller registration if explicitly required.
+
+#### [MODIFY] [frontend/pages/products/[id].js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/products/%5Bid%5D.js)
+- Display seller details (Store Name, Phone, Email) in the product details section.
+- Identify if the product was uploaded by an Admin or a Seller.
+
+#### [MODIFY] [frontend/pages/admin/products.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/admin/products.js)
+- Add column for "Uploaded By" (Seller Name / Store Name vs. Admin).
+- Truncate long descriptions with an ellipsis to prevent table breakage.
+
+#### [MODIFY] [frontend/pages/admin/stores.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/admin/stores.js)
+- Update stores tab to list all stores and allow drilling down to see products assigned exclusively to that store.
+
+---
+
+### Phase 4: Order Experience Modernization
+
+#### [MODIFY] [frontend/components/OrderDetailsModal.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/components/OrderDetailsModal.js) (NEW)
+- Build a modular overlay modal to display purchase records, delivery metrics, and seller contact info (phone/email).
+- Replace the legacy "below table" expansion in the Admin and Seller dashboards.
+
+#### [MODIFY] [frontend/pages/account/orders.js](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/pages/account/orders.js)
+- Ensure the dedicated customer "My Orders" tab/page isolates their orders perfectly.
+- Sync the order status display so Buyers, Sellers, and Admins see the identical real-time status.
+
+## Verification Plan
+
+### Automated Tests
+- Run `npm run build` to confirm no compilation errors after CSS changes.
+- Verify `backend` API functionality for the exchange rates.
+
+### Manual Verification (Chrome DevTools)
+1. **Mobile Layouts (375px/390px/430px):** Verify Cart, Checkout, Auth forms, and Catalog Grid no longer overlap. Buttons should be full-width.
+2. **Tablet Layouts (768px):** Verify sidebars, admin tables (horizontal scroll), and multi-column grids format correctly.
+3. **Hero Carousel:** Ensure the hero slider auto-plays and the buttons are visible over the background on mobile.
+4. **Order Modal:** Click an order row in the Admin panel and confirm it opens cleanly in a centered modal popup.

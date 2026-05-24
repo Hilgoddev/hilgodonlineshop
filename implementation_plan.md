@@ -24,6 +24,17 @@ This plan outlines the steps to transform the static e-commerce platform into a 
 - **CON-001**: Ensure backward compatibility during migration.
 - **CON-002**: Use free-tier services where possible.
 
+## Finalized Design Decisions
+
+> [!TIP]
+> **Mobile Filter Sidebar**: We will implement a clean, premium **bottom-sheet slide-up drawer** layout. A sticky action bar button on mobile will trigger this bottom-sheet, offering a highly native app-like user experience.
+>
+> **Button Stacking Strategy**: Button pairs (such as "Add to Cart" and "Buy Now") will stack **vertically** (both 100% width) on screens narrower than `480px` for optimal thumb-reach and accessibility. On screens `480px` and wider, they will dynamically transition to sit side-by-side.
+>
+> **Admin Pages**: Standard tablet usability with clean horizontal scrolling tables will be guaranteed. For administrative row actions, buttons will collapse into intuitive, space-efficient icon-only triggers on smaller screens.
+>
+> **Phase order**: We will follow the standard, high-impact priority flow: Home page improvements first, followed by products list, details, cart, checkout, account pages, and finally footers.
+
 ## 2. Implementation Steps
 
 ### Implementation Phase 1: Architecture & Project Restructuring

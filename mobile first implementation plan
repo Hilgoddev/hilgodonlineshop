@@ -1,0 +1,251 @@
+# Mobile-First Responsiveness — Hilgod Online Shop
+
+## Background
+The current CSS was written **desktop-first** (base styles target wide viewports, then overridden with `max-width` media queries). This causes:
+- Inconsistent breakpoints (12 different widths used: 315, 360, 420, 440, 480, 540, 576, 600, 640, 700, 768, 900, 992, 1024, 1100)
+- Key layouts not collapsing on phones (filter sidebar, product catalog, checkout, admin tables)
+- Font sizes, paddings, and spacing not scaling down gracefully
+- No standardised breakpoint system (each file uses different values)
+
+The goal is a **systematic mobile-first rewrite** using a single unified breakpoint scale.
+
+---
+
+## Unified Breakpoint Scale (Mobile-First)
+
+| Token | Value | Devices |
+|-------|-------|---------|
+| `sm`  | 480px | Large phones |
+| `md`  | 768px | Tablets / landscape phones |
+| `lg`  | 992px | Small laptops / large tablets |
+| `xl`  | 1280px | Desktops |
+
+All `@media` rules will become `min-width` (mobile-first) instead of `max-width`.
+
+---
+
+## Proposed Changes
+
+### Phase 1 — Design System & Global Tokens
+#### [MODIFY] [main.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/main.css)
+- Add fluid typography using `clamp()` for headings (h1–h4) and the `.section-title`
+- Make `.container` padding `16px` by default (mobile), scaling to `24px` at `lg`
+- Convert `.hide-mobile` / `.show-mobile` to min-width equivalents
+- Add new utility classes: `.grid-cols-2`, `.grid-cols-3`, `.grid-cols-4` that start at 1 col and expand at breakpoints
+- Standardise product card image height: `160px` mobile → `200px` desktop
+- Make toast container full-width on mobile (bottom bar style) instead of corner popup
+
+---
+
+### Phase 2 — Header & Navigation
+#### [MODIFY] [header.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/header.css)
+- **Logo**: Scale from `52px` mobile → `80px` desktop
+- **Header grid**: Single row on mobile (logo + hamburger), full 3-col on `lg`
+- **Category nav bar**: Fully hidden on `< lg`, replaced by the hamburger drawer
+- **Mobile menu**: Ensure drawer is always `300px` wide and full-height with `position: fixed`
+- **Mobile search**: Search button always visible on `< lg`; show expanded input inline on tap
+
+---
+
+### Phase 3 — Home Page
+#### [MODIFY] [home.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/home.css)
+- **Hero slider**: `200px` tall on phone → `360px` tablet → `480px` desktop; hide product image on `< 480px`
+- **Categories grid**: `3 cols` mobile → `5 cols` tablet → `8 cols` desktop
+- **Flash sale products**: `2 cols` mobile → `3 cols` tablet → `5 cols` desktop
+- **Product grids** (5-col, 4-col, 6-col): All start at `2 cols` mobile, step up uniformly
+- **Banners** (2-col, 4-col): Stack to 1 col on mobile
+- **Brands grid**: `2 cols` mobile → `4 cols` tablet → `8 cols` desktop
+- **Trust bar**: Wrap items to 2-per-row on `< sm`, single row on `md`+
+- **Sell banner**: Stack vertically on mobile, full-width CTA button
+
+---
+
+### Phase 4 — Product Catalog & Detail
+#### [MODIFY] [products.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/products.css)
+- **Filters sidebar**: Hidden by default (mobile), toggled by a floating "Filter" button; slides in as a drawer on `< lg`
+- **Products page layout**: Single column mobile, 2-col (`sidebar + main`) from `lg`
+- **Product grid**: `2 cols` mobile → `3 cols` tablet → `4 cols` desktop
+- **Products topbar**: Stack count + sort controls vertically on `< sm`; hide sort label text, keep select
+
+#### [MODIFY] [pages.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/pages.css) — Product Detail section
+- **PDP layout**: Single col mobile → 2 cols from `md`
+- **Gallery**: `260px` mobile → `420px` desktop
+- **PDP actions**: Full-width stacked buttons on mobile
+- **Tabs**: Scrollable horizontally on `< sm`, full tabs on `md`+
+
+---
+
+### Phase 5 — Cart & Checkout
+#### [MODIFY] [pages.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/pages.css) — Cart section
+- **Cart layout**: Single col mobile (summary below), 2-col from `md`
+- **Cart table rows**: Already adapted for mobile grid — tighten spacing on `< sm`
+- **Cart summary**: Remove `position: sticky` on mobile, always static
+
+#### [MODIFY] [pages.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/pages.css) — Checkout section
+- **Checkout layout**: Single col mobile, 2-col from `lg`
+- **Checkout steps**: Hide step labels on `< sm`, show only numbers
+- **Form rows**: Single col on mobile, 2 col from `sm`
+
+---
+
+### Phase 6 — Account & Auth Pages
+#### [MODIFY] [pages.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/pages.css) — Account section
+- **Account layout** (`.acct-layout`): Single col mobile; sidebar becomes scrollable horizontal tab strip on `< lg`
+- **Stats grid**: `1 col` mobile → `2 col` tablet → `3 col` desktop
+- **Quick actions grid**: `2 cols` mobile → `4 cols` tablet+
+- **Profile display**: Stack avatar + info vertically on mobile, side-by-side from `sm`
+- **Auth card**: Full-width on phones with reduced padding
+
+---
+
+### Phase 7 — Seller, Track Order & Other Pages
+#### [MODIFY] [pages.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/pages.css) — Seller/Delivery/Track sections
+- **Seller hero**: Reduce font sizes on mobile; full padding `var(--space-8)` → `var(--space-4)` on `< sm`
+- **Seller benefits grid**: `1 col` mobile → `3 cols` desktop
+- **Track order input**: Stack input + button vertically on `< sm`
+- **Order progress**: Ensure vertical timeline doesn't overflow on narrow phones
+
+---
+
+### Phase 8 — Footer
+#### [MODIFY] [footer.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/footer.css)
+- **Footer promo strip**: `1 col` mobile → `2 col` tablet → `4 col` desktop *(already partially done)*
+- **Footer body**: `1 col` mobile → `2 col` tablet → `5 col` desktop *(already partially done)*
+- **Newsletter strip**: Stack heading + form on mobile *(already done)* — verify padding
+
+---
+
+### Phase 9 — Admin Pages (light pass)
+The admin pages are primarily used on desktop. Ensure they are at least usable on tablets:
+- Horizontal scroll wrapper for data tables on `< md`
+- Admin nav links hidden on `< lg` (already done), show hamburger menu drawer
+- Stat/metric grids: `2 cols` on tablets
+
+---
+
+### Phase 10 — Button Alignment & Placement (Global)
+Buttons are the most critical interactive element. The current codebase has inconsistent alignment, sizing, and placement across pages.
+
+#### [MODIFY] [main.css](file:///c:/Users/HSEF%202026/Downloads/Hilgodonlineshop/frontend/css/main.css) — `.btn` system
+
+**Problems identified:**
+- Some buttons are not full-width on mobile (e.g. PDP "Add to Cart" + "Buy Now" sit side-by-side on 375px)
+- CTAs in hero, sell-banner, and auth pages are not centred on mobile
+- Icon-only buttons (`btn-icon`) have no minimum tap size enforced
+- The `btn-sm` padding is `7px 16px` — too small for touch (under 44px height)
+- Buttons inside flex rows wrap unpredictably on narrow screens
+- Action button groups (e.g. in admin rows) overflow rather than stack
+
+**Rules to add to `.btn` system:**
+
+| Scenario | Mobile rule | Desktop rule |
+|----------|-------------|--------------|
+| Primary CTA (single) | `width: 100%` | `width: auto` |
+| Button pair (e.g. Add to Cart + Buy Now) | Stack vertically, both `width: 100%` | Side by side, `flex: 1` |
+| Icon + text button (`btn-sm`) | Min height `44px` | Default |
+| Inline text-link button (account nav, dropdowns) | Full row tap area `min-height: 44px` | Normal |
+| Admin row action buttons | Stack or collapse to icon-only | Icon + label |
+
+**Specific fixes per page:**
+
+- **Home hero**: `"Shop Now"` + `"Flash Deals"` buttons → stack to full-width column on `< 480px`
+- **PDP actions**: `"Add to Cart"` + `"Buy Now"` → `flex-direction: column` + `width: 100%` on `< 640px`
+- **Cart summary**: `"Proceed to Checkout"` → always `width: 100%` on all sizes
+- **Checkout**: `"Place Order"` → `width: 100%`, vertically centred in summary card
+- **Auth pages** (Login/Signup): Submit buttons → `width: 100%`, `min-height: 48px`
+- **Track order**: `"Track"` button → full-width below input on `< 640px`
+- **Seller zone / Delivery apply**: Apply / Register buttons → `width: 100%` on mobile
+- **Account panel**: Edit, Save, Cancel → right-aligned row on desktop, stacked full-width on `< 640px`
+- **Mobile menu**: All nav links → minimum `48px` tap area
+- **Product card**: `"Add to Cart"` button → `height: 40px`, full card width on mobile
+- **Sell banner**: CTA button → `width: 100%` on `< 480px`
+- **Flash sale header**: `"View All"` link-button → stays visible and does not overlap countdown
+- **Admin table actions** (approve, reject, edit, delete): Collapse to icon-only buttons on `< 768px`, with tooltips
+- **Pagination buttons**: Shrink `page-btn` from `38px` to `32px` on `< 480px`; reduce visible page numbers to 3
+
+**New utility classes to add:**
+```css
+/* Buttons go full-width on mobile */
+.btn-mobile-full { width: 100%; }
+@media (min-width: 640px) { .btn-mobile-full { width: auto; } }
+
+/* Button group: stacks on mobile, row on sm+ */
+.btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+@media (min-width: 480px) {
+  .btn-group { flex-direction: row; width: auto; }
+  .btn-group .btn { flex: 1; }
+}
+
+/* Minimum touch target for small buttons */
+.btn-sm { min-height: 44px; }
+```
+
+---
+
+## Key Patterns Used
+
+### Fluid Typography with `clamp()`
+```css
+.hero-title { font-size: clamp(1.1rem, 5vw, 2.6rem); }
+.section-title { font-size: clamp(1rem, 3vw, 1.4rem); }
+```
+
+### Responsive Grid Shorthand
+All multi-column grids will use auto-fill where semantically appropriate:
+```css
+.categories-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* mobile */
+}
+@media (min-width: 480px) { grid-template-columns: repeat(5, 1fr); }
+@media (min-width: 992px) { grid-template-columns: repeat(8, 1fr); }
+```
+
+### Touch Targets
+All interactive buttons/links will have a minimum tap target of `44×44px` on mobile.
+
+---
+
+## Verification Plan
+
+### Manual Verification (Chrome DevTools)
+Test the following viewports for each page:
+- **375px** (iPhone SE / standard phone)
+- **390px** (iPhone 14)
+- **430px** (iPhone 14 Pro Max)  
+- **768px** (iPad portrait)
+- **1024px** (iPad landscape / small laptop)
+- **1440px** (desktop)
+
+### Pages to test:
+- `/` (Home)
+- `/products` (Catalog with filters)
+- `/products/[id]` (Product detail)
+- `/cart`
+- `/checkout`
+- `/account`
+- `/auth/login` & `/auth/signup`
+- `/track-order`
+- `/seller-zone`
+- `/delivery`
+
+### Build Verification
+Run `npm run build` in the frontend directory to confirm no compilation errors after CSS changes.
+
+---
+
+## Finalized Design Decisions
+
+> [!TIP]
+> **Mobile Filter Sidebar**: We will implement a clean, premium **bottom-sheet slide-up drawer** layout. A sticky action bar button on mobile will trigger this bottom-sheet, offering a highly native app-like user experience.
+>
+> **Button Stacking Strategy**: Button pairs (such as "Add to Cart" and "Buy Now") will stack **vertically** (both 100% width) on screens narrower than `480px` for optimal thumb-reach and accessibility. On screens `480px` and wider, they will dynamically transition to sit side-by-side.
+>
+> **Admin Pages**: Standard tablet usability with clean horizontal scrolling tables will be guaranteed. For administrative row actions, buttons will collapse into intuitive, space-efficient icon-only triggers on smaller screens.
+>
+> **Phase order**: We will follow the standard, high-impact priority flow: Home page improvements first, followed by products list, details, cart, checkout, account pages, and finally footers.

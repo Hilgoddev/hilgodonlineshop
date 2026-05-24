@@ -49,3 +49,4 @@ logs/
 .claude/*
 .cursor/
 # skills/
+.vercel
