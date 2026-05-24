@@ -42,7 +42,7 @@ export function CurrencyProvider({ children }) {
                         : ''
                 );
 
-                // Load exchange rates
+                // ── Load exchange rates ──────────────────────────────────
                 let rates = FALLBACK_RATES;
                 let ratesLoaded = false;
 
@@ -51,7 +51,6 @@ export function CurrencyProvider({ children }) {
                 if (localRatesCache) {
                     try {
                         const { rates: cachedRates, timestamp } = JSON.parse(localRatesCache);
-                        // 24 hour TTL (24 * 60 * 60 * 1000 = 86400000 ms)
                         if (Date.now() - timestamp < 86400000 && cachedRates && typeof cachedRates === 'object') {
                             rates = cachedRates;
                             ratesLoaded = true;
@@ -60,7 +59,6 @@ export function CurrencyProvider({ children }) {
                 }
 
                 if (!ratesLoaded) {
-                    // Fetch from backend cache
                     try {
                         const ratesRes = await fetch('/api/exchange-rates', { cache: 'no-store' });
                         if (ratesRes.ok) {
@@ -82,7 +80,6 @@ export function CurrencyProvider({ children }) {
                 }
 
                 if (!ratesLoaded) {
-                    // Fetch from external API as fallback
                     try {
                         const ratesRes = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
                         if (ratesRes.ok) {
@@ -101,32 +98,35 @@ export function CurrencyProvider({ children }) {
                     } catch (_) {}
                 }
 
-                // 1. IP geolocation (runs first of geo checks — most accurate)
+                // ── Dynamic-first geolocation ────────────────────────────
+                // Run BOTH the server API and the client-side IP lookup in
+                // parallel so we get the fastest real answer.
                 let geoCurrency = null;
-                try {
-                    const locRes = await fetch('/api/location-currency', { cache: 'no-store' });
-                    if (locRes.ok) {
-                        const locData = await locRes.json();
-                        if (locData?.success && locData?.currency?.code) {
-                            geoCurrency = locData.currency.code;
-                        }
-                    }
-                } catch (_) {}
+                let geoDetected = false; // true only when a *real* IP geo source answered
 
-                // 2. Client-side IP lookup fallback if edge headers are unavailable
-                if (!geoCurrency) {
-                    try {
-                        const locRes = await fetch('https://ipwho.is/', { cache: 'no-store' });
-                        if (locRes.ok) {
-                            const locData = await locRes.json();
-                            if (locData?.success && locData?.currency?.code) {
-                                geoCurrency = locData.currency.code;
-                            }
-                        }
-                    } catch (_) {}
+                // Fire both requests at once
+                const [serverResult, clientResult] = await Promise.allSettled([
+                    fetch('/api/location-currency', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+                    fetch('https://ipwho.is/', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+                ]);
+
+                // 1) Prefer server-side geo (Vercel/Cloudflare headers — fastest & no CORS)
+                const serverData = serverResult.status === 'fulfilled' ? serverResult.value : null;
+                if (serverData?.success && serverData?.detected && serverData?.currency?.code) {
+                    geoCurrency = serverData.currency.code;
+                    geoDetected = true;
                 }
 
-                // Priority: saved preference -> IP geo -> timezone -> locale -> USD
+                // 2) Fallback to client-side ipwho.is when server had no real geo
+                if (!geoCurrency) {
+                    const clientData = clientResult.status === 'fulfilled' ? clientResult.value : null;
+                    if (clientData?.success && clientData?.currency?.code) {
+                        geoCurrency = clientData.currency.code;
+                        geoDetected = true;
+                    }
+                }
+
+                // ── Priority: saved > IP geo > timezone > locale > USD ───
                 const detectedCurrency = saved || geoCurrency || tzCurrency || localeCurrency || 'USD';
 
                 if (isMounted) {
@@ -138,8 +138,9 @@ export function CurrencyProvider({ children }) {
                         : rates[localeCurrency] ? localeCurrency : 'USD';
                     setCurrency(finalCurrency);
 
-                    // Keep local preference aligned when user has never chosen manually
-                    if (!saved) {
+                    // Only persist when we got a REAL geo detection or timezone/locale,
+                    // never persist the bare 'USD' fallback default
+                    if (!saved && geoDetected) {
                         try { localStorage.setItem(CURRENCY_STORAGE_KEY, finalCurrency); } catch (_) {}
                     }
                 }

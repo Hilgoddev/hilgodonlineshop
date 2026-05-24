@@ -2,13 +2,41 @@
    HILGOD — PRODUCTS PAGE CSS
    ============================================= */
 
-.products-page { display: grid; grid-template-columns: 260px 1fr; gap: var(--space-6); margin-top: var(--space-4); }
+.products-page { display: grid; grid-template-columns: 1fr; gap: var(--space-4); margin-top: var(--space-4); }
 
-/* ---- FILTERS SIDEBAR ---- */
 .filters-sidebar {
-  background: var(--white); border-radius: var(--radius-md);
-  padding: var(--space-6); box-shadow: var(--shadow-sm);
-  align-self: start; position: sticky; top: 144px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--white);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15);
+  padding: var(--space-6);
+  transform: translateY(100%);
+  transition: transform var(--transition-slow);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.filters-sidebar.mobile-open {
+  transform: translateY(0);
+}
+
+/* Slide-up overlay background */
+.filters-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-slow);
+}
+.filters-overlay.mobile-open {
+  opacity: 1;
+  pointer-events: all;
 }
 .filter-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -102,8 +130,8 @@
 /* Product grid layouts */
 .product-catalog-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-4);
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
 }
 .product-catalog-grid.list-view { grid-template-columns: 1fr; }
 .product-catalog-grid.list-view .product-card { flex-direction: row; }
@@ -125,12 +153,41 @@
 .active-filter-tag:hover { background: var(--primary); color: var(--white); }
 .active-filters-label { font-size: .82rem; color: var(--gray-1); }
 
-/* ---- RESPONSIVE PRODUCTS ---- */
-@media (max-width: 1100px) { .product-catalog-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 900px) {
-  .products-page { grid-template-columns: 1fr; }
-  .filters-sidebar { position: relative; top: 0; display: none; }
-  .filters-sidebar.mobile-open { display: block; }
-  .product-catalog-grid { grid-template-columns: repeat(3, 1fr); }
+/* ---- RESPONSIVE PRODUCTS (MOBILE-FIRST) ---- */
+
+/* Medium Tablets & Up (min-width: 768px) */
+@media (min-width: 768px) {
+  .product-catalog-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+  }
 }
-@media (max-width: 600px) { .product-catalog-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Desktops & Small Laptops (min-width: 992px) */
+@media (min-width: 992px) {
+  .products-page {
+    grid-template-columns: 260px 1fr;
+    gap: var(--space-6);
+  }
+  
+  .filters-sidebar {
+    position: sticky;
+    top: 144px;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    z-index: 1;
+    background: var(--white);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-6);
+    transform: none;
+    max-height: none;
+    overflow-y: visible;
+    align-self: start;
+  }
+  
+  .product-catalog-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

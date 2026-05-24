@@ -35,6 +35,32 @@ export default function Home({ products, categories = [], flashSales = [] }) {
   const [flashCountdown, setFlashCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Handle swipe scroll on mobile
+  const handleScroll = (e) => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 768) return;
+    const container = e.currentTarget;
+    const slideWidth = container.clientWidth;
+    if (slideWidth === 0) return;
+    const newIndex = Math.round(container.scrollLeft / slideWidth);
+    if (newIndex >= 0 && newIndex < heroSlides.length && newIndex !== currentSlide) {
+      setCurrentSlide(newIndex);
+    }
+  };
+
+  // Safe navigation that handles mobile scrolling alignment
+  const goToSlide = (index) => {
+    setCurrentSlide(index);
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      const container = document.getElementById('hero-slider');
+      if (container) {
+        container.scrollTo({
+          left: index * container.clientWidth,
+          behavior: 'smooth'
+        });
+      }
+    }
+  };
+
   const baseSlides = [
     {
       id: 1,
@@ -102,6 +128,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 
   // Auto-rotate slides
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
     const slideTimer = setInterval(() => {
       setCurrentSlide(prev => (prev + 1) % heroSlides.length);
     }, 2000); // 2 seconds
@@ -171,7 +198,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       description="Shop the best deals on Electronics, Phones, Appliances, Fashion, Gadgets and more at Hilgod Online Store. Fast delivery across Nigeria. Secure payments."
     >
       {/* Hero Slider — negative margins counteract main's 1rem padding so hero stays full-width */}
-      <div className="hero-slider" id="hero-slider" style={{ borderRadius: 0, overflow: 'hidden', marginBottom: 'var(--space-4)', position: 'relative', marginLeft: '-1rem', marginRight: '-1rem', marginTop: '-1rem', width: 'calc(100% + 2rem)' }}>
+      <div className="hero-slider" id="hero-slider" onScroll={handleScroll} style={{ borderRadius: 0, overflow: 'hidden', marginBottom: 'var(--space-4)', position: 'relative', marginLeft: '-1rem', marginRight: '-1rem', marginTop: '-1rem', width: 'calc(100% + 2rem)' }}>
         {heroSlides.map((slide, index) => (
           <div key={slide.id} className={`hero-slide ${index === currentSlide ? 'active' : ''}`} style={{ opacity: index === currentSlide ? 1 : 0, transition: 'opacity 0.5s ease-in-out', position: index === currentSlide ? 'relative' : 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: index === currentSlide ? 1 : 0 }}>
             <div className="hero-bg" style={{ background: slide.bg }}></div>
@@ -223,7 +250,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
             <button
               key={index}
               className={`slider-dot ${index === currentSlide ? 'active' : ''}`}
-              onClick={() => setCurrentSlide(index)}
+              onClick={() => goToSlide(index)}
               aria-label={`Go to slide ${index + 1}`}
             ></button>
           ))}

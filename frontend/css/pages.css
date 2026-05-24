@@ -1410,7 +1410,9 @@ main { padding: 1rem; }
   .pdp-price { font-size: 1.5rem; }
   .pdp-actions { flex-direction: column; }
   .pdp-actions .btn { width: 100%; justify-content: center; }
-  .tab-head { padding: 10px 14px; font-size: .82rem; }
+  .tab-heads { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tab-heads::-webkit-scrollbar { display: none; }
+  .tab-head { padding: 10px 14px; font-size: .82rem; white-space: nowrap; }
   .qty-wrap { flex-wrap: wrap; gap: var(--space-2); }
 }
 
