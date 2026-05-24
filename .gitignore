@@ -1,52 +1,138 @@
-# Environment variables file - contains sensitive data
+# ===========================================
+# ENVIRONMENT VARIABLES (Sensitive)
+# ===========================================
 .env
 .env.local
+.env.development.local
+.env.test.local
 .env.production
-client_secret_662682454869-6asvl7hu34sts9tcl9rd95ot9c1hegi7.apps.googleusercontent.com.json
-.mcp.json
+.env.production.local
+.env*.local
 
-# Dependencies
+# ===========================================
+# API KEYS & SECRETS (Sensitive)
+# ===========================================
+client_secret_*.json
+*-secret-*.json
+secrets.json
+api-keys.json
+credentials.json
+
+# ===========================================
+# MCP & AI CONFIGURATION (Sensitive)
+# ===========================================
+.mcp.json
+.claude
+.claude/
+.claudeignore
+.agent
+.agents/
+.agentsignore
+.cursor/
+.cursorignore
+.vercel
+
+# ===========================================
+# DEPENDENCIES
+# ===========================================
 node_modules/
 .pnp
 .pnp.js
+.pnp.cjs
+.pnp.mjs
+.pnp.loader.mjs
 
-# Testing
+# ===========================================
+# TESTING
+# ===========================================
 coverage/
 .nyc_output/
+*.lcov
+.jest/
 
-# Next.js
+# ===========================================
+# NEXT.JS
+# ===========================================
 .next/
-frontend/dev/
 out/
 build/
 
-# Production
+# ===========================================
+# PRODUCTION
+# ===========================================
 dist/
+.dist/
+*.tgz
+.npm
 
-# Misc
+# ===========================================
+# MISCELLANEOUS
+# ===========================================
 .DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
 *.pem
+*.key
+*.cert
 
-# Debug
+# ===========================================
+# DEBUG
+# ===========================================
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-debug.log*
 
-# IDE
+# ===========================================
+# IDE & EDITORS
+# ===========================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
 
-# Logs
+# ===========================================
+# LOGS
+# ===========================================
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
 
-#MCP
-.agent
-.agents/
-.claude/*
-.cursor/
+# ===========================================
+# DOCUMENTS (Project-specific)
+# ===========================================
+task.md
+mobile first implementation plan
+list.md
+implementation_plan.md
+DEBUG_SUMMARY.md
+VERIFICATION_REPORT.md
+
+# ===========================================
+# BACKUP & TEMP FILES
+# ===========================================
+*.bak
+*.tmp
+*.temp
+.git.backup/
+
+# ===========================================
+# SKILLS (Optional - uncomment if needed)
+# ===========================================
 # skills/
-.vercel
+
+# ===========================================
+# END OF GITIGNORE
+# ===========================================
