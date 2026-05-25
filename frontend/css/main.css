@@ -413,6 +413,58 @@ table {
   }
 }
 
+/* Prevent button shrinkage in flex containers - fixes overflow issues */
+.btn {
+  flex-shrink: 0;
+}
+
+/* Mobile-specific button behavior for better UX */
+@media (max-width: 480px) {
+  /* Allow text wrapping on very small screens to prevent overflow */
+  .btn {
+    white-space: normal;
+    word-break: break-word;
+  }
+  
+  /* Full-width buttons on mobile for better touch targets */
+  .btn-lg {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Button spacing utilities - replaces inline marginTop styles */
+.btn-spaced {
+  margin-top: var(--space-3);
+}
+
+/* Button alignment utilities - replaces inline alignSelf styles */
+.btn-start {
+  align-self: flex-start;
+}
+
+/* Improved btn-group that prevents shrinkage */
+.btn-group {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.btn-group .btn {
+  flex: 0 0 auto; /* Don't grow, don't shrink, auto basis */
+}
+
+@media (max-width: 480px) {
+  .btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .btn-group .btn {
+    width: 100%;
+  }
+}
+
 /* Responsive Button Utilities */
 .btn-mobile-full {
   width: 100%;

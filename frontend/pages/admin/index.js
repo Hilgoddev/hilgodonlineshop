@@ -319,13 +319,13 @@ export default function AdminDashboard() {
           <div className="card" style={{ padding: '20px' }}>
             <h3 style={{ fontWeight: 700, fontSize: '0.95rem', margin: '0 0 12px' }}>Shortcuts</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <Link href="/admin/approvals" className="btn btn-outline" style={{ justifyContent: 'center', fontSize: '0.86rem', width: '100%', boxSizing: 'border-box' }}>
+              <Link href="/admin/approvals" className="btn btn-outline btn-full" style={{ fontSize: '0.86rem' }}>
                 Pending approvals
               </Link>
-              <Link href="/admin/products" className="btn btn-primary" style={{ justifyContent: 'center', fontSize: '0.86rem', width: '100%', boxSizing: 'border-box' }}>
+              <Link href="/admin/products" className="btn btn-primary btn-full" style={{ fontSize: '0.86rem' }}>
                 Manage products
               </Link>
-              <Link href="/admin/orders" className="btn btn-outline" style={{ justifyContent: 'center', fontSize: '0.86rem', width: '100%', boxSizing: 'border-box' }}>
+              <Link href="/admin/orders" className="btn btn-outline btn-full" style={{ fontSize: '0.86rem' }}>
                 All orders
               </Link>
             </div>

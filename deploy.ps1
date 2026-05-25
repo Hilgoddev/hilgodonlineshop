@@ -133,5 +133,5 @@ if ($frontendResult -eq 0 -and $backendResult -eq 0) {
     Write-Host ""
 }
 
-Write-Host "📖 For more information, see DEPLOYMENT_GUIDE.md" -ForegroundColor Cyan
+Write-Host "For more information, see DEPLOYMENT_GUIDE.md" -ForegroundColor Cyan
 Write-Host ""

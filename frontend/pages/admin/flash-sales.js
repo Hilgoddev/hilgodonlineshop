@@ -607,7 +607,7 @@ export default function AdminFlashSales() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={submitting || imageUploading} style={{ minWidth: '160px' }}>
+          <button type="submit" className="btn btn-primary" disabled={submitting || imageUploading}>
             {submitting
               ? <><i className="fas fa-spinner fa-spin" /> Adding…</>
               : <><i className="fas fa-bolt" /> Add Flash Sale</>}

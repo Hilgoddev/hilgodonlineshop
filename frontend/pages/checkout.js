@@ -556,15 +556,15 @@ export default function Checkout() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)', flexWrap: 'wrap' }}>
                 <button className="btn btn-outline" onClick={() => setCurrentStep(1)}>
                   <i className="fas fa-arrow-left"></i> Back
                 </button>
                 <button
                   className="btn btn-primary btn-lg"
-                  style={{ flex: 1 }}
                   onClick={() => setCurrentStep(3)}
                   disabled={selectedPayment === 'stripe' && !stripeEnabled}
+                  style={{ flex: 1 }}
                 >
                   Review Order <i className="fas fa-arrow-right"></i>
                 </button>
@@ -629,15 +629,15 @@ export default function Checkout() {
                 ))}
               </div>
 
-              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)', flexWrap: 'wrap' }}>
                 <button className="btn btn-outline" onClick={() => setCurrentStep(2)}>
                   <i className="fas fa-arrow-left"></i> Back
                 </button>
                 <button
                   className="btn btn-primary btn-lg"
-                  style={{ flex: 1 }}
                   onClick={handlePlaceOrder}
                   disabled={submitting}
+                  style={{ flex: 1 }}
                 >
                   {submitting
                     ? <><i className="fas fa-spinner fa-spin"></i> Placing Order...</>
@@ -729,8 +729,7 @@ export default function Checkout() {
                 Please use <strong>Paystack</strong> or <strong>Pay on Delivery</strong> for now.
               </p>
               <button
-                className="btn btn-primary"
-                style={{ marginTop: '20px', minWidth: '140px' }}
+                className="btn btn-primary btn-spaced"
                 onClick={() => setShowBankComingSoon(false)}
               >
                 OK, Got it

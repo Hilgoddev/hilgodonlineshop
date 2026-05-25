@@ -82,7 +82,7 @@ export default function ReturnRequest() {
                 <label className="form-label">Additional Details</label>
                 <textarea className="form-input" rows={4} placeholder="Describe the issue in more detail..." value={form.details} onChange={e => setForm({ ...form, details: e.target.value })} style={{ resize: 'vertical' }} />
               </div>
-              <button type="submit" className="btn btn-primary" disabled={submitting} style={{ alignSelf: 'flex-start' }}>
+              <button type="submit" className="btn btn-primary btn-start" disabled={submitting}>
                 {submitting ? <><i className="fas fa-spinner fa-spin"></i> Submitting...</> : <><i className="fas fa-paper-plane"></i> Submit Request</>}
               </button>
             </form>

@@ -499,7 +499,7 @@ export default function Account() {
                         <label className="form-label">Confirm New Password</label>
                         <input className="form-input" type="password" required value={passData.confirmPassword} onChange={e => setPassData({ ...passData, confirmPassword: e.target.value })} />
                       </div>
-                      <button type="submit" className="btn btn-primary" disabled={passSaving} style={{ marginTop: '4px' }}>
+                      <button type="submit" className="btn btn-primary btn-spaced" disabled={passSaving}>
                         {passSaving ? <><i className="fas fa-spinner fa-spin"></i> Updating...</> : 'Update Password'}
                       </button>
                     </form>
