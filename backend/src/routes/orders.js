@@ -33,7 +33,7 @@ router.get('/', verifyToken, async (req, res, next) => {
         if (orderIds.length) {
             let { data: items, error: itemErr } = await supabase
                 .from('order_items')
-                .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone, store_name)')
+                 .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone, store_name)')
                 .in('order_id', orderIds);
             if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
                 ({ data: items, error: itemErr } = await supabase
@@ -131,7 +131,7 @@ router.post('/', verifyToken, async (req, res, next) => {
         const productIds = [...productQuantityMap.keys()];
         const { data: products, error: productsErr } = await supabase
             .from('products')
-            .select('id, name, images, price, stock, is_active')
+            .select('id, name, images, price, stock, is_active, seller_id')
             .in('id', productIds);
         if (productsErr) throw productsErr;
 
@@ -183,6 +183,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 product_id: productId,
                 quantity,
                 unit_price: serverUnitPrice,
+                seller_id: p.seller_id || null, // Include seller_id from product
             });
 
             responseItems.push({
@@ -191,6 +192,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 image: p.images?.[0] || null,
                 price: serverUnitPrice,
                 quantity,
+                sellerId: p.seller_id || null,
             });
         }
 
@@ -225,6 +227,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                     product_id: it.product_id,
                     quantity: it.quantity,
                     unit_price: it.unit_price,
+                    seller_id: it.seller_id, // Include seller_id from product
                 })),
             );
         if (itemErr) throw itemErr;
