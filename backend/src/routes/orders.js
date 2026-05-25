@@ -33,12 +33,12 @@ router.get('/', verifyToken, async (req, res, next) => {
         if (orderIds.length) {
             let { data: items, error: itemErr } = await supabase
                 .from('order_items')
-                 .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone, store_name)')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
                 .in('order_id', orderIds);
             if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
-                    .select('id, order_id, quantity, unit_price, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone, store_name)')
+                    .select('id, order_id, quantity, unit_price, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
                     .in('order_id', orderIds));
             }
             if (itemErr) throw itemErr;
@@ -55,9 +55,10 @@ router.get('/', verifyToken, async (req, res, next) => {
                     fulfillmentStatus: it.fulfillment_status || 'pending',
                     seller: it.seller ? {
                         id: it.seller.id,
-                        name: it.seller.full_name || it.seller.store_name || 'Seller',
-                        phone: it.seller.phone || null,
-                        storeName: it.seller.store_name || null
+                        name: it.seller.full_name || it.store?.name || 'Seller',
+                        phone: it.seller.phone_number || null,
+                        storeName: it.store?.name || null,
+                        storeLogo: it.store?.logo_url || null
                     } : null
                 });
                 map.set(it.order_id, list);
@@ -265,12 +266,12 @@ router.get('/all', verifyToken, async (req, res, next) => {
             let itemErr;
             ({ data: items, error: itemErr } = await supabase
                 .from('order_items')
-                .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(name, images, seller:profiles(id, full_name, phone, store_name))')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
                 .in('order_id', orderIds));
             if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
-                    .select('id, order_id, quantity, unit_price, seller_id, product:products(name, images, seller:profiles(id, full_name, phone, store_name))')
+                    .select('id, order_id, quantity, unit_price, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
                     .in('order_id', orderIds));
             }
             if (itemErr) throw itemErr;
@@ -291,9 +292,10 @@ router.get('/all', verifyToken, async (req, res, next) => {
                 fulfillmentStatus: it.fulfillment_status || 'pending',
                 seller: it.product?.seller ? {
                     id: it.product.seller.id,
-                    name: it.product.seller.full_name || it.product.seller.store_name || 'Seller',
-                    phone: it.product.seller.phone || null,
-                    storeName: it.product.seller.store_name || null
+                    name: it.product.seller.full_name || it.product.store?.name || 'Seller',
+                    phone: it.product.seller.phone_number || null,
+                    storeName: it.product.store?.name || null,
+                    storeLogo: it.product.store?.logo_url || null
                 } : null
             });
             map.set(it.order_id, list);
@@ -340,12 +342,12 @@ router.get('/:id', verifyToken, async (req, res, next) => {
 
         let { data: items, error: itemsErr } = await supabase
             .from('order_items')
-            .select('id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone, store_name))')
+            .select('id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
             .eq('order_id', order.id);
         if (itemsErr && String(itemsErr.message || '').includes('fulfillment_status')) {
             ({ data: items, error: itemsErr } = await supabase
                 .from('order_items')
-                .select('id, quantity, unit_price, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone, store_name))')
+                .select('id, quantity, unit_price, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
                 .eq('order_id', order.id));
         }
         if (itemsErr) throw itemsErr;
@@ -360,9 +362,10 @@ router.get('/:id', verifyToken, async (req, res, next) => {
             fulfillmentStatus: it.fulfillment_status || 'pending',
             seller: it.product?.seller ? {
                 id: it.product?.seller?.id,
-                name: it.product?.seller?.full_name || it.product?.seller?.store_name || 'Seller',
-                phone: it.product?.seller?.phone || null,
-                storeName: it.product?.seller?.store_name || null
+                name: it.product?.seller?.full_name || it.product?.store?.name || 'Seller',
+                phone: it.product?.seller?.phone_number || null,
+                storeName: it.product?.store?.name || null,
+                storeLogo: it.product?.store?.logo_url || null
             } : null
         }));
 
