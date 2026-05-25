@@ -6,7 +6,24 @@
 -- PART 1: Ensure profiles table has required columns
 -- =====================================================
 
--- Add phone column if it doesn't exist
+-- Add phone_number column if it doesn't exist (matches codebase usage)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'profiles' AND column_name = 'phone_number'
+    ) THEN
+        ALTER TABLE profiles
+        ADD COLUMN phone_number TEXT;
+        
+        RAISE NOTICE 'Added column phone_number to profiles';
+    ELSE
+        RAISE NOTICE 'Column phone_number already exists in profiles';
+    END IF;
+END $$;
+
+-- Also add phone as alias (for backward compatibility if needed)
 DO $$
 BEGIN
     IF NOT EXISTS (

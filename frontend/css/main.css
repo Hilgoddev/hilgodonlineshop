@@ -415,7 +415,7 @@ table {
 
 /* Prevent button shrinkage in flex containers - fixes overflow issues */
 .btn {
-  flex-shrink: 0;
+  /* flex-shrink: 0; */
 }
 
 /* Mobile-specific button behavior for better UX */
