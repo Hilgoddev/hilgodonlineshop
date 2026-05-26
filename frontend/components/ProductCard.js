@@ -3,9 +3,13 @@ import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 
 export default function ProductCard({ product, showAddToCart = true }) {
-  const { _id, name, price, originalPrice, images, category, brand, stock, description, badge } = product;
+  const { _id, name, price, originalPrice, images, category, brand, stock, description, badge, store, seller } = product;
   const { addToCart, toggleWishlist, isInWishlist, openQuickView } = useShop();
   const { formatPrice } = useCurrency();
+  
+  // Get seller/store display name
+  const sellerName = store?.name || seller?.full_name || null;
+  const sellerAvatar = store?.logo_url || seller?.avatar_url || null;
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -61,24 +65,36 @@ export default function ProductCard({ product, showAddToCart = true }) {
         </div>
       </div>
 
-      <div className="product-card__body">
-        <div className="product-card__brand">{brand || category}</div>
-        <Link href={`/products/${_id}`} className="product-card__name">
-          {name}
-        </Link>
-        
-        {briefDesc && (
-          <p className="product-card__desc">{briefDesc}</p>
-        )}
-
-        <div className="product-card__pricing">
-          <span className="product-card__price">{formatPrice(price || 0, product.currency || 'NGN')}</span>
-          {discount > 0 && (
-            <>
-              <span className="product-card__original">{formatPrice(originalPrice || 0, product.currency || 'NGN')}</span>
-            </>
+        <div className="product-card__body">
+          <div className="product-card__brand">{brand || category}</div>
+          <Link href={`/products/${_id}`} className="product-card__name">
+            {name}
+          </Link>
+          
+          {briefDesc && (
+            <p className="product-card__desc">{briefDesc}</p>
           )}
-        </div>
+
+          {/* Seller/Store Info */}
+          {sellerName && (
+            <div className="product-card__seller" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '.75rem', color: 'var(--gray-1)' }}>
+              {sellerAvatar ? (
+                <img src={sellerAvatar} alt={sellerName} style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <i className="fas fa-store" style={{ fontSize: '.7rem', color: 'var(--primary)' }}></i>
+              )}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{sellerName}</span>
+            </div>
+          )}
+
+          <div className="product-card__pricing">
+            <span className="product-card__price">{formatPrice(price || 0, product.currency || 'NGN')}</span>
+            {discount > 0 && (
+              <>
+                <span className="product-card__original">{formatPrice(originalPrice || 0, product.currency || 'NGN')}</span>
+              </>
+            )}
+          </div>
 
         <div className="product-card__actions">
           {showAddToCart && stock > 0 ? (

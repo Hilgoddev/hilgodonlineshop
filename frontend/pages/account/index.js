@@ -17,6 +17,7 @@ export default function Account() {
   const [orders, setOrders] = useState([]);
   const [wishlist, setWishlist] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileData, setProfileData] = useState({ firstName: '', lastName: '', image: '' });
@@ -72,8 +73,37 @@ export default function Account() {
     }
   };
 
+  // Refresh orders data (for live status updates)
+  const refreshOrders = async () => {
+    try {
+      const ordersRes = await apiFetch('/api/orders');
+      const ordersData = await ordersRes.json();
+      if (ordersData.success) {
+        setOrders(ordersData.data || []);
+        setLastUpdated(new Date());
+      }
+    } catch (error) {
+      console.error('Error refreshing orders:', error);
+    }
+  };
+
   useEffect(() => { if (session) fetchUserData(); }, [session]);
   useEffect(() => { if (router.query.tab) setActiveTab(router.query.tab); }, [router.query.tab]);
+
+  // Live status updates - poll for order updates every 30 seconds when on orders tab
+  useEffect(() => {
+    if (activeTab !== 'orders' || !session) return;
+    
+    // Initial refresh when switching to orders tab
+    refreshOrders();
+    
+    // Set up polling interval (30 seconds)
+    const intervalId = setInterval(() => {
+      refreshOrders();
+    }, 30000);
+    
+    return () => clearInterval(intervalId);
+  }, [activeTab, session]);
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
@@ -393,7 +423,15 @@ export default function Account() {
             {/* ORDERS */}
             {activeTab === 'orders' && (
               <div className="card" style={{ padding: '28px' }}>
-                <h2 style={{ fontWeight: 800, fontSize: '1.2rem', marginBottom: '24px' }}>Order History</h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+                  <h2 style={{ fontWeight: 800, fontSize: '1.2rem' }}>Order History</h2>
+                  {lastUpdated && (
+                    <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <i className="fas fa-sync-alt" style={{ color: 'var(--success)', fontSize: '.65rem' }}></i>
+                      Updated {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                </div>
                 {orders.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '60px 0' }}>
                     <i className="fas fa-box-open" style={{ fontSize: '3rem', color: 'var(--gray-3)', display: 'block', marginBottom: '16px' }}></i>
@@ -423,6 +461,12 @@ export default function Account() {
                                 <div>
                                   <div style={{ fontSize: '.75rem', fontWeight: 700, maxWidth: '100px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
                                   <div style={{ fontSize: '.68rem', color: 'var(--gray-1)' }}>×{item.quantity}</div>
+                                  {item.seller && (
+                                    <div style={{ fontSize: '.62rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                                      <i className="fas fa-store" style={{ fontSize: '.55rem' }}></i>
+                                      <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.seller.storeName || item.seller.name}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ))}

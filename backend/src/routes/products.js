@@ -3,12 +3,59 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 
+// Helper to get display store/seller info
+// Priority: 1. Product's store, 2. Seller's store, 3. Seller name, 4. Hilgod Shop
+const getStoreInfo = (p) => {
+    // If product has a store, use it (this is the primary source)
+    if (p.store && p.store.name) {
+        return {
+            id: p.store.id,
+            name: p.store.name,
+            slug: p.store.slug,
+            status: p.store.status,
+            logo_url: p.store.logo_url
+        };
+    }
+    
+    // If product has seller info, try to get seller's store
+    if (p.seller_info) {
+        // Check if seller has a store (from the seller_stores join)
+        if (p.seller_info.store_name) {
+            return {
+                id: p.seller_info.store_id,
+                name: p.seller_info.store_name,
+                slug: p.seller_info.store_slug,
+                status: p.seller_info.store_status || 'approved',
+                logo_url: p.seller_info.store_logo_url
+            };
+        }
+        // Fallback to seller's full name
+        if (p.seller_info.full_name) {
+            return {
+                name: p.seller_info.full_name,
+                slug: null,
+                status: 'approved',
+                logo_url: p.seller_info.avatar_url
+            };
+        }
+    }
+    
+    // Only show "Hilgod Shop" if we have no other info (true admin products)
+    return {
+        name: 'Hilgod Shop',
+        slug: 'hilgod-shop',
+        status: 'approved',
+        logo_url: null
+    };
+};
+
 const mapProduct = (p) => ({
     ...p,
     _id: p.id,
     id: p.id,
     price: Number(p.price || 0),
     originalPrice: p.original_price ? Number(p.original_price) : null,
+    store: getStoreInfo(p),
 });
 
 // GET /api/products
@@ -18,9 +65,11 @@ router.get('/', async (req, res, next) => {
         const parsedLimit = Math.max(1, Number(limit) || 20);
         const parsedPage  = Math.max(1, Number(page)  || 1);
 
+        // Query products with store and seller info
+        // Also include seller's store via a separate query if needed
         let query = supabase
             .from('products')
-            .select('*, store:stores(name, slug, status), category_ref:categories(name, slug)', { count: 'exact' })
+            .select('*, store:stores(name, slug, status, logo_url), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url)', { count: 'exact' })
             .eq('is_active', true)
             .eq('status', 'approved');
 
@@ -34,6 +83,65 @@ router.get('/', async (req, res, next) => {
 
         const { data, error, count } = await query;
         if (error) throw error;
+
+        // If there are products, also fetch seller stores for products without direct store association
+        if (data && data.length > 0) {
+            // Get seller IDs for products without stores
+            const sellersWithoutStores = data
+                .filter(p => !p.store && p.seller_id)
+                .map(p => p.seller_id)
+                .filter((v, i, a) => a.indexOf(v) === i); // Unique seller IDs
+
+            if (sellersWithoutStores.length > 0) {
+                // Fetch stores for these sellers
+                const { data: sellerStores } = await supabase
+                    .from('stores')
+                    .select('owner_id, id, name, slug, status, logo_url')
+                    .in('owner_id', sellersWithoutStores)
+                    .eq('status', 'approved');
+
+                if (sellerStores) {
+                    // Attach seller store info to products
+                    const storeMap = new Map();
+                    sellerStores.forEach(s => {
+                        // Keep only the first store per seller (in case of multiples)
+                        if (!storeMap.has(s.owner_id)) {
+                            storeMap.set(s.owner_id, s);
+                        }
+                    });
+
+                    data.forEach(p => {
+                        if (!p.store && storeMap.has(p.seller_id)) {
+                            const store = storeMap.get(p.seller_id);
+                            p.seller_info = {
+                                store_id: store.id,
+                                store_name: store.name,
+                                store_slug: store.slug,
+                                store_status: store.status,
+                                store_logo_url: store.logo_url,
+                                full_name: p.seller?.full_name,
+                                avatar_url: p.seller?.avatar_url
+                            };
+                        } else if (p.seller) {
+                            p.seller_info = {
+                                full_name: p.seller.full_name,
+                                avatar_url: p.seller.avatar_url
+                            };
+                        }
+                    });
+                }
+            } else if (data) {
+                // Just attach seller info for products with stores
+                data.forEach(p => {
+                    if (p.seller) {
+                        p.seller_info = {
+                            full_name: p.seller.full_name,
+                            avatar_url: p.seller.avatar_url
+                        };
+                    }
+                });
+            }
+        }
 
         const payload = {
             success: true,
@@ -75,7 +183,7 @@ router.get('/:id', async (req, res, next) => {
     try {
         const { data, error } = await supabase
             .from('products')
-            .select('*, store:stores(name, slug, logo_url), category_ref:categories(name, slug)')
+            .select('*, store:stores(name, slug, logo_url, status), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url, phone_number)')
             .eq('id', req.params.id)
             .single();
 
@@ -84,6 +192,38 @@ router.get('/:id', async (req, res, next) => {
                 return res.status(404).json({ success: false, error: 'Product not found' });
             }
             throw error;
+        }
+
+        // If product has no store but has a seller, fetch seller's store
+        if (data && !data.store && data.seller_id) {
+            const { data: sellerStore } = await supabase
+                .from('stores')
+                .select('id, name, slug, status, logo_url')
+                .eq('owner_id', data.seller_id)
+                .eq('status', 'approved')
+                .single();
+
+            if (sellerStore) {
+                data.seller_info = {
+                    store_id: sellerStore.id,
+                    store_name: sellerStore.name,
+                    store_slug: sellerStore.slug,
+                    store_status: sellerStore.status,
+                    store_logo_url: sellerStore.logo_url,
+                    full_name: data.seller?.full_name,
+                    avatar_url: data.seller?.avatar_url
+                };
+            } else if (data.seller) {
+                data.seller_info = {
+                    full_name: data.seller.full_name,
+                    avatar_url: data.seller.avatar_url
+                };
+            }
+        } else if (data && data.seller) {
+            data.seller_info = {
+                full_name: data.seller.full_name,
+                avatar_url: data.seller.avatar_url
+            };
         }
 
         const payload = { success: true, data: mapProduct(data) };

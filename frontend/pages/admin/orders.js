@@ -176,6 +176,12 @@ export default function AdminOrders() {
                                           Item status: {item.fulfillmentStatus}
                                         </div>
                                       )}
+                                      {item.seller && (
+                                        <div style={{ fontSize: '.74rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                                          <i className="fas fa-store" style={{ fontSize: '.65rem' }}></i>
+                                          {item.seller.storeName || item.seller.name}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 ))}

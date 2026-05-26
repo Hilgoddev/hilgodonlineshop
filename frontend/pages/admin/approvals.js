@@ -53,33 +53,42 @@ export default function ApprovalsPage() {
 
   const handleStoreStatus = async (id, status) => {
     setBusyId(`store-${id}`);
-    await apiFetch(`/api/stores/${id}/status`, {
+    const res = await apiFetch(`/api/stores/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
     setBusyId(null);
-    fetchPendingData();
+    if (res.ok) {
+      // Update local state instead of re-fetching all data
+      setPendingStores(prev => prev.filter(s => s.id !== id));
+    }
   };
 
   const handleProductStatus = async (id, status) => {
     setBusyId(`product-${id}`);
-    await apiFetch(`/api/products/${id}/status`, {
+    const res = await apiFetch(`/api/products/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
     setBusyId(null);
-    fetchPendingData();
+    if (res.ok) {
+      // Update local state instead of re-fetching all data
+      setPendingProducts(prev => prev.filter(p => p.id !== id));
+    }
   };
 
   const handleSellerApplication = async (userId, action) => {
     setBusyId(`seller-${userId}`);
     const endpoint = action === 'approve' ? `/api/admin/approve-seller/${userId}` : `/api/admin/reject-seller/${userId}`;
-    await apiFetch(endpoint, {
+    const res = await apiFetch(endpoint, {
       method: 'POST',
       body: JSON.stringify({ adminNotes: '' }),
     });
     setBusyId(null);
-    fetchPendingData();
+    if (res.ok) {
+      // Update local state instead of re-fetching all data
+      setPendingSellerApplications(prev => prev.filter(app => app.user_id !== userId));
+    }
   };
 
   const tableShell = (title, count, children) => (

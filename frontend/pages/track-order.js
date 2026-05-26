@@ -11,6 +11,7 @@ export default function TrackOrder() {
   const [orderData, setOrderData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState(null);
   const { status } = useSession();
 
   const trackOrder = async (idToTrack = orderId) => {
@@ -53,6 +54,19 @@ export default function TrackOrder() {
       trackOrder(urlId);
     }
   }, [router.isReady, router.query.id, status]);
+
+  // Live status updates - poll for order updates every 15 seconds when viewing an order
+  useEffect(() => {
+    if (!orderData || !router.query.id) return;
+    
+    // Set up polling interval (15 seconds for more frequent updates on tracking page)
+    const intervalId = setInterval(() => {
+      trackOrder(router.query.id);
+      setLastUpdated(new Date());
+    }, 15000);
+    
+    return () => clearInterval(intervalId);
+  }, [orderData, router.query.id]);
 
   const getStatusColor = (status) => {
     const colors = {

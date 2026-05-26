@@ -310,16 +310,69 @@ export default function ProductDetail({ product, relatedProducts }) {
               </button>
             </div>
 
+            {/* Seller/Store Info */}
+            {(product.seller || product.store) && (
+              <div className="pdp-seller-info" style={{
+                background: 'var(--gray-6)',
+                borderRadius: 'var(--radius)',
+                padding: '16px',
+                border: '1px solid var(--gray-4)',
+                marginBottom: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {(product.store?.logo_url || product.seller?.avatar_url) ? (
+                    <img 
+                      src={product.store?.logo_url || product.seller?.avatar_url} 
+                      alt={product.store?.name || product.seller?.full_name}
+                      style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary-xlight)' }}
+                    />
+                  ) : (
+                    <div style={{ 
+                      width: '48px', height: '48px', borderRadius: '50%', 
+                      background: 'var(--primary)', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#fff', fontWeight: 800, fontSize: '1.2rem'
+                    }}>
+                      {(product.store?.name || product.seller?.full_name || 'S').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '.88rem' }}>
+                      {product.store?.name || product.seller?.full_name || 'Seller'}
+                    </div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      <i className="fas fa-check-circle" style={{ color: 'var(--success)', fontSize: '.65rem' }}></i>
+                      <span>Verified Seller</span>
+                      {product.store?.status === 'approved' && (
+                        <>
+                          <span>•</span>
+                          <span>Store Status: <strong style={{ color: 'var(--success)' }}>Approved</strong></span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {product.seller?.phone_number && (
+                    <a 
+                      href={`tel:${product.seller.phone_number}`}
+                      style={{ 
+                        fontSize: '.75rem', color: 'var(--primary)', fontWeight: 600,
+                        padding: '6px 12px', border: '1px solid var(--primary)',
+                        borderRadius: 'var(--radius)', textDecoration: 'none'
+                      }}
+                    >
+                      <i className="fas fa-phone"></i> Contact
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Meta Info */}
             <div className="pdp-meta">
               <div className="pdp-meta-item">
                 <i className="fas fa-truck-fast"></i>
                 <span>Free delivery on orders above <strong>₦50,000</strong></span>
               </div>
-              {/* <div className="pdp-meta-item">
-                <i className="fas fa-shield-halved"></i>
-                <span><strong>1-Year Warranty</strong> included</span>
-              </div> */}
               <div className="pdp-meta-item">
                 <i className="fas fa-rotate-left"></i>
                 <span><strong>7-Day</strong> return policy</span>
