@@ -1,6 +1,6 @@
-# Hilgod Vercel Deployment Script
+# Hilgod Vercel Deployment Script (Enhanced)
 # This script automates the Vercel deployment process for both frontend and backend
-# by temporarily renaming the .git folder
+# by checking git status, handling existing backups, and temporarily renaming the .git folder
 
 param(
     [switch]$SkipGitCheck = $false,
@@ -10,10 +10,10 @@ param(
 )
 
 Write-Host ""
-Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║         HILGOD ONLINE SHOP - VERCEL DEPLOY               ║" -ForegroundColor Cyan
-Write-Host "║              FRONTEND + BACKEND                          ║" -ForegroundColor Cyan
-Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  HILGOD ONLINE SHOP - VERCEL DEPLOY  " -ForegroundColor Cyan
+Write-Host "        FRONTEND + BACKEND             " -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Track overall deployment status - use 99 to distinguish uninitialized from success (0)
@@ -36,25 +36,24 @@ function Write-Status {
 Write-Host "[1/7] Checking Vercel CLI installation..." -ForegroundColor Yellow
 $vercelCheck = Get-Command vercel -ErrorAction SilentlyContinue
 if (-not $vercelCheck) {
-    Write-Status "X" "Vercel CLI not found. Please install it first:" -Color "Red"
-    Write-Status "i" "npm install -g vercel" -Color "White"
+    Write-Status "X" "Vercel CLI not found. Install with: npm install -g vercel" -Color "Red"
     exit 1
 }
-Write-Status "v" "Vercel CLI found" -Color "Green"
+Write-Status "OK" "Vercel CLI found" -Color "Green"
 Write-Host ""
 
 # Step 1: Check git status and working directory
 Write-Host "[2/7] Checking git status..." -ForegroundColor Yellow
 
 if ($SkipGitCheck) {
-    Write-Status "!" "Skipping git status check (--SkipGitCheck flag used)" -Color "Yellow"
+    Write-Status "!" "Skipping git status check (SkipGitCheck flag used)" -Color "Yellow"
 } else {
     # Check if .git directory exists
     if (-not (Test-Path ".git")) {
         Write-Status "!" "No .git directory found. This might be a fresh copy." -Color "Yellow"
     } else {
         # Check git status - capture output as array
-        $gitStatusOutput = & git status --porcelain 2>&1
+        $gitStatusOutput = git status --porcelain 2>&1
         $gitExitCode = $LASTEXITCODE
         
         if ($gitExitCode -ne 0) {
@@ -71,19 +70,19 @@ if ($SkipGitCheck) {
                 exit 0
             }
         } else {
-            Write-Status "v" "Working directory is clean (no uncommitted changes)" -Color "Green"
+            Write-Status "OK" "Working directory is clean (no uncommitted changes)" -Color "Green"
         }
 
         # Check current branch
-        $currentBranch = & git branch --show-current 2>$null
+        $currentBranch = git branch --show-current 2>$null
         if ($currentBranch -and $currentBranch -ne "main" -and $currentBranch -ne "master") {
-            Write-Status "!" "Currently on branch: '$currentBranch' (not main/master)" -Color "Yellow"
+            Write-Status "!" "Currently on branch: $currentBranch (not main/master)" -Color "Yellow"
         }
 
         # Show latest commit
-        $gitLog = & git log --oneline -1 2>$null
+        $gitLog = git log --oneline -1 2>$null
         if ($gitLog) {
-            Write-Status "n" "Latest commit: $gitLog" -Color "Cyan"
+            Write-Status "*" "Latest commit: $gitLog" -Color "Cyan"
         }
     }
 }
@@ -117,7 +116,7 @@ if ($existingBackups.Count -gt 0) {
     # Find next available backup name
     $nextBackupNum = $existingBackups.Count + 1
     $backupGitName = ".git.backup.$nextBackupNum"
-    Write-Status "i" "Will use '$backupGitName' for new backup" -Color "Cyan"
+    Write-Status "*" "Will use $backupGitName for new backup" -Color "Cyan"
 }
 Write-Host ""
 
@@ -125,14 +124,14 @@ Write-Host ""
 Write-Host "[4/7] Preparing .git folder for deployment..." -ForegroundColor Yellow
 
 if (-not $SkipGitCheck -and (Test-Path ".git")) {
-    Write-Status ">" "Renaming .git folder to '$backupGitName'..." -Color "Yellow"
+    Write-Status "*" "Renaming .git folder to $backupGitName..." -Color "Yellow"
     try {
         Rename-Item -Path ".git" -NewName $backupGitName -ErrorAction Stop
         $gitRenamed = $true
-        Write-Status "v" ".git folder renamed successfully" -Color "Green"
+        Write-Status "OK" ".git folder renamed successfully" -Color "Green"
     } catch {
         Write-Status "X" "Failed to rename .git folder. Please close any programs using it." -Color "Red"
-        Write-Status "i" "Error: $($_.Exception.Message)" -Color "White"
+        Write-Status "*" "Error: $($_.Exception.Message)" -Color "White"
         
         # Try to restore if we somehow created a partial backup
         if (Test-Path $backupGitName) {
@@ -145,7 +144,7 @@ if (-not $SkipGitCheck -and (Test-Path ".git")) {
         exit 1
     }
 } elseif ($SkipGitCheck) {
-    Write-Status "!" "Skipping .git rename (--SkipGitCheck flag used)" -Color "Yellow"
+    Write-Status "!" "Skipping .git rename (SkipGitCheck flag used)" -Color "Yellow"
 } else {
     Write-Status "i" "No .git folder found, skipping rename" -Color "Gray"
 }
@@ -154,15 +153,15 @@ Write-Host ""
 # Step 4: Deploy Frontend
 if (-not $BackendOnly) {
     Write-Host "[5/7] Deploying Frontend..." -ForegroundColor Green
-    Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║              DEPLOYING FRONTEND                          ║" -ForegroundColor Green
-    Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "         DEPLOYING FRONTEND            " -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
     Write-Host ""
 
     if (Test-Path "frontend") {
         $originalLocation = Get-Location
         Set-Location frontend
-        Write-Status "^" "Deploying frontend to Vercel..." -Color "Cyan"
+        Write-Status ">" "Deploying frontend to Vercel..." -Color "Cyan"
         try {
             & vercel --prod
             $frontendResult = $LASTEXITCODE
@@ -177,22 +176,22 @@ if (-not $BackendOnly) {
         $frontendResult = 1
     }
 } else {
-    Write-Status "!" "Skipping frontend deployment (--BackendOnly flag used)" -Color "Yellow"
+    Write-Status "-" "Skipping frontend deployment (BackendOnly flag used)" -Color "Yellow"
     Write-Host ""
 }
 
 # Step 5: Deploy Backend
 if (-not $FrontendOnly) {
     Write-Host "[6/7] Deploying Backend..." -ForegroundColor Green
-    Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║              DEPLOYING BACKEND                           ║" -ForegroundColor Green
-    Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "         DEPLOYING BACKEND             " -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
     Write-Host ""
 
     if (Test-Path "backend") {
         $originalLocation = Get-Location
         Set-Location backend
-        Write-Status "^" "Deploying backend to Vercel..." -Color "Cyan"
+        Write-Status ">" "Deploying backend to Vercel..." -Color "Cyan"
         try {
             & vercel --prod
             $backendResult = $LASTEXITCODE
@@ -207,7 +206,7 @@ if (-not $FrontendOnly) {
         $backendResult = 1
     }
 } else {
-    Write-Status "!" "Skipping backend deployment (--FrontendOnly flag used)" -Color "Yellow"
+    Write-Status "-" "Skipping backend deployment (FrontendOnly flag used)" -Color "Yellow"
     Write-Host ""
 }
 
@@ -216,20 +215,20 @@ Write-Host "[7/7] Restoring .git folder..." -ForegroundColor Yellow
 
 if ($gitRenamed -and -not $NoRestore) {
     if (Test-Path $backupGitName) {
-        Write-Status ">" "Restoring .git folder from '$backupGitName'..." -Color "Yellow"
+        Write-Status "*" "Restoring .git folder from $backupGitName..." -Color "Yellow"
         try {
             Rename-Item -Path $backupGitName -NewName ".git" -ErrorAction Stop
-            Write-Status "v" ".git folder restored successfully" -Color "Green"
+            Write-Status "OK" ".git folder restored successfully" -Color "Green"
         } catch {
-            Write-Status "!" "Failed to restore .git folder. Please rename '$backupGitName' to '.git' manually." -Color "Yellow"
-            Write-Status "i" "Error: $($_.Exception.Message)" -Color "White"
+            Write-Status "!" "Failed to restore .git folder. Please rename $backupGitName to .git manually." -Color "Yellow"
+            Write-Status "*" "Error: $($_.Exception.Message)" -Color "White"
         }
     } else {
-        Write-Status "!" "Backup folder '$backupGitName' not found. Cannot restore." -Color "Yellow"
+        Write-Status "!" "Backup folder $backupGitName not found. Cannot restore." -Color "Yellow"
     }
 } elseif ($NoRestore) {
-    Write-Status "!" "Skipping .git restore (--NoRestore flag used)" -Color "Yellow"
-    Write-Status "i" "Remember to rename '$backupGitName' back to '.git' manually!" -Color "Cyan"
+    Write-Status "!" "Skipping .git restore (NoRestore flag used)" -Color "Yellow"
+    Write-Status "*" "Remember to rename $backupGitName back to .git manually!" -Color "Cyan"
 } else {
     Write-Status "i" "No .git folder was renamed, nothing to restore" -Color "Gray"
 }
@@ -240,42 +239,42 @@ $frontendSuccess = ($frontendResult -eq 0) -or $BackendOnly
 $backendSuccess = ($backendResult -eq 0) -or $FrontendOnly
 $overallSuccess = $frontendSuccess -and $backendSuccess
 
-Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor $(if ($overallSuccess) { "Green" } else { "Red" })
+Write-Host "========================================" -ForegroundColor $(if ($overallSuccess) { "Green" } else { "Red" })
 if ($overallSuccess) {
-    Write-Host "║              v DEPLOYMENT SUCCESSFUL!                    ║" -ForegroundColor Green
+    Write-Host "       DEPLOYMENT SUCCESSFUL!        " -ForegroundColor Green
 } else {
-    Write-Host "║              X DEPLOYMENT PARTIALLY FAILED                 ║" -ForegroundColor Red
+    Write-Host "     DEPLOYMENT PARTIALLY FAILED     " -ForegroundColor Red
 }
-Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor $(if ($overallSuccess) { "Green" } else { "Red" })
+Write-Host "========================================" -ForegroundColor $(if ($overallSuccess) { "Green" } else { "Red" })
 Write-Host ""
 
 # Detailed results
-Write-Host "📊 Deployment Results:" -ForegroundColor Yellow
+Write-Host "Deployment Results:" -ForegroundColor Yellow
 if ($FrontendOnly) {
-    Write-Status "!" "Frontend: SKIPPED (--FrontendOnly flag used)" -Color "Gray"
+    Write-Status "-" "Frontend: SKIPPED (FrontendOnly flag used)" -Color "Gray"
 } elseif ($frontendResult -eq 0) {
-    Write-Status "v" "Frontend: SUCCESS" -Color "Green"
+    Write-Status "OK" "Frontend: SUCCESS" -Color "Green"
 } elseif ($frontendResult -eq 99) {
-    Write-Status "!" "Frontend: SKIPPED" -Color "Gray"
+    Write-Status "-" "Frontend: SKIPPED" -Color "Gray"
 } else {
     Write-Status "X" "Frontend: FAILED (Exit Code: $frontendResult)" -Color "Red"
 }
 
 if ($BackendOnly) {
-    Write-Status "!" "Backend: SKIPPED (--BackendOnly flag used)" -Color "Gray"
+    Write-Status "-" "Backend: SKIPPED (BackendOnly flag used)" -Color "Gray"
 } elseif ($backendResult -eq 0) {
-    Write-Status "v" "Backend: SUCCESS" -Color "Green"
+    Write-Status "OK" "Backend: SUCCESS" -Color "Green"
 } elseif ($backendResult -eq 99) {
-    Write-Status "!" "Backend: SKIPPED" -Color "Gray"
+    Write-Status "-" "Backend: SKIPPED" -Color "Gray"
 } else {
     Write-Status "X" "Backend: FAILED (Exit Code: $backendResult)" -Color "Red"
 }
 Write-Host ""
 
 if ($overallSuccess) {
-    Write-Status "Y" "Deployment completed successfully!" -Color "Cyan"
+    Write-Status "*" "Deployment completed successfully!" -Color "Cyan"
     Write-Host ""
-    Write-Host "📝 Next Steps:" -ForegroundColor Yellow
+    Write-Host "Next Steps:" -ForegroundColor Yellow
     Write-Host "   1. Visit your Vercel dashboard to see the deployments" -ForegroundColor White
     Write-Host "   2. Test your live site and API endpoints" -ForegroundColor White
     Write-Host "   3. Check that all features work correctly" -ForegroundColor White
@@ -284,7 +283,7 @@ if ($overallSuccess) {
 } else {
     Write-Status "!" "Some deployments failed. Please check the errors above." -Color "Red"
     Write-Host ""
-    Write-Host "🔍 Troubleshooting:" -ForegroundColor Yellow
+    Write-Host "Troubleshooting:" -ForegroundColor Yellow
     Write-Host "   1. Check that you're logged into Vercel (vercel login)" -ForegroundColor White
     Write-Host "   2. Ensure your Vercel projects are properly configured" -ForegroundColor White
     Write-Host "   3. Check the error messages above for details" -ForegroundColor White
@@ -297,9 +296,9 @@ Write-Host "For more information, see DEPLOYMENT_GUIDE.md" -ForegroundColor Cyan
 Write-Host ""
 
 # Show available flags
-Write-Host "💡 Available flags for next time:" -ForegroundColor Cyan
-Write-Host "   --SkipGitCheck   Skip git status checks" -ForegroundColor Gray
-Write-Host "   --FrontendOnly   Deploy only the frontend" -ForegroundColor Gray
-Write-Host "   --BackendOnly    Deploy only the backend" -ForegroundColor Gray
-Write-Host "   --NoRestore      Don't restore .git folder after deployment" -ForegroundColor Gray
+Write-Host "Available flags for next time:" -ForegroundColor Cyan
+Write-Host "   -SkipGitCheck   Skip git status checks" -ForegroundColor Gray
+Write-Host "   -FrontendOnly   Deploy only the frontend" -ForegroundColor Gray
+Write-Host "   -BackendOnly    Deploy only the backend" -ForegroundColor Gray
+Write-Host "   -NoRestore      Don't restore .git folder after deployment" -ForegroundColor Gray
 Write-Host ""
