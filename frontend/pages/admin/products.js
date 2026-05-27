@@ -481,7 +481,7 @@ export default function AdminProducts() {
                         <img
                           src={product.images?.[0] || product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80'}
                           alt={product.name}
-                          style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--gray-4)', flexShrink: 0}}
+                          style={{ width: '100%', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--gray-4)', flexShrink: 0}}
                           onError={e => { e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80'; }}
                         />
                         <div>

@@ -1,0 +1,15 @@
+
+
+/* ----------DASHBOARD TABLE------------ */
+.image-and-item-description {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+@media (max-width: 768px) {
+  .image-and-item-description {
+    flex-direction: column;
+  }
+}

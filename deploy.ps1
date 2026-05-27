@@ -40,6 +40,16 @@ if (-not $vercelCheck) {
     exit 1
 }
 Write-Status "OK" "Vercel CLI found" -Color "Green"
+
+# Validate required directories
+if (-not $BackendOnly -and -not (Test-Path "frontend")) {
+    Write-Status "X" "frontend directory not found!" -Color "Red"
+    exit 1
+}
+if (-not $FrontendOnly -and -not (Test-Path "backend")) {
+    Write-Status "X" "backend directory not found!" -Color "Red"
+    exit 1
+}
 Write-Host ""
 
 # Step 1: Check git status and working directory
@@ -53,9 +63,9 @@ if ($SkipGitCheck) {
         Write-Status "!" "No .git directory found. This might be a fresh copy." -Color "Yellow"
     } else {
         # Check git status - capture output as array
-        $gitStatusOutput = git status --porcelain 2>&1
+        $gitStatusOutput = git status --porcelain 2>$null
         $gitExitCode = $LASTEXITCODE
-        
+
         if ($gitExitCode -ne 0) {
             Write-Status "!" "Could not determine git status (not a git repository?)" -Color "Yellow"
         } elseif ($gitStatusOutput -and $gitStatusOutput.Count -gt 0) {
@@ -112,11 +122,41 @@ try {
 if ($existingBackups.Count -gt 0) {
     Write-Status "!" "Found $($existingBackups.Count) existing backup folder(s):" -Color "Yellow"
     $existingBackups | ForEach-Object { Write-Host "     - $_" -ForegroundColor Gray }
-    
+
+    # Clean up old backups (keep only the most recent 2)
+    if ($existingBackups.Count -ge 2) {
+        $sortedBackups = $existingBackups | Sort-Object
+        $oldBackups = $sortedBackups | Select-Object -SkipLast 1
+        Write-Status "*" "Cleaning up $($oldBackups.Count) old backup(s)..." -Color "Cyan"
+        foreach ($oldBackup in $oldBackups) {
+            try {
+                Remove-Item -Path $oldBackup -Recurse -Force -ErrorAction Stop
+                Write-Host "     - Removed: $oldBackup" -ForegroundColor Green
+            } catch {
+                Write-Host "     - Warning: Could not remove $oldBackup" -ForegroundColor Yellow
+            }
+        }
+    }
+
     # Find next available backup name
-    $nextBackupNum = $existingBackups.Count + 1
+    $nextBackupNum = ($existingBackups | Sort-Object | Select-Object -Last 1 |
+                     Select-String -Pattern '\d+$' -AllMatches |
+                     ForEach-Object { [int]$_.Matches.Value }) + 1
     $backupGitName = ".git.backup.$nextBackupNum"
     Write-Status "*" "Will use $backupGitName for new backup" -Color "Cyan"
+} else {
+    # Find any numbered backups even if .git.backup doesn't exist
+    try {
+        $numberedBackups = Get-ChildItem -Path "." -Filter ".git.backup.*" -Directory -ErrorAction SilentlyContinue
+        if ($numberedBackups -and $numberedBackups.Count -gt 0) {
+            $maxNum = ($numberedBackups.Name |
+                      ForEach-Object { [int]($_ -replace '.git.backup.', '') } |
+                      Measure-Object -Maximum).Maximum
+            $backupGitName = ".git.backup.$($maxNum + 1)"
+        }
+    } catch {
+        # Use default if parsing fails
+    }
 }
 Write-Host ""
 
