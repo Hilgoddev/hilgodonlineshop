@@ -217,7 +217,7 @@ export default function ApprovalsPage() {
                             </button>
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline"
+                              className="btn "
                               style={{ color: '#b91c1c', borderColor: '#fecaca' }}
                               disabled={busyId === `store-${store.id}`}
                               onClick={() => handleStoreStatus(store.id, 'rejected')}
@@ -263,7 +263,7 @@ export default function ApprovalsPage() {
                             <button
                               type="button"
                               className="btn btn-sm btn-primary"
-                              style={{ marginRight: '8px' }}
+                              style={{ width: '100%', marginBottom: '10px' }}
                               disabled={busyId === `product-${product.id}`}
                               onClick={() => handleProductStatus(product.id, 'approved')}
                             >
@@ -272,7 +272,7 @@ export default function ApprovalsPage() {
                             <button
                               type="button"
                               className="btn btn-sm btn-outline"
-                              style={{ color: '#b91c1c', borderColor: '#fecaca' }}
+                              style={{ color: '#b91c1c', borderColor: '#fecaca', width: '100%' }}
                               disabled={busyId === `product-${product.id}`}
                               onClick={() => handleProductStatus(product.id, 'rejected')}
                             >

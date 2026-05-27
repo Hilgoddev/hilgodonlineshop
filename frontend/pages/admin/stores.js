@@ -104,8 +104,11 @@ export default function AdminStores() {
                     <td style={{ padding: '12px 16px', color: '#64748b' }}>{s.slug}</td>
                     <td style={{ padding: '12px 16px' }}>{badge(s.status)}</td>
                     <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        <button type="button" className="btn btn-sm btn-primary" onClick={() => updateStatus(s.id, 'approved')}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <button type="button" className="btn btn-sm btn-primary" 
+                        // Small padding differing from the default of "btn-primary" (and the others follow as a side effect)
+                        style={{ padding: '7px 16px', width: '100%'}}
+                        onClick={() => updateStatus(s.id, 'approved')}>
                           Approve
                         </button>
                         <button type="button" className="btn btn-sm btn-outline" onClick={() => updateStatus(s.id, 'pending')}>

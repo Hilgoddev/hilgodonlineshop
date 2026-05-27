@@ -194,12 +194,25 @@ export default function Home({ products, categories = [], flashSales = [] }) {
   });
 
   return (
-    <Layout 
+    <Layout
       title="Hilgod Online Store — Shop Electronics, Phones, Appliances, Fashion & More"
       description="Shop the best deals on Electronics, Phones, Appliances, Fashion, Gadgets and more at Hilgod Online Store. Fast delivery across Nigeria. Secure payments."
     >
       {/* Hero Slider — Single element with dynamic content for smooth transitions */}
-      <div className="hero-slider" id="hero-slider" style={{ borderRadius: 0, overflow: 'hidden', marginBottom: 'var(--space-4)', position: 'relative', marginLeft: '-1rem', marginRight: '-1rem', marginTop: '-1rem', width: 'calc(100% + 2rem)' }}>
+      <div
+        className="hero-slider"
+        id="hero-slider"
+        style={{
+          borderRadius: 0,
+          overflow: 'hidden',
+          marginBottom: 'var(--space-4)',
+          position: 'relative',
+          marginLeft: '-1rem',
+          marginRight: '-1rem',
+          marginTop: '-1rem',
+          width: 'calc(100% + 2rem)'
+        }}
+      >
         {heroSlides.length > 0 && (() => {
           const slide = heroSlides[currentSlide];
           return (
@@ -210,23 +223,34 @@ export default function Home({ products, categories = [], flashSales = [] }) {
                 <span className="hero-tag" style={{ background: slide.tag.color || 'var(--primary)' }}>
                   <i className={slide.tag.icon}></i> {slide.tag.text}
                 </span>
-                <h1 className="hero-title" dangerouslySetInnerHTML={{ __html: slide.title }}></h1>
+                <h1 className="hero-title"
+                  dangerouslySetInnerHTML={{ __html: slide.title }}
+                  style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}
+                ></h1>
                 <p className="hero-sub">{slide.sub}</p>
-                <div className="hero-actions" style={{ flexWrap: 'wrap', gap: 'var(--space-2)' }}>
-                  <a href={slide.btnLink} className="btn btn-primary btn-lg btn-mobile-full">
+                {/* Hero Button Section */}
+                <div className="hero-actions"
+                  //  flexWrap: 'wrap',
+                  style={{ gap: 'var(--space-2)' }}
+                >
+                  <a href={slide.btnLink}
+                    className="btn btn-primary btn-lg btn-mobile-full"
+                  >
                     <i className="fas fa-shopping-cart"></i> {slide.btnText}
                   </a>
                   {slide.isFlash && (
-                    <a href="/flash-sales" className="btn btn-lg btn-mobile-full" style={{ background: 'rgba(255,255,255,.15)', color: '#fff', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,.2)' }}>
+                    <a href="/flash-sales"
+                      className="btn btn-lg btn-mobile-full"
+                      style={{ background: 'rgba(255,255,255,.15)', color: '#fff', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,.2)' }}>
                       <i className="fas fa-fire"></i> View All Deals
                     </a>
                   )}
                 </div>
               </div>
               <div className="hero-product-img">
-                <img 
-                  src={slide.img} 
-                  alt="Product Promotion" 
+                <img
+                  src={slide.img}
+                  alt="Product Promotion"
                   loading="lazy"
                 />
               </div>
@@ -235,15 +259,15 @@ export default function Home({ products, categories = [], flashSales = [] }) {
         })()}
 
         {/* Controls */}
-        <button 
-          className="slider-arrow slider-prev" 
+        <button
+          className="slider-arrow slider-prev"
           aria-label="Previous"
           onClick={() => setCurrentSlide(prev => (prev - 1 + heroSlides.length) % heroSlides.length)}
         >
           <i className="fas fa-chevron-left"></i>
         </button>
-        <button 
-          className="slider-arrow slider-next" 
+        <button
+          className="slider-arrow slider-next"
           aria-label="Next"
           onClick={() => setCurrentSlide(prev => (prev + 1) % heroSlides.length)}
         >
@@ -279,19 +303,20 @@ export default function Home({ products, categories = [], flashSales = [] }) {
           <h2 className="section-title" style={{ fontSize: '1.4rem' }}>Shop by Category</h2>
           <a href="/categories" className="section-link">All Categories <i className="fas fa-arrow-right"></i></a>
         </div>
-        
+
         <div style={{ position: 'relative' }}>
-          <div className="categories-scroll" id="categories-scroll" style={{ 
-            display: 'flex', 
-            overflowX: 'auto', 
-            padding: '10px var(--space-3) 20px', 
+          <div className="categories-scroll" id="categories-scroll" style={{
+            display: 'flex',
+            overflowX: 'auto',
+            padding: '10px var(--space-3) 20px',
             gap: '15px',
             justifyContent: 'flex-start',
             scrollbarWidth: 'none', /* Firefox */
             msOverflowStyle: 'none' /* IE/Edge */
           }}>
             {/* Hide scrollbar for Webkit */}
-            <style dangerouslySetInnerHTML={{__html: `
+            <style dangerouslySetInnerHTML={{
+              __html: `
               .categories-scroll::-webkit-scrollbar { display: none; }
               .scroll-btn {
                 position: absolute;
@@ -322,48 +347,48 @@ export default function Home({ products, categories = [], flashSales = [] }) {
             `}} />
 
             {categories.slice(0, 12).map(category => (
-            <Link 
-              key={category.id || category.slug}
-              href={`/products?category=${category.slug}`}
-              style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                width: '85px', 
-                flexShrink: 0,
-                textDecoration: 'none'
-              }}
-            >
-              <div style={{ 
-                width: '75px', 
-                height: '75px', 
-                borderRadius: '50%', 
-                background: 'var(--gray-6)',
-                padding: '4px',
-                marginBottom: '8px',
-                border: '1px solid var(--gray-4)',
-                transition: 'border-color 0.2s, transform 0.2s'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gray-4)'; e.currentTarget.style.transform = 'scale(1)'; }}
+              <Link
+                key={category.id || category.slug}
+                href={`/products?category=${category.slug}`}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  width: '85px',
+                  flexShrink: 0,
+                  textDecoration: 'none'
+                }}
               >
-                <img 
-                  src={CATEGORY_IMAGES[category.slug] || category.image || category.image_url || 'https://images.unsplash.com/photo-1563089145-599997674d42?w=150&q=80'}
-                  alt={category.name} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
-                />
-              </div>
-              <span style={{ 
-                fontSize: '.75rem', 
-                fontWeight: '600', 
-                textAlign: 'center', 
-                lineHeight: '1.2',
-                color: 'var(--dark)'
-              }}>
-                {category.name}
-              </span>
-            </Link>
-          ))}
+                <div style={{
+                  width: '75px',
+                  height: '75px',
+                  borderRadius: '50%',
+                  background: 'var(--gray-6)',
+                  padding: '4px',
+                  marginBottom: '8px',
+                  border: '1px solid var(--gray-4)',
+                  transition: 'border-color 0.2s, transform 0.2s'
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gray-4)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                >
+                  <img
+                    src={CATEGORY_IMAGES[category.slug] || category.image || category.image_url || 'https://images.unsplash.com/photo-1563089145-599997674d42?w=150&q=80'}
+                    alt={category.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                  />
+                </div>
+                <span style={{
+                  fontSize: '.75rem',
+                  fontWeight: '600',
+                  textAlign: 'center',
+                  lineHeight: '1.2',
+                  color: 'var(--dark)'
+                }}>
+                  {category.name}
+                </span>
+              </Link>
+            ))}
           </div>
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginBottom: '8px' }}>
             <button
@@ -387,7 +412,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 
       {/* 2-Column Banner */}
       <div className="banner-2col">
-        <div className="banner-card" onClick={() => window.location.href='/products?category=gaming'}>
+        <div className="banner-card" onClick={() => window.location.href = '/products?category=gaming'}>
           <div className="banner-card__bg" style={{ background: 'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)' }}></div>
           <div className="banner-card__overlay"></div>
           <div className="banner-card__content">
@@ -399,7 +424,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
             </div>
           </div>
         </div>
-        <div className="banner-card" onClick={() => window.location.href='/products?category=appliances'}>
+        <div className="banner-card" onClick={() => window.location.href = '/products?category=appliances'}>
           <div className="banner-card__bg" style={{ background: 'linear-gradient(135deg,#1a0a2e,#2e1a3f,#4a1a5e)' }}></div>
           <div className="banner-card__overlay"></div>
           <div className="banner-card__content">
@@ -582,16 +607,16 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 
       {/* 4-Mini Banners */}
       <div className="banner-4col">
-        <div className="mini-banner" onClick={() => window.location.href='/products?category=phones'} style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=phones'} style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
           <div className="mini-banner__text"><h4><i className="fas fa-mobile-screen-button"></i> Phones</h4><p>Latest Arrivals</p></div>
         </div>
-        <div className="mini-banner" onClick={() => window.location.href='/products?category=laptops'} style={{ background: 'linear-gradient(135deg,#1d4ed8,#1e3a8a)' }}>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=laptops'} style={{ background: 'linear-gradient(135deg,#1d4ed8,#1e3a8a)' }}>
           <div className="mini-banner__text"><h4><i className="fas fa-laptop"></i> Laptops</h4><p>Work Smarter</p></div>
         </div>
-        <div className="mini-banner" onClick={() => window.location.href='/products?category=fashion'} style={{ background: 'linear-gradient(135deg,#7c3aed,#4c1d95)' }}>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=fashion'} style={{ background: 'linear-gradient(135deg,#7c3aed,#4c1d95)' }}>
           <div className="mini-banner__text"><h4><i className="fas fa-shirt"></i> Fashion</h4><p>New Styles Daily</p></div>
         </div>
-        <div className="mini-banner" onClick={() => window.location.href='/products?category=gadgets'} style={{ background: 'linear-gradient(135deg,#047857,#065f46)' }}>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=gadgets'} style={{ background: 'linear-gradient(135deg,#047857,#065f46)' }}>
           <div className="mini-banner__text"><h4><i className="fas fa-headphones"></i> Gadgets</h4><p>Tech Accessories</p></div>
         </div>
       </div>
@@ -681,7 +706,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       </div>
 
       {/* Sell Banner */}
-      <div style={{ marginBottom: 'var(--space-6)', cursor: 'pointer' }} onClick={() => window.location.href='/seller-zone'}>
+      <div style={{ marginBottom: 'var(--space-6)', cursor: 'pointer' }} onClick={() => window.location.href = '/seller-zone'}>
         <div className="sell-banner-inner">
           <div>
             <div style={{
@@ -765,7 +790,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 export async function getServerSideProps() {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-    
+
     // Fetch products, categories and active flash sales in parallel
     const [prodRes, catRes, flashRes] = await Promise.all([
       fetch(`${baseUrl}/products?limit=500`),

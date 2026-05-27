@@ -413,7 +413,7 @@ export default function SellerProducts() {
               style={{ marginTop: '12px' }}
               required
             />
-            <button type="submit" className="btn btn-primary btn-spaced" disabled={saving || imageUploading.some(Boolean)}>
+            <button type="submit" className="btn btn-primary" style={{ marginTop: '12px' }} disabled={saving || imageUploading.some(Boolean)}>
               {saving ? <i className="fas fa-spinner fa-spin"></i> : 'Upload Product'}
             </button>
           </form>

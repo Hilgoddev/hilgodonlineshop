@@ -5,6 +5,7 @@ import { adminJson, errorMessage } from '../../lib/adminApi';
 import { apiFetch } from '../../lib/apiClient';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import { categoriesData } from '@/pages/categories';
+import styles from '@/css/fix.module.css';
 
 const EMPTY_NEW = {
   name: '', description: '', price: '', currency: 'NGN',
@@ -318,7 +319,7 @@ export default function AdminFlashSales() {
     const res = await apiFetch(`/api/flash-sales/${id}`, { method: 'DELETE' });
     const text = await res.text();
     let json = {};
-    try { json = text ? JSON.parse(text) : {}; } catch {}
+    try { json = text ? JSON.parse(text) : {}; } catch { }
     if (res.ok) { setMessage({ type: 'success', text: 'Flash sale removed.' }); fetchSales(); }
     else setMessage({ type: 'error', text: errorMessage(json, 'Delete failed') });
   };
@@ -467,7 +468,7 @@ export default function AdminFlashSales() {
                     {imageUploading ? (
                       <i className="fas fa-spinner fa-spin" style={{ color: '#6366f1', fontSize: '1.2rem' }} />
                     ) : imagePreview ? (
-                      <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display='none'; }} />
+                      <img src={imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
                     ) : (
                       <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.7rem' }}>
                         <i className="fas fa-image" style={{ fontSize: '1.4rem', display: 'block', marginBottom: '3px' }} />
@@ -607,7 +608,7 @@ export default function AdminFlashSales() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" disabled={submitting || imageUploading}>
+          <button type="submit" className="btn btn-primary" disabled={submitting || imageUploading} style={{ minWidth: '160px' }}>
             {submitting
               ? <><i className="fas fa-spinner fa-spin" /> Adding…</>
               : <><i className="fas fa-bolt" /> Add Flash Sale</>}
@@ -657,8 +658,12 @@ export default function AdminFlashSales() {
                   const img = sale.products?.images?.[0] || sale.products?.image_url;
                   return (
                     <tr key={sale.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <td
+                        style={{ padding: '12px 16px' }}
+                      >
+                        <div
+                          className={styles['image-and-item-description']}
+                        >
                           {img && (
                             <img
                               src={img}
@@ -698,8 +703,7 @@ export default function AdminFlashSales() {
                           className="btn btn-sm btn-outline"
                           style={{ color: '#b91c1c', borderColor: '#fecaca' }}
                           onClick={() => handleDelete(sale.id)}
-                        >
-                          Remove
+                        ><i className="fas fa-trash-can"></i>
                         </button>
                       </td>
                     </tr>

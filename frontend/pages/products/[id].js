@@ -31,7 +31,7 @@ export default function ProductDetail({ product, relatedProducts }) {
           <i className="fas fa-exclamation-triangle" style={{ fontSize: '3rem', color: 'var(--warning)' }}></i>
           <h2 style={{ marginTop: '20px', marginBottom: '10px' }}>Product Not Found</h2>
           <p>The product you're looking for doesn't exist or has been removed.</p>
-          <Link href="/products" className="btn btn-primary btn-spaced">
+          <Link href="/products" className="btn btn-primary" style={{ marginTop: '20px' }}>
             Browse Products
           </Link>
         </div>

@@ -146,7 +146,7 @@ export default function AdminDashboard() {
         className="admin-stat-grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
           gap: '16px',
           marginBottom: '24px',
         }}
@@ -319,13 +319,13 @@ export default function AdminDashboard() {
           <div className="card" style={{ padding: '20px' }}>
             <h3 style={{ fontWeight: 700, fontSize: '0.95rem', margin: '0 0 12px' }}>Shortcuts</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <Link href="/admin/approvals" className="btn btn-outline btn-full" style={{ fontSize: '0.86rem' }}>
+              <Link href="/admin/approvals" className="btn btn-outline" style={{ justifyContent: 'center', fontSize: '0.86rem', width: '100%', boxSizing: 'border-box' }}>
                 Pending approvals
               </Link>
-              <Link href="/admin/products" className="btn btn-primary btn-full" style={{ fontSize: '0.86rem' }}>
+              <Link href="/admin/products" className="btn btn-primary" style={{ justifyContent: 'center', fontSize: '0.86rem', width: '100%', boxSizing: 'border-box' }}>
                 Manage products
               </Link>
-              <Link href="/admin/orders" className="btn btn-outline btn-full" style={{ fontSize: '0.86rem' }}>
+              <Link href="/admin/orders" className="btn btn-outline" style={{ justifyContent: 'center', fontSize: '0.86rem', width: '100%', boxSizing: 'border-box' }}>
                 All orders
               </Link>
             </div>

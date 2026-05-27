@@ -6,6 +6,7 @@ import { adminJson, errorMessage } from '../../lib/adminApi';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
+import styles from '@/css/fix.module.css';
 
 const EMPTY_FORM = {
   name: '',
@@ -221,19 +222,24 @@ export default function AdminProducts() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Products</h1>
           <p style={{ color: 'var(--gray-1)', fontSize: '.875rem', marginTop: '2px' }}>
             {products.length} total product{products.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          className={`btn ${showForm ? 'btn-outline' : 'btn-primary'}`}
-          onClick={() => showForm ? resetForm() : setShowForm(true)}
+        <div
+          style={{ height: 'auto' }}
         >
-          <i className={`fas ${showForm ? 'fa-times' : 'fa-plus'}`}></i> {showForm ? 'Cancel' : 'Add Product'}
-        </button>
+          <button
+            className={`btn btn-width-fit ${showForm ? 'btn-outline' : 'btn-primary'}`}
+            style={{ height: 'auto' }}
+            onClick={() => showForm ? resetForm() : setShowForm(true)}
+          >
+            <i className={`fas ${showForm ? 'fa-times' : 'fa-plus'}`}></i> {showForm ? 'Cancel' : 'Add Product'}
+          </button>
+        </div>
       </div>
 
       {message.text && (
@@ -467,12 +473,15 @@ export default function AdminProducts() {
               <tbody>
                 {filtered.map(product => (
                   <tr key={product._id} style={{ borderBottom: '1px solid var(--gray-5)' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                    <td style={{ padding: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <td style={{ padding: '12px'}}>
+                      <div 
+                      className={styles['image-and-item-description']}
+                      // style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start'}}
+                      >
                         <img
                           src={product.images?.[0] || product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80'}
                           alt={product.name}
-                          style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--gray-4)', flexShrink: 0 }}
+                          style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--gray-4)', flexShrink: 0}}
                           onError={e => { e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80'; }}
                         />
                         <div>

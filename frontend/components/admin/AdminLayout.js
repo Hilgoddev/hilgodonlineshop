@@ -265,16 +265,20 @@ export default function AdminLayout({ children, title, description }) {
           .admin-menu-btn { display: none !important; }
         }
         @media (max-width: 960px) {
-          .admin-dash-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 600px) {
-          .admin-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .admin-main { padding: 16px 12px 32px !important; }
           .admin-header-email { display: none !important; }
           .admin-header-profile { display: none !important; }
           .admin-logout-label { display: none !important; }
         }
       `}</style>
+
+      {/* Grid template column for dashboard metrics */}
+      {/* Taken out of @media (max-width: 600px) */}
+      {/* .admin-stat-grid { grid-template-columns: repeat(2, 1fr) !important; } */}
+      {/* Taken out of @media (max-width: 960px)) */}
+      {/* .xxxadmin-dash-grid { grid-template-columns: 1fr; } */}
     </>
   );
 }

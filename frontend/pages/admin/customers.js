@@ -155,19 +155,20 @@ export default function AdminCustomers() {
                           {isSelf ? (
                             <span style={{ fontSize: '.78rem', color: 'var(--gray-2)' }}>You</span>
                           ) : (
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexDirection: 'column', alignItems: 'flex-end' }}>
                               {!isSeller && (
-                                <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#1d4ed8', borderColor: '#dbeafe' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'seller')}>
+                                <button 
+                                className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#1d4ed8', borderColor: '#dbeafe', width: '100%' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'seller')}>
                                   {promotingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Seller'}
                                 </button>
                               )}
                               {(isAdmin || isSeller) && (
-                                <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#64748b', borderColor: '#e2e8f0' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'customer')}>
+                                <button className="btn btn-sm btn-outline" style={{ fontSize: '.75rem', color: '#64748b', borderColor: '#e2e8f0', width: '100%' }} disabled={!!promotingId} onClick={() => handleRoleChange(customer._id, 'customer')}>
                                   {promotingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Customer'}
                                 </button>
                               )}
                               {!isAdmin && (
-                                <button className="btn btn-sm" style={{ fontSize: '.75rem', color: '#fff', background: '#ef4444', border: 'none' }} disabled={!!removingId || !!promotingId} onClick={() => handleRemoveUser(customer._id, `${customer.firstName} ${customer.lastName}`)}>
+                                <button className="btn btn-sm" style={{ fontSize: '.75rem', color: '#fff', background: '#ef4444', border: 'none', width: '100%' }} disabled={!!removingId || !!promotingId} onClick={() => handleRemoveUser(customer._id, `${customer.firstName} ${customer.lastName}`)}>
                                   {removingId === customer._id ? <i className="fas fa-spinner fa-spin" /> : 'Remove'}
                                 </button>
                               )}
