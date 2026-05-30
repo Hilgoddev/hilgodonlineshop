@@ -116,12 +116,13 @@ ALTER TABLE email_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
 
 -- Email logs policy: Users can only see their own emails
-CREATE POLICY IF NOT EXISTS email_logs_user_policy ON email_logs
+DROP POLICY IF EXISTS email_logs_user_policy ON email_logs;
+CREATE POLICY email_logs_user_policy ON email_logs
     FOR SELECT
     USING (user_id = auth.uid());
 
--- Order status history policy: Based on order access
-CREATE POLICY IF NOT EXISTS order_status_history_user_policy ON order_status_history
+DROP POLICY IF EXISTS order_status_history_user_policy ON order_status_history;
+CREATE POLICY order_status_history_user_policy ON order_status_history
     FOR SELECT
     USING (
         EXISTS (
@@ -131,8 +132,8 @@ CREATE POLICY IF NOT EXISTS order_status_history_user_policy ON order_status_his
         )
     );
 
--- Admin can see all
-CREATE POLICY IF NOT EXISTS order_status_history_admin_policy ON order_status_history
+DROP POLICY IF EXISTS order_status_history_admin_policy ON order_status_history;
+CREATE POLICY order_status_history_admin_policy ON order_status_history
     FOR ALL
     USING (
         EXISTS (
