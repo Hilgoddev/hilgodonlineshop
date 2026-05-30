@@ -208,7 +208,7 @@ if ($SkipEnvCheck) {
                     if ($line -match '^\s*([A-Z0-9_]+)\s+') { $names += $matches[1] }
                 }
             } catch {
-                Write-Status "!" "Could not list envs in $dir: $($_.Exception.Message)" -Color "Yellow"
+                Write-Status "!" ("Could not list envs in ${dir}: {0}" -f $_.Exception.Message) -Color "Yellow"
             }
             Set-Location $orig
         }
@@ -282,7 +282,7 @@ if ($SyncEnv) {
             # We'll pass the value directly; this will prompt for confirmation as needed.
             & vercel env add $name $plain $envChoice
         } catch {
-            Write-Status "!" "Failed to add $name: $($_.Exception.Message)" -Color "Yellow"
+            Write-Status "!" ("Failed to add ${name}: {0}" -f $_.Exception.Message) -Color "Yellow"
         }
         Set-Location $orig
     }
