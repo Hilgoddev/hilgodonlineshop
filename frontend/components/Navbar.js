@@ -453,7 +453,7 @@ export default function Navbar() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ flex: 1, padding: '10px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--gray-4)', fontSize: '.9rem', outline: 'none' }}
               />
-              <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '10px 14px', flexShrink: 0 }}>
+              <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '10px 14px', flexShrink: 1 }}>
                 <i className="fas fa-magnifying-glass"></i>
               </button>
             </form>
