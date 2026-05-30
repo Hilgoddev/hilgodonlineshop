@@ -6,7 +6,9 @@ param(
     [switch]$SkipGitCheck = $false,
     [switch]$FrontendOnly = $false,
     [switch]$BackendOnly = $false,
-    [switch]$NoRestore = $false
+    [switch]$NoRestore = $false,
+    [switch]$SkipEnvCheck = $false,
+    [switch]$SyncEnv = $false
 )
 
 Write-Host ""
@@ -189,6 +191,139 @@ if (-not $SkipGitCheck -and (Test-Path ".git")) {
     Write-Status "i" "No .git folder found, skipping rename" -Color "Gray"
 }
 Write-Host ""
+# Step 4: Check Vercel environment variables (security + presence)
+Write-Host "[4/7] Checking Vercel environment variables..." -ForegroundColor Yellow
+
+if ($SkipEnvCheck) {
+    Write-Status "!" "Skipping env check (SkipEnvCheck flag used)" -Color "Yellow"
+} else {
+    function Get-VercelEnvNames($dir) {
+        $names = @()
+        if (Test-Path $dir) {
+            $orig = Get-Location
+            Set-Location $dir
+            try {
+                $lines = vercel env ls 2>$null
+                foreach ($line in $lines) {
+                    if ($line -match '^\s*([A-Z0-9_]+)\s+') { $names += $matches[1] }
+                }
+            } catch {
+                Write-Status "!" "Could not list envs in $dir: $($_.Exception.Message)" -Color "Yellow"
+            }
+            Set-Location $orig
+        }
+        return ,$names
+    }
+
+    $frontendEnvNames = Get-VercelEnvNames "frontend"
+    $backendEnvNames = Get-VercelEnvNames "backend"
+
+    Write-Status "*" "Frontend envs: $($frontendEnvNames -join ', ')" -Color "Gray"
+    Write-Status "*" "Backend envs: $($backendEnvNames -join ', ')" -Color "Gray"
+
+    # Keys that should NEVER be present in frontend (sensitive server secrets)
+    $sensitiveKeys = @(
+        'SUPABASE_SERVICE_ROLE_KEY',
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'PAYSTACK_SECRET_KEY',
+        'RESEND_API_KEY',
+        'SUPABASE_SERVICE_ROLE_KEY'
+    )
+
+    $foundSensitive = @()
+    foreach ($k in $sensitiveKeys) {
+        if ($frontendEnvNames -contains $k) { $foundSensitive += $k }
+    }
+
+    if ($foundSensitive.Count -gt 0) {
+        Write-Status "!" "Sensitive keys detected in frontend envs: $($foundSensitive -join ', ')" -Color "Red"
+        $resp = Read-Host "Remove them on Vercel or proceed anyway? (Y to proceed, N to abort)"
+        if ($resp -notmatch '^[Yy]') {
+            Write-Status "X" "Aborting due to sensitive keys present in frontend envs" -Color "Red"
+            exit 1
+        }
+    }
+
+    # Required env keys we expect
+    $frontendRequired = @('NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','NEXT_PUBLIC_API_URL','GOOGLE_CLIENT_ID')
+    $backendRequired = @('SUPABASE_SERVICE_ROLE_KEY','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','PAYSTACK_SECRET_KEY','SUPABASE_URL')
+
+    $missingFrontend = $frontendRequired | Where-Object { $_ -notin $frontendEnvNames }
+    $missingBackend = $backendRequired | Where-Object { $_ -notin $backendEnvNames }
+
+    if ($missingFrontend.Count -gt 0) { Write-Status "!" "Missing frontend envs: $($missingFrontend -join ', ')" -Color "Yellow" }
+    if ($missingBackend.Count -gt 0) { Write-Status "!" "Missing backend envs: $($missingBackend -join ', ')" -Color "Yellow" }
+
+    if (($missingFrontend.Count -gt 0) -or ($missingBackend.Count -gt 0)) {
+        $resp2 = Read-Host "Some required envs are missing. Proceed with deploy? (Y/N)"
+        if ($resp2 -notmatch '^[Yy]') {
+            Write-Status "X" "Aborted due to missing envs" -Color "Red"
+            exit 1
+        }
+    }
+}
+
+# Optional: Interactive env sync step
+if ($SyncEnv) {
+    Write-Host "[4.1] Interactive env sync..." -ForegroundColor Yellow
+    function Prompt-And-AddEnv($projectDir, $name, $envChoice) {
+        $orig = Get-Location
+        Set-Location $projectDir
+        try {
+            Write-Status ">" "Adding/updating $name for $projectDir ($envChoice)" -Color "Cyan"
+            # Prompt for secure value
+            $secure = Read-Host "Enter value for $name (input hidden)" -AsSecureString
+            $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+            $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto($ptr)
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+
+            # The vercel CLI supports: vercel env add NAME value ENV
+            # We'll pass the value directly; this will prompt for confirmation as needed.
+            & vercel env add $name $plain $envChoice
+        } catch {
+            Write-Status "!" "Failed to add $name: $($_.Exception.Message)" -Color "Yellow"
+        }
+        Set-Location $orig
+    }
+
+    # Ask user which envs to sync for frontend
+    if (Test-Path "frontend") {
+        foreach ($k in $frontendRequired) {
+            $do = Read-Host "Frontend: sync env '$k'? (Y/N/S to skip remaining)"
+            if ($do -match '^[Ss]') { break }
+            if ($do -match '^[Yy]') {
+                $envSel = Read-Host "Target environment for $k (production/preview/development/all)"
+                if ($envSel -eq 'all') {
+                    Prompt-And-AddEnv "frontend" $k "production"
+                    Prompt-And-AddEnv "frontend" $k "preview"
+                    Prompt-And-AddEnv "frontend" $k "development"
+                } else {
+                    Prompt-And-AddEnv "frontend" $k $envSel
+                }
+            }
+        }
+    }
+
+    # Backend
+    if (Test-Path "backend") {
+        foreach ($k in $backendRequired) {
+            $do = Read-Host "Backend: sync env '$k'? (Y/N/S to skip remaining)"
+            if ($do -match '^[Ss]') { break }
+            if ($do -match '^[Yy]') {
+                $envSel = Read-Host "Target environment for $k (production/preview/development/all)"
+                if ($envSel -eq 'all') {
+                    Prompt-And-AddEnv "backend" $k "production"
+                    Prompt-And-AddEnv "backend" $k "preview"
+                    Prompt-And-AddEnv "backend" $k "development"
+                } else {
+                    Prompt-And-AddEnv "backend" $k $envSel
+                }
+            }
+        }
+    }
+    Write-Host "Env sync complete." -ForegroundColor Green
+}
 
 # Step 4: Deploy Frontend
 if (-not $BackendOnly) {
