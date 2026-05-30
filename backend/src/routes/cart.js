@@ -2,16 +2,21 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 
-const mapProduct = (p) => ({
-  _id: p.id,
-  id: p.id,
-  name: p.name,
-  price: Number(p.price || 0),
-  images: p.images || [],
-  category: p.category,
-  stock: p.stock
-});
+const mapProduct = (p, flashSale = null) => {
+  const pricing = getEffectiveProductPricing(p, flashSale);
+  return {
+    _id: p.id,
+    id: p.id,
+    name: p.name,
+    price: pricing.price,
+    originalPrice: pricing.originalPrice,
+    images: p.images || [],
+    category: p.category,
+    stock: p.stock
+  };
+};
 
 router.get('/', verifyToken, async (req, res, next) => {
   try {
@@ -21,9 +26,11 @@ router.get('/', verifyToken, async (req, res, next) => {
       .eq('user_id', req.user.id);
     if (error) throw error;
 
+    const flashSaleMap = await getActiveFlashSaleMap((data || []).map((row) => row.product?.id));
+
     const items = (data || [])
       .filter((row) => row.product)
-      .map((row) => ({ product: mapProduct(row.product), quantity: row.quantity }));
+      .map((row) => ({ product: mapProduct(row.product, flashSaleMap.get(row.product.id)), quantity: row.quantity }));
 
     res.status(200).json({ success: true, data: items });
   } catch (err) {

@@ -316,7 +316,7 @@ if ($SyncEnv) {
             Write-Host "Key: $k" -ForegroundColor Yellow
             Write-Host "Type: Public (safe to expose in browser)" -ForegroundColor Gray
             
-            $do = Read-Host "[1/4] Update this? (Y=yes, N=skip, S=skip all frontend)"
+            $do = Read-Host -Prompt '[1/4] Update this? (Y=yes, N=skip, S=skip all frontend)'
             
             if ($do -match '^[Ss]') { 
                 $frontendSkip = $true
@@ -361,7 +361,7 @@ if ($SyncEnv) {
             Write-Host "Key: $k" -ForegroundColor Yellow
             Write-Host "Type: Secret (server-side only)" -ForegroundColor Red
             
-            $do = Read-Host "[1/5] Update this? (Y=yes, N=skip, S=skip all backend)"
+            $do = Read-Host -Prompt '[1/5] Update this? (Y=yes, N=skip, S=skip all backend)'
             
             if ($do -match '^[Ss]') { 
                 $backendSkip = $true

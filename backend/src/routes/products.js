@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 
 // Helper to get display store/seller info
 // Priority: 1. Product's store, 2. Seller's store, 3. Seller name, 4. Hilgod Shop
@@ -49,14 +50,17 @@ const getStoreInfo = (p) => {
     };
 };
 
-const mapProduct = (p) => ({
-    ...p,
-    _id: p.id,
-    id: p.id,
-    price: Number(p.price || 0),
-    originalPrice: p.original_price ? Number(p.original_price) : null,
-    store: getStoreInfo(p),
-});
+const mapProduct = (p, flashSale = null) => {
+    const pricing = getEffectiveProductPricing(p, flashSale);
+    return {
+        ...p,
+        _id: p.id,
+        id: p.id,
+        price: pricing.price,
+        originalPrice: pricing.originalPrice,
+        store: getStoreInfo(p),
+    };
+};
 
 // GET /api/products
 router.get('/', async (req, res, next) => {
@@ -143,9 +147,11 @@ router.get('/', async (req, res, next) => {
             }
         }
 
+        const flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id));
+
         const payload = {
             success: true,
-            data: (data || []).map(mapProduct),
+            data: (data || []).map((p) => mapProduct(p, flashSaleMap.get(p.id))),
             meta: { total: count || 0, page: parsedPage, limit: parsedLimit },
             pagination: { total: count || 0, page: parsedPage, limit: parsedLimit, pages: Math.ceil((count || 0) / parsedLimit) }
         };
@@ -172,7 +178,12 @@ router.get('/all', verifyToken, async (req, res, next) => {
 
         if (error) throw error;
         res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
-        res.status(200).json({ success: true, data: (data || []).map(mapProduct), pagination: { total: count } });
+        const flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id));
+        res.status(200).json({
+            success: true,
+            data: (data || []).map((p) => mapProduct(p, flashSaleMap.get(p.id))),
+            pagination: { total: count }
+        });
     } catch (err) {
         next(err);
     }
@@ -226,7 +237,8 @@ router.get('/:id', async (req, res, next) => {
             };
         }
 
-        const payload = { success: true, data: mapProduct(data) };
+        const flashSaleMap = await getActiveFlashSaleMap([data.id]);
+        const payload = { success: true, data: mapProduct(data, flashSaleMap.get(data.id)) };
         res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
         res.status(200).json(payload);
     } catch (err) {

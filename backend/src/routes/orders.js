@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { sendEmail, orderConfirmationHtml, orderStatusHtml } = require('../services/email');
+const { getActiveFlashSaleMap } = require('../utils/pricing');
 
 const mapOrder = (order, items = [], user = null) => ({
     _id: order.id,
@@ -141,6 +142,7 @@ router.post('/', verifyToken, async (req, res, next) => {
         }
 
         const productMap = new Map((products || []).map((p) => [p.id, p]));
+        const flashSaleMap = await getActiveFlashSaleMap(productIds);
 
         // Recompute totals from DB and validate stock.
         let total_amount = 0;
@@ -160,7 +162,8 @@ router.post('/', verifyToken, async (req, res, next) => {
                 return res.status(409).json({ success: false, error: `Insufficient stock for product ${productId}` });
             }
 
-            const serverUnitPrice = Number(p.price || 0);
+            const flashSale = flashSaleMap.get(productId);
+            const serverUnitPrice = flashSale ? Number(flashSale.sale_price || 0) : Number(p.price || 0);
             const clientUnitPrice = Number(productClientPriceMap.get(productId));
 
             if (!Number.isFinite(clientUnitPrice)) {

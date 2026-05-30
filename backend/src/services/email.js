@@ -135,7 +135,6 @@ function orderConfirmationHtml(orderId, items, total) {
     </table>
     <p style="font-size:1.1rem"><strong>Total: ₦${Number(total).toLocaleString()}</strong></p>
     <a href="${BASE_URL}/track-order" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Track Your Order</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
@@ -152,7 +151,6 @@ function orderStatusHtml(orderId, status) {
     <p>${messages[status] || `Your order status has been updated to: <strong>${status}</strong>.`}</p>
     <p>Order ID: <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong></p>
     <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
@@ -162,7 +160,6 @@ function sellerApprovedHtml(sellerName, businessName) {
     <p>Your seller application for <strong>${businessName}</strong> has been approved by Hilgod.</p>
     <p>You can now log in and start listing products on the platform.</p>
     <a href="${BASE_URL}/seller/dashboard" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Go to Seller Dashboard</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
@@ -171,7 +168,6 @@ function newsletterConfirmHtml(email) {
     <h2 style="color:#E31C1C">You're subscribed!</h2>
     <p>Thanks for subscribing to Hilgod updates. You'll be the first to know about flash sales and new arrivals.</p>
     <a href="${BASE_URL}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Shop Now</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
@@ -189,7 +185,6 @@ function paymentConfirmedHtml(orderId, items, total, buyerName) {
     <p style="font-size:1.1rem"><strong>Total Paid: ₦${Number(total).toLocaleString()}</strong></p>
     <p style="color:#666;font-size:.88rem">We are now preparing your order for dispatch.</p>
     <a href="${BASE_URL}/track-order" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Track Your Order</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
@@ -206,7 +201,6 @@ function newOrderSellerHtml(orderId, items) {
     </table>
     <p style="color:#666;font-size:.88rem">Please prepare the item(s) for dispatch promptly.</p>
     <a href="${BASE_URL}/seller/dashboard" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View Seller Dashboard</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
@@ -223,7 +217,6 @@ function newOrderAdminHtml(orderId, items, total, buyerUserId) {
     </table>
     <p style="font-size:1.1rem"><strong>Total: ₦${Number(total).toLocaleString()}</strong></p>
     <a href="${BASE_URL}/admin/orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View in Admin Panel</a>
-    ${getEmailFooter()}
   </div>`;
 }
 
