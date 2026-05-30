@@ -53,8 +53,9 @@ async function handlePaymentSuccess(order_id, user_id) {
           sendEmail({
             to: user.email,
             subject: `Payment Confirmed — Order #${String(order_id).slice(0, 8).toUpperCase()}`,
-            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName),
-          }).catch(() => {});
+            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName),            emailType: 'payment_confirmed',
+            orderId: order_id,
+            userId: user_id,          }).catch(() => {});
         }
       } catch {}
     }
@@ -81,6 +82,9 @@ async function handlePaymentSuccess(order_id, user_id) {
           to: seller.email,
           subject: `New Order Received — #${String(order_id).slice(0, 8).toUpperCase()}`,
           html: newOrderSellerHtml(order_id, sellerEmailItems),
+          emailType: 'new_order_seller',
+          orderId: order_id,
+          userId: sellerId,
         }).catch(() => {});
       } catch {}
     }
@@ -91,6 +95,8 @@ async function handlePaymentSuccess(order_id, user_id) {
         to: process.env.ADMIN_EMAIL,
         subject: `New Paid Order — #${String(order_id).slice(0, 8).toUpperCase()}`,
         html: newOrderAdminHtml(order_id, emailItems, order?.total_amount || 0, user_id || 'Unknown'),
+        emailType: 'new_order_admin',
+        orderId: order_id,
       }).catch(() => {});
     }
 

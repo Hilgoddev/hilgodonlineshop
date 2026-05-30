@@ -102,6 +102,7 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
     to: email,
     subject: "You're subscribed to Hilgod updates!",
     html: newsletterConfirmHtml(email),
+    emailType: 'newsletter',
   }).catch(() => {});
   // Notify admin
   if (process.env.ADMIN_EMAIL) {
@@ -109,6 +110,7 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
       to: process.env.ADMIN_EMAIL,
       subject: `New newsletter subscriber: ${email}`,
       html: `<p><strong>${email}</strong> just subscribed to the Hilgod newsletter.</p>`,
+      emailType: 'admin_alert',
     }).catch(() => {});
   }
   res.status(200).json({ success: true, message: 'Subscribed successfully' });

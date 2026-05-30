@@ -241,6 +241,9 @@ router.post('/', verifyToken, async (req, res, next) => {
             to: req.user.email,
             subject: `Order Confirmed — Hilgod #${order.id.slice(0,8).toUpperCase()}`,
             html: orderConfirmationHtml(order.id, responseItems, total_amount),
+            emailType: 'order_confirmation',
+            orderId: order.id,
+            userId: req.user.id,
         }).catch(() => {});
     } catch (err) {
         next(err);
@@ -399,13 +402,16 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const orderId = updatedOrder.id;
         const newStatus = updatedOrder.status;
         if (updatedOrder.user_id) {
-            supabase.from('profiles').select('username').eq('id', updatedOrder.user_id).single()
+            supabase.from('profiles').select('email').eq('id', updatedOrder.user_id).single()
                 .then(({ data: profile }) => {
-                    if (profile?.username) {
+                    if (profile?.email) {
                         sendEmail({
-                            to: profile.username,
+                            to: profile.email,
                             subject: `Order Update — Hilgod`,
                             html: orderStatusHtml(orderId, newStatus),
+                            emailType: 'order_status',
+                            orderId,
+                            userId: updatedOrder.user_id,
                         }).catch(() => {});
                     }
                 })
