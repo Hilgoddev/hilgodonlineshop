@@ -396,7 +396,7 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
             html: sellerApprovedHtml(applicantName, businessName),
             emailType: 'seller_approval',
             userId: user_id,
-        }).catch(() => {});
+        }).catch(() => { });
     } catch (err) {
         next(err);
     }
@@ -485,7 +485,7 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
                 </div>`,
                 emailType: 'rider_approval',
                 userId: user_id,
-            }).catch(() => {});
+            }).catch(() => { });
         } else if (status === 'rejected') {
             const { sendEmail } = require('../services/email');
             sendEmail({
@@ -493,12 +493,12 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
                 subject: 'Update on Your Hilgod Rider Application',
                 html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
                   <h2 style="color:#333">Application Update</h2>
-                  <p>Hi ${data.full_name}, unfortunately your rider application was not successful at this time.</p>`,
-                emailType: 'rider_rejection',
-                userId: user_id,
-                  ${admin_notes ? `<p><strong>Reason:</strong> ${admin_notes}</p>` : ''}
+                  <p>Hi ${data.full_name}, unfortunately your rider application was not successful at this time.</p>
+                  ${data.admin_notes ? `<p><strong>Reason:</strong> ${data.admin_notes}</p>` : ''}
                   <p>You are welcome to reapply in the future. Email <a href="mailto:hilgodonline@gmail.com">hilgodonline@gmail.com</a> if you have questions.</p>
                 </div>`,
+                emailType: 'rider_rejection',
+                userId: user_id,
             }).catch(() => {});
         }
 
