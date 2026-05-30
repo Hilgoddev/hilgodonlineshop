@@ -203,7 +203,7 @@ if (-not $BackendOnly) {
         Set-Location frontend
         Write-Status ">" "Deploying frontend to Vercel..." -Color "Cyan"
         try {
-            & vercel --prod
+            & vercel --prod --yes
             $frontendResult = $LASTEXITCODE
         } catch {
             Write-Status "X" "Frontend deployment failed: $($_.Exception.Message)" -Color "Red"
@@ -233,7 +233,7 @@ if (-not $FrontendOnly) {
         Set-Location backend
         Write-Status ">" "Deploying backend to Vercel..." -Color "Cyan"
         try {
-            & vercel --prod
+            & vercel --prod --yes
             $backendResult = $LASTEXITCODE
         } catch {
             Write-Status "X" "Backend deployment failed: $($_.Exception.Message)" -Color "Red"
