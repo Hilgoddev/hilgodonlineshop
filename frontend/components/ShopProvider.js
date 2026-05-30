@@ -4,6 +4,8 @@ import { useSession } from '../contexts/AuthContext';
 import { apiFetch } from '../lib/apiClient';
 import { useCurrency } from '../contexts/CurrencyContext';
 
+import styles from '../css/fix.module.css';
+
 const ShopContext = createContext();
 
 export function useShop() {
@@ -214,8 +216,8 @@ export default function ShopProvider({ children }) {
   const discount =
     quickViewProduct?.originalPrice && quickViewProduct?.price < quickViewProduct?.originalPrice
       ? Math.round(
-          ((quickViewProduct.originalPrice - quickViewProduct.price) / quickViewProduct.originalPrice) * 100
-        )
+        ((quickViewProduct.originalPrice - quickViewProduct.price) / quickViewProduct.originalPrice) * 100
+      )
       : 0;
 
   return (
@@ -258,7 +260,8 @@ export default function ShopProvider({ children }) {
               <button className="modal__close" onClick={closeQuickView}><i className="fas fa-xmark"></i></button>
             </div>
             <div className="modal__body">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div className={styles.modal__inner}>
+
                 <div style={{ background: 'var(--gray-6)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '280px', padding: '20px' }}>
                   <img
                     src={quickViewProduct.images?.[0] || quickViewProduct.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}

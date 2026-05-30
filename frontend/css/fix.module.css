@@ -13,3 +13,16 @@
     flex-direction: column;
   }
 }
+
+/* ----------PRODUCT MODAL------------ */
+.modal__inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 600px) {
+  .modal__inner {
+    grid-template-columns: 1fr;
+  }
+}
