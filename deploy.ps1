@@ -266,63 +266,137 @@ if ($SkipEnvCheck) {
 
 # Optional: Interactive env sync step
 if ($SyncEnv) {
-    Write-Host "[4.1] Interactive env sync..." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "    INTERACTIVE ENVIRONMENT SYNC      " -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+    
+    $syncCount = 0
+    
     function Prompt-And-AddEnv($projectDir, $name, $envChoice) {
         $orig = Get-Location
         Set-Location $projectDir
         try {
-            Write-Status ">" "Adding/updating $name for $projectDir ($envChoice)" -Color "Cyan"
+            Write-Host ""
+            Write-Status ">" "Syncing $name to $envChoice" -Color "Cyan"
+            Write-Host "   (Value will be encrypted in Vercel)" -ForegroundColor Gray
+            
             # Prompt for secure value
-            $secure = Read-Host "Enter value for $name (input hidden)" -AsSecureString
+            $secure = Read-Host "   📝 Enter value (hidden input)" -AsSecureString
+            if ($secure.Length -eq 0) {
+                Write-Status "!" "Skipped: empty value" -Color "Yellow"
+                Set-Location $orig
+                return
+            }
+            
             $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
             $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto($ptr)
             [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
 
-            # The vercel CLI supports: vercel env add NAME value ENV
-            # We'll pass the value directly; this will prompt for confirmation as needed.
-            & vercel env add $name $plain $envChoice
+            & vercel env add $name $plain $envChoice 2>&1 | Out-Null
+            Write-Status "OK" "✓ $name synced" -Color "Green"
+            $script:syncCount++
         } catch {
-            Write-Status "!" ("Failed to add ${name}: {0}" -f $_.Exception.Message) -Color "Yellow"
+            Write-Status "!" ("Failed: {0}" -f $_.Exception.Message) -Color "Red"
         }
         Set-Location $orig
     }
 
-    # Ask user which envs to sync for frontend
+    # Frontend sync
     if (Test-Path "frontend") {
+        Write-Host ""
+        Write-Host "📦 FRONTEND ENVIRONMENT VARIABLES" -ForegroundColor Green
+        Write-Host "═══════════════════════════════════" -ForegroundColor Green
+        $frontendSkip = $false
+        
         foreach ($k in $frontendRequired) {
-            $do = Read-Host "Frontend: sync env '$k'? (Y/N/S to skip remaining)"
-            if ($do -match '^[Ss]') { break }
+            if ($frontendSkip) { break }
+            Write-Host ""
+            Write-Host "Key: $k" -ForegroundColor Yellow
+            Write-Host "Type: Public (safe to expose in browser)" -ForegroundColor Gray
+            
+            $do = Read-Host "[1/4] Update this? (Y=yes, N=skip, S=skip all frontend)"
+            
+            if ($do -match '^[Ss]') { 
+                $frontendSkip = $true
+                Write-Status "-" "Skipping remaining frontend vars" -Color "Gray"
+                break 
+            }
+            
             if ($do -match '^[Yy]') {
-                $envSel = Read-Host "Target environment for $k (production/preview/development/all)"
-                if ($envSel -eq 'all') {
-                    Prompt-And-AddEnv "frontend" $k "production"
-                    Prompt-And-AddEnv "frontend" $k "preview"
-                    Prompt-And-AddEnv "frontend" $k "development"
-                } else {
-                    Prompt-And-AddEnv "frontend" $k $envSel
+                Write-Host "Choose environment(s):" -ForegroundColor Cyan
+                Write-Host "  [1] production  (live)"
+                Write-Host "  [2] preview     (staging)"
+                Write-Host "  [3] development (dev)"
+                Write-Host "  [4] all three"
+                
+                $envOpt = Read-Host "Enter 1-4 (default: 1 for production)"
+                
+                switch ($envOpt) {
+                    "2" { Prompt-And-AddEnv "frontend" $k "preview" }
+                    "3" { Prompt-And-AddEnv "frontend" $k "development" }
+                    "4" { 
+                        Prompt-And-AddEnv "frontend" $k "production"
+                        Prompt-And-AddEnv "frontend" $k "preview"
+                        Prompt-And-AddEnv "frontend" $k "development"
+                    }
+                    default { Prompt-And-AddEnv "frontend" $k "production" }
                 }
             }
         }
     }
 
-    # Backend
+    # Backend sync
     if (Test-Path "backend") {
+        Write-Host ""
+        Write-Host "🔒 BACKEND ENVIRONMENT VARIABLES" -ForegroundColor Green
+        Write-Host "═══════════════════════════════════" -ForegroundColor Green
+        Write-Host "(Secrets - do NOT expose to frontend)" -ForegroundColor Red
+        $backendSkip = $false
+        
         foreach ($k in $backendRequired) {
-            $do = Read-Host "Backend: sync env '$k'? (Y/N/S to skip remaining)"
-            if ($do -match '^[Ss]') { break }
+            if ($backendSkip) { break }
+            Write-Host ""
+            Write-Host "Key: $k" -ForegroundColor Yellow
+            Write-Host "Type: Secret (server-side only)" -ForegroundColor Red
+            
+            $do = Read-Host "[1/5] Update this? (Y=yes, N=skip, S=skip all backend)"
+            
+            if ($do -match '^[Ss]') { 
+                $backendSkip = $true
+                Write-Status "-" "Skipping remaining backend vars" -Color "Gray"
+                break 
+            }
+            
             if ($do -match '^[Yy]') {
-                $envSel = Read-Host "Target environment for $k (production/preview/development/all)"
-                if ($envSel -eq 'all') {
-                    Prompt-And-AddEnv "backend" $k "production"
-                    Prompt-And-AddEnv "backend" $k "preview"
-                    Prompt-And-AddEnv "backend" $k "development"
-                } else {
-                    Prompt-And-AddEnv "backend" $k $envSel
+                Write-Host "Choose environment(s):" -ForegroundColor Cyan
+                Write-Host "  [1] production  (live)"
+                Write-Host "  [2] preview     (staging)"
+                Write-Host "  [3] development (dev)"
+                Write-Host "  [4] all three"
+                
+                $envOpt = Read-Host "Enter 1-4 (default: 1 for production)"
+                
+                switch ($envOpt) {
+                    "2" { Prompt-And-AddEnv "backend" $k "preview" }
+                    "3" { Prompt-And-AddEnv "backend" $k "development" }
+                    "4" { 
+                        Prompt-And-AddEnv "backend" $k "production"
+                        Prompt-And-AddEnv "backend" $k "preview"
+                        Prompt-And-AddEnv "backend" $k "development"
+                    }
+                    default { Prompt-And-AddEnv "backend" $k "production" }
                 }
             }
         }
     }
-    Write-Host "Env sync complete." -ForegroundColor Green
+    
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Status "OK" "Env sync complete. $syncCount vars added." -Color "Green"
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host ""
 }
 
 # Step 4: Deploy Frontend
