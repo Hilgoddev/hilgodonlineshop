@@ -1,21 +1,124 @@
+const crypto = require('crypto');
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.EMAIL_FROM || 'Hilgod <noreply@hilgod.com>';
 const BASE_URL = process.env.FRONTEND_URL || 'https://hilgod-frontend.onrender.com';
+const supabase = require('../config/supabase');
 
-async function sendEmail({ to, subject, html }) {
+// Email type to sender address mapping
+const EMAIL_FROM_MAP = {
+  order_confirmation: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
+  order_status: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
+  payment_confirmed: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
+  new_order_seller: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
+  new_order_admin: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
+  seller_approval: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+  rider_approval: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+  rider_rejection: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+  newsletter: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+  admin_alert: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+  general: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+};
+
+/**
+ * Generate email footer with logo, company info, and support contact
+ */
+function getEmailFooter() {
+  const supportEmail = process.env.SUPPORT_EMAIL || 'support@hilgod.com';
+  const supportPhone = process.env.SUPPORT_PHONE || '+123';
+  const website = process.env.COMPANY_WEBSITE || 'hilgod.com';
+  const logoUrl = process.env.LOGO_URL || 'https://www.hilgod.com/logo.png';
+  const companyName = process.env.COMPANY_NAME || 'Hilgod Online Store';
+  
+  return `
+    <div style="margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:0.85rem;color:#666;text-align:center">
+      <div style="margin-bottom:16px">
+        <img src="${logoUrl}" alt="${companyName}" style="height:40px;margin-bottom:8px" />
+      </div>
+      <p style="margin:8px 0">
+        <strong>Need help?</strong><br/>
+        Contact us at <a href="mailto:${supportEmail}" style="color:#E31C1C;text-decoration:none">${supportEmail}</a> or call <a href="tel:${supportPhone}" style="color:#E31C1C;text-decoration:none">${supportPhone}</a>
+      </p>
+      <p style="margin:8px 0">
+        <strong>${companyName}</strong><br/>
+        <a href="https://${website}" style="color:#E31C1C;text-decoration:none">${website}</a>
+      </p>
+    </div>
+  `;
+}
+
+/**
+ * Send an email and log the attempt to the database
+ * @param {Object} params
+ * @param {string} params.to - Recipient email
+ * @param {string} params.subject - Email subject
+ * @param {string} params.html - HTML body
+ * @param {string} [params.emailType='general'] - Type of email for categorization
+ * @param {string} [params.orderId] - Associated order ID
+ * @param {string} [params.userId] - Associated user ID
+ * @param {Object} [params.metadata] - Additional metadata
+ */
+async function sendEmail({ to, subject, html, emailType = 'general', orderId = null, userId = null, metadata = {} }) {
+  const logId = crypto.randomUUID();
+  
+  // Get sender address based on email type
+  const fromEmail = EMAIL_FROM_MAP[emailType] || EMAIL_FROM_MAP.general;
+  
+  // Append footer to HTML
+  const htmlWithFooter = html + getEmailFooter();
+  
+  // Log the email attempt (fire-and-forget, don't await)
+  const logEmail = async (status, providerResponse = null, errorMessage = null) => {
+    try {
+      await supabase.from('email_logs').insert({
+        id: logId,
+        to_email: to,
+        from_email: fromEmail,
+        subject: subject,
+        email_type: emailType,
+        order_id: orderId,
+        user_id: userId,
+        status: status,
+        provider_response: providerResponse,
+        error_message: errorMessage,
+        metadata: metadata
+      });
+    } catch (logErr) {
+      console.error('[EMAIL_LOG] Failed to log email:', logErr.message);
+    }
+  };
+
   if (!RESEND_API_KEY) {
-    console.log(`[EMAIL SKIPPED — no RESEND_API_KEY] To: ${to} | Subject: ${subject}`);
+    console.warn(`[EMAIL] SKIPPED — no RESEND_API_KEY configured. To: ${to} | Subject: ${subject}`);
+    await logEmail('failed', null, 'RESEND_API_KEY not configured');
     return;
   }
+
   try {
+    console.log(`[EMAIL] Sending ${emailType} email to ${to}: ${subject} (from: ${fromEmail})`);
+    
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: FROM, to, subject, html }),
+      headers: { 
+        'Authorization': `Bearer ${RESEND_API_KEY}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify({ from: fromEmail, to, subject, html: htmlWithFooter }),
     });
-    if (!res.ok) console.error('[EMAIL] Resend error:', await res.text());
+
+    const responseText = await res.text();
+    
+    if (!res.ok) {
+      console.error(`[EMAIL] Resend API error (${res.status}):`, responseText);
+      await logEmail('failed', responseText, `HTTP ${res.status}: ${responseText}`);
+      return;
+    }
+
+    const responseData = JSON.parse(responseText);
+    console.log(`[EMAIL] Successfully sent to ${to}: ${subject} (ID: ${responseData.id})`);
+    await logEmail('sent', JSON.stringify(responseData));
+    
   } catch (err) {
     console.error('[EMAIL] Failed to send:', err.message);
+    await logEmail('failed', null, err.message);
   }
 }
 
@@ -32,6 +135,7 @@ function orderConfirmationHtml(orderId, items, total) {
     </table>
     <p style="font-size:1.1rem"><strong>Total: ₦${Number(total).toLocaleString()}</strong></p>
     <a href="${BASE_URL}/track-order" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Track Your Order</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
@@ -48,6 +152,7 @@ function orderStatusHtml(orderId, status) {
     <p>${messages[status] || `Your order status has been updated to: <strong>${status}</strong>.`}</p>
     <p>Order ID: <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong></p>
     <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
@@ -57,6 +162,7 @@ function sellerApprovedHtml(sellerName, businessName) {
     <p>Your seller application for <strong>${businessName}</strong> has been approved by Hilgod.</p>
     <p>You can now log in and start listing products on the platform.</p>
     <a href="${BASE_URL}/seller/dashboard" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Go to Seller Dashboard</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
@@ -65,6 +171,7 @@ function newsletterConfirmHtml(email) {
     <h2 style="color:#E31C1C">You're subscribed!</h2>
     <p>Thanks for subscribing to Hilgod updates. You'll be the first to know about flash sales and new arrivals.</p>
     <a href="${BASE_URL}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Shop Now</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
@@ -82,6 +189,7 @@ function paymentConfirmedHtml(orderId, items, total, buyerName) {
     <p style="font-size:1.1rem"><strong>Total Paid: ₦${Number(total).toLocaleString()}</strong></p>
     <p style="color:#666;font-size:.88rem">We are now preparing your order for dispatch.</p>
     <a href="${BASE_URL}/track-order" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Track Your Order</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
@@ -98,6 +206,7 @@ function newOrderSellerHtml(orderId, items) {
     </table>
     <p style="color:#666;font-size:.88rem">Please prepare the item(s) for dispatch promptly.</p>
     <a href="${BASE_URL}/seller/dashboard" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View Seller Dashboard</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
@@ -114,7 +223,8 @@ function newOrderAdminHtml(orderId, items, total, buyerUserId) {
     </table>
     <p style="font-size:1.1rem"><strong>Total: ₦${Number(total).toLocaleString()}</strong></p>
     <a href="${BASE_URL}/admin/orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View in Admin Panel</a>
+    ${getEmailFooter()}
   </div>`;
 }
 
-module.exports = { sendEmail, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml };
+module.exports = { sendEmail, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml };
