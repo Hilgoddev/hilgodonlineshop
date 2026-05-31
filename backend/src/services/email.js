@@ -172,9 +172,10 @@ function newsletterConfirmHtml(email) {
 }
 
 function paymentConfirmedHtml(orderId, items, total, buyerName) {
-  const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
-  ).join('');
+  const rows = items.map(i => {
+    const img = i.image ? `<img src="${i.image}" alt="${i.name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px" />` : '';
+    return `<tr><td style="padding:8px;border-bottom:1px solid #eee">${img}${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`;
+  }).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Payment Confirmed!</h2>
     <p>Hi <strong>${buyerName}</strong>, your payment for order <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong> has been received and confirmed.</p>

@@ -10,15 +10,38 @@ export default function ResetPassword() {
   const [error, setError] = useState('');
   const [ready, setReady] = useState(false);
   const [done, setDone] = useState(false);
+  const [expired, setExpired] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    // Supabase fires PASSWORD_RECOVERY after processing the token in the URL hash.
+    // We also set a timeout so users with an expired/missing token see a helpful message
+    // rather than a permanent spinner.
+    const timeout = setTimeout(() => {
+      setExpired(true);
+    }, 6000);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
+        clearTimeout(timeout);
+        setExpired(false);
         setReady(true);
       }
     });
-    return () => subscription.unsubscribe();
+
+    // Also check if there is already a valid session from a previously processed token
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && !ready) {
+        clearTimeout(timeout);
+        setExpired(false);
+        setReady(true);
+      }
+    });
+
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -56,14 +79,23 @@ export default function ResetPassword() {
           </div>
         ) : !ready ? (
           <div style={{ textAlign: 'center' }}>
-            <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)', marginBottom: '16px', display: 'block' }}></i>
-            <p style={{ color: '#64748b', marginBottom: '12px' }}>Verifying your reset link...</p>
-            <p style={{ fontSize: '.85rem', color: '#94a3b8' }}>
-              Link expired?{' '}
-              <Link href="/auth/forgot-password" style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                Request a new one
-              </Link>
-            </p>
+            {expired ? (
+              <>
+                <i className="fas fa-link-slash" style={{ fontSize: '2.5rem', color: '#ef4444', marginBottom: '16px', display: 'block' }}></i>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#1e293b', marginBottom: '8px' }}>Link Expired or Invalid</h2>
+                <p style={{ color: '#64748b', marginBottom: '20px', fontSize: '.9rem' }}>
+                  This password reset link has expired or is no longer valid. Please request a new one.
+                </p>
+                <Link href="/auth/forgot-password" className="btn btn-primary" style={{ display: 'inline-block' }}>
+                  <i className="fas fa-rotate-right"></i> Request New Link
+                </Link>
+              </>
+            ) : (
+              <>
+                <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)', marginBottom: '16px', display: 'block' }}></i>
+                <p style={{ color: '#64748b', marginBottom: '12px' }}>Verifying your reset link...</p>
+              </>
+            )}
           </div>
         ) : (
           <>

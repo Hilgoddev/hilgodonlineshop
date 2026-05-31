@@ -6,13 +6,29 @@ export default function ReturnRequest() {
   const [form, setForm] = useState({ orderId: '', email: '', reason: '', details: '' });
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1000));
-    setStatus('success');
-    setSubmitting(false);
+    setErrorMsg('');
+    try {
+      const res = await fetch('/api/returns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setStatus('success');
+      } else {
+        setErrorMsg(json.error || 'Could not submit request. Please try again.');
+      }
+    } catch {
+      setErrorMsg('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -56,6 +72,11 @@ export default function ReturnRequest() {
         ) : (
           <div className="card" style={{ padding: '28px' }}>
             <h2 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '20px' }}>Submit Your Return Request</h2>
+            {errorMsg && (
+              <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '8px', background: '#fee2e2', color: '#b91c1c', fontSize: '.9rem', fontWeight: 600 }}>
+                <i className="fas fa-exclamation-circle" style={{ marginRight: '8px' }}></i>{errorMsg}
+              </div>
+            )}
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label className="form-label">Order ID <span style={{ color: 'var(--danger)' }}>*</span></label>

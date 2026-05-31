@@ -57,6 +57,7 @@ const stripeRoutes = require('./routes/stripe');
 const greyRoutes = require('./routes/grey');
 const flashSaleRoutes = require('./routes/flash-sales');
 const exchangeRatesRoutes = require('./routes/exchange-rates');
+const returnsRoutes = require('./routes/returns');
 const supabase = require('./config/supabase');
 const { generalApiLimiter, adminApiLimiter } = require('./middleware/rateLimit');
 
@@ -79,6 +80,7 @@ app.use('/api/stripe', stripeRoutes);
 app.use('/api/grey', greyRoutes);
 app.use('/api/flash-sales', flashSaleRoutes);
 app.use('/api/exchange-rates', exchangeRatesRoutes);
+app.use('/api/returns', returnsRoutes);
 
 // Basic DB connectivity route used by frontend system test page
 app.get('/api/db-test', async (req, res, next) => {

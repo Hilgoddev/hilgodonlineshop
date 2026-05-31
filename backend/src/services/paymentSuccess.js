@@ -22,7 +22,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     const productIds = [...new Set(items.map(i => i.product_id))];
     const { data: products } = await supabase
       .from('products')
-      .select('id, name, stock, seller_id')
+      .select('id, name, stock, seller_id, images')
       .in('id', productIds);
 
     const productMap = {};
@@ -42,6 +42,7 @@ async function handlePaymentSuccess(order_id, user_id) {
       name: productMap[i.product_id]?.name || 'Product',
       quantity: i.quantity,
       price: Number(i.price) || 0,
+      image: productMap[i.product_id]?.images?.[0] || null,
     }));
 
     // Send payment confirmation to buyer
