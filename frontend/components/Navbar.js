@@ -269,7 +269,6 @@ export default function Navbar() {
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
-                  disabled={currencyLoading}
                   style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer', outline: 'none' }}
                 >
                   <option value="USD" style={{ color: '#333' }}>USD ($)</option>

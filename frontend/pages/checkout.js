@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiFetch } from '../lib/apiClient';
+import { normalizePricing } from '../lib/pricing';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -135,7 +136,10 @@ export default function Checkout() {
 
   const calculateTotals = () => {
     let subtotal = 0;
-    cart.forEach(item => { subtotal += item.product.price * (item.quantity || 1); });
+    cart.forEach(item => {
+      const itemPricing = normalizePricing(item.product || {});
+      subtotal += itemPricing.price * (item.quantity || 1);
+    });
     const deliveryFee = subtotal > 50000 ? 0 : 1500;
     return { subtotal, deliveryFee, total: subtotal + deliveryFee };
   };
@@ -155,7 +159,10 @@ export default function Checkout() {
       const orderRes = await apiFetch('/api/orders', {
         method: 'POST',
         body: JSON.stringify({
-          items: cart.map(i => ({ productId: i.product._id, quantity: i.quantity, price: i.product.price })),
+          items: cart.map(i => {
+            const itemPricing = normalizePricing(i.product || {});
+            return { productId: i.product._id, quantity: i.quantity, price: itemPricing.price };
+          }),
           shippingAddress: { ...formData },
           paymentMethod: selectedPayment,
         }),
@@ -610,7 +617,9 @@ export default function Checkout() {
 
               {/* Items */}
               <div style={{ marginBottom: 'var(--space-4)' }}>
-                {cart.map(item => (
+                {cart.map(item => {
+                  const itemPricing = normalizePricing(item.product || {});
+                  return (
                   <div key={item.product._id} className="order-summary-item">
                     <img
                       className="order-summary-img"
@@ -623,10 +632,10 @@ export default function Checkout() {
                       <div className="order-summary-qty">Qty: {item.quantity || 1}</div>
                     </div>
                     <div className="order-summary-price">
-                      {formatPrice(item.product.price * (item.quantity || 1), item.product.currency || 'NGN', false)}
+                      {formatPrice(itemPricing.price * (item.quantity || 1), item.product.currency || 'NGN', false)}
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
 
               <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>

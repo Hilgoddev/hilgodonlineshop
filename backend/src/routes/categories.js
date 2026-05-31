@@ -7,6 +7,21 @@ let categoriesCache = null;
 let cacheExpiry = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+const FALLBACK_CATEGORIES = [
+    { name: 'Accessories', slug: 'accessories', icon: 'fa-glasses' },
+    { name: 'Beauty & Care', slug: 'beauty', icon: 'fa-sparkles' },
+    { name: 'Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
+    { name: 'Gaming', slug: 'gaming', icon: 'fa-gamepad' },
+    { name: 'Herbs', slug: 'herbs', icon: 'fa-leaf' },
+    { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
+    { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
+    { name: 'Menswear', slug: 'menswear', icon: 'fa-person' },
+    { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' },
+    { name: 'Sports', slug: 'sports', icon: 'fa-basketball' },
+    { name: 'Toys', slug: 'toys', icon: 'fa-child' },
+    { name: 'Womenswear', slug: 'womenswear', icon: 'fa-person-dress' },
+];
+
 // Middleware to verify admin role
 const requireAdmin = async (req, res, next) => {
     try {
@@ -32,13 +47,23 @@ router.get('/', async (req, res, next) => {
             .from('categories')
             .select('*')
             .order('name', { ascending: true });
-        if (error) throw error;
-        categoriesCache = data;
+        if (error) {
+            console.warn('[CATEGORIES] Falling back to static categories:', error.message);
+            categoriesCache = FALLBACK_CATEGORIES;
+            cacheExpiry = now + CACHE_TTL;
+            res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+            return res.status(200).json({ success: true, data: FALLBACK_CATEGORIES, fallback: true });
+        }
+        categoriesCache = data && data.length ? data : FALLBACK_CATEGORIES;
         cacheExpiry = now + CACHE_TTL;
         res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
-        res.status(200).json({ success: true, data });
+        res.status(200).json({ success: true, data: categoriesCache });
     } catch (err) {
-        next(err);
+        console.warn('[CATEGORIES] Unhandled error, returning fallback:', err.message);
+        categoriesCache = FALLBACK_CATEGORIES;
+        cacheExpiry = Date.now() + CACHE_TTL;
+        res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+        res.status(200).json({ success: true, data: FALLBACK_CATEGORIES, fallback: true });
     }
 });
 

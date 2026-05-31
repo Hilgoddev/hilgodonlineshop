@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { normalizePricing } from '@/lib/pricing';
 
 export default function ProductDetail({ product, relatedProducts }) {
   const router = useRouter();
@@ -128,10 +129,9 @@ export default function ProductDetail({ product, relatedProducts }) {
     ? product.images
     : product.image_url ? [product.image_url] : [];
 
-  const origPrice = product.original_price || product.originalPrice || null;
-  const discount = origPrice && product.price < origPrice
-    ? Math.round(((origPrice - product.price) / origPrice) * 100)
-    : 0;
+  const pricing = normalizePricing(product);
+  const origPrice = pricing.originalPrice;
+  const discount = pricing.discountPercent;
 
   return (
     <Layout 
@@ -268,16 +268,16 @@ export default function ProductDetail({ product, relatedProducts }) {
 
             {/* Pricing */}
             <div className="pdp-pricing">
-              <span className="pdp-price">{formatPrice(product.price || 0, productCurrency, false)}</span>
+              <span className="pdp-price">{formatPrice(pricing.price || 0, productCurrency, false)}</span>
               {origPrice && (
                 <span className="pdp-original">{formatPrice(origPrice, productCurrency)}</span>
               )}
               {discount > 0 && (
                 <span className="pdp-discount">Save {discount}%</span>
               )}
-              {product.price >= 10000 && (
+              {pricing.price >= 10000 && (
                 <div className="pdp-installment">
-                  Or pay {formatPrice((product.price / 4) || 0, productCurrency)}/month × 4 months
+                  Or pay {formatPrice((pricing.price / 4) || 0, productCurrency)}/month × 4 months
                 </div>
               )}
             </div>
@@ -437,7 +437,7 @@ export default function ProductDetail({ product, relatedProducts }) {
                 )}
                 <tr>
                   <td>Price</td>
-                  <td>{formatPrice(product.price || 0, productCurrency, false)}</td>
+                  <td>{formatPrice(pricing.price || 0, productCurrency, false)}</td>
                 </tr>
                 {origPrice && (
                   <tr>

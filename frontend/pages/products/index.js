@@ -4,11 +4,14 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
+import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 
 const PAGE_SIZE = 20;
 
 export default function ProductsPage({ allProducts = [] }) {
   const router = useRouter();
+  const [catalogProducts, setCatalogProducts] = useState(allProducts || []);
+  const [catalogLoading, setCatalogLoading] = useState(!allProducts || allProducts.length === 0);
 
   // Derive initial state from URL query on first render
   const initCategory = router.query.category ? [router.query.category] : [];
@@ -19,6 +22,33 @@ export default function ProductsPage({ allProducts = [] }) {
   const [sortBy, setSortBy] = useState('default');
   const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCatalogProducts(allProducts || []);
+    setCatalogLoading(!allProducts || allProducts.length === 0);
+  }, [allProducts]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProducts = async () => {
+      if (allProducts && allProducts.length > 0) return;
+
+      const data = await fetchJsonWithTimeout('/api/products?limit=1000', 15000);
+      if (cancelled || !data?.success || !Array.isArray(data.data)) return;
+
+      setCatalogProducts(data.data);
+      setCatalogLoading(false);
+    };
+
+    loadProducts().finally(() => {
+      if (!cancelled) setCatalogLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allProducts]);
 
   // Sync category / subcategory from URL (navbar links change the URL)
   useEffect(() => {
@@ -39,7 +69,7 @@ export default function ProductsPage({ allProducts = [] }) {
 
   // All filtering + sorting happens client-side — no network request
   const filteredAndSorted = useMemo(() => {
-    let list = allProducts;
+    let list = catalogProducts;
 
     if (selectedCategories.length > 0) {
       list = list.filter(p => selectedCategories.includes(p.category));
@@ -55,7 +85,7 @@ export default function ProductsPage({ allProducts = [] }) {
       case 'new':        return [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       default:           return list;
     }
-  }, [allProducts, selectedCategories, selectedSubcategories, sortBy]);
+  }, [catalogProducts, selectedCategories, selectedSubcategories, sortBy]);
 
   // Pagination derived from filteredAndSorted
   const totalPages = Math.ceil(filteredAndSorted.length / PAGE_SIZE);
@@ -306,7 +336,14 @@ export default function ProductsPage({ allProducts = [] }) {
             </div>
           </div>
 
-          {pageProducts.length > 0 ? (
+          {catalogLoading && pageProducts.length === 0 ? (
+            <div className="no-products" style={{ textAlign: 'center', padding: '40px' }}>
+              <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: 'var(--primary)' }}></i>
+              <p style={{ marginTop: '16px', fontSize: '1.1rem', color: 'var(--gray-1)' }}>
+                Loading products...
+              </p>
+            </div>
+          ) : pageProducts.length > 0 ? (
             <div className={`product-catalog-grid ${viewMode === 'list' ? 'list-view' : ''}`}>
               {pageProducts.map(product => (
                 <ProductCard key={product._id} product={product} />
@@ -333,12 +370,11 @@ export default function ProductsPage({ allProducts = [] }) {
 export async function getServerSideProps({ query, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-    const response = await fetch(`${baseUrl}/products?limit=1000`);
-    const data = await response.json();
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const data = await fetchJsonWithTimeout(`${baseUrl}/products?limit=250`, 4000);
     return {
       props: {
-        allProducts: data.success ? (data.data || []) : [],
+        allProducts: data?.success ? (data.data || []) : [],
       },
     };
   } catch {

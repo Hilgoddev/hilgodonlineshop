@@ -1,9 +1,13 @@
 import Link from 'next/link';
 import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { normalizePricing } from '../lib/pricing';
 
 export default function ProductCard({ product, showAddToCart = true }) {
-  const { _id, name, price, originalPrice, images, category, brand, stock, description, badge, store, seller } = product;
+  const { _id, name, images, category, brand, stock, description, badge, store, seller } = product;
+  const pricing = normalizePricing(product);
+  const price = pricing.price;
+  const originalPrice = pricing.originalPrice;
   const { addToCart, toggleWishlist, isInWishlist, openQuickView } = useShop();
   const { formatPrice } = useCurrency();
   
@@ -26,9 +30,7 @@ export default function ProductCard({ product, showAddToCart = true }) {
     openQuickView(product);
   };
 
-  const discount = originalPrice && price < originalPrice 
-    ? Math.round(((originalPrice - price) / originalPrice) * 100) 
-    : 0;
+  const discount = pricing.discountPercent;
 
   // Generate a brief description snippet (first 60 chars)
   const briefDesc = description 

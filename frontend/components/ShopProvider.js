@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useSession } from '../contexts/AuthContext';
 import { apiFetch } from '../lib/apiClient';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { normalizePricing } from '../lib/pricing';
 
 import styles from '../css/fix.module.css';
 
@@ -213,12 +214,8 @@ export default function ShopProvider({ children }) {
     document.body.style.overflow = '';
   };
 
-  const discount =
-    quickViewProduct?.originalPrice && quickViewProduct?.price < quickViewProduct?.originalPrice
-      ? Math.round(
-        ((quickViewProduct.originalPrice - quickViewProduct.price) / quickViewProduct.originalPrice) * 100
-      )
-      : 0;
+  const quickViewPricing = normalizePricing(quickViewProduct || {});
+  const discount = quickViewPricing.discountPercent;
 
   return (
     <ShopContext.Provider
@@ -289,12 +286,12 @@ export default function ShopProvider({ children }) {
                   </div>
                   <div style={{ marginBottom: '14px' }}>
                     <span style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>
-                      {formatPrice(quickViewProduct.price || 0, quickViewProduct.currency || 'NGN', false)}
+                      {formatPrice(quickViewPricing.price || 0, quickViewProduct.currency || 'NGN', false)}
                     </span>
                     {discount > 0 && (
                       <>
                         <span style={{ fontSize: '.9rem', color: 'var(--gray-2)', textDecoration: 'line-through', marginLeft: '8px' }}>
-                          {formatPrice(quickViewProduct.originalPrice || 0, quickViewProduct.currency || 'NGN', false)}
+                          {formatPrice(quickViewPricing.originalPrice || 0, quickViewProduct.currency || 'NGN', false)}
                         </span>
                         <span style={{ fontSize: '.85rem', color: 'var(--success)', fontWeight: '700', marginLeft: '4px' }}>
                           -{discount}%

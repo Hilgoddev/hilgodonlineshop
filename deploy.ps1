@@ -23,6 +23,7 @@ $frontendResult = 99
 $backendResult = 99
 $gitRenamed = $false
 $backupGitName = ".git.backup"
+$env:NO_UPDATE_NOTIFIER = "1"
 
 # Function to write colored status messages
 function Write-Status {
@@ -32,6 +33,170 @@ function Write-Status {
         [string]$Color = "White"
     )
     Write-Host "  $Icon $Message" -ForegroundColor $Color
+}
+
+function Restore-GitFolder {
+    if ($gitRenamed -and -not $NoRestore -and (Test-Path $backupGitName)) {
+        Write-Status "*" "Restoring .git folder from $backupGitName..." -Color "Yellow"
+        try {
+            Rename-Item -Path $backupGitName -NewName ".git" -ErrorAction Stop
+            Write-Status "OK" ".git folder restored successfully" -Color "Green"
+        } catch {
+            Write-Status "!" "Failed to restore .git folder. Please rename $backupGitName to .git manually." -Color "Yellow"
+            Write-Status "*" "Error: $($_.Exception.Message)" -Color "White"
+        }
+    }
+}
+
+function Read-EnvFile {
+    param([string]$Path)
+
+    $entries = @()
+    if (-not (Test-Path $Path)) {
+        return @()
+    }
+
+    foreach ($line in Get-Content $Path) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith('#')) {
+            continue
+        }
+
+        if ($trimmed -match '^(?<key>[A-Za-z0-9_]+)=(?<value>.*)$') {
+            $value = $matches.value.Trim()
+            if (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+                if ($value.Length -ge 2) {
+                    $value = $value.Substring(1, $value.Length - 2)
+                }
+            }
+
+            $entries += [pscustomobject]@{
+                Key = $matches.key
+                Value = $value
+            }
+        }
+    }
+
+    return ,$entries
+}
+
+function Invoke-VercelEnvAdd {
+    param(
+        [string]$ProjectDir,
+        [string]$Key,
+        [string]$Value,
+        [string]$Target,
+        [switch]$Sensitive
+    )
+
+    $originalLocation = Get-Location
+    Set-Location $ProjectDir
+    try {
+        $args = @('env', 'add', $Key, $Target, '--value', $Value, '--yes', '--force')
+        if ($Sensitive) {
+            $args += '--sensitive'
+        } else {
+            $args += '--no-sensitive'
+        }
+
+        & vercel @args
+        if ($LASTEXITCODE -ne 0) {
+            throw "vercel env add exited with code $LASTEXITCODE"
+        }
+    } finally {
+        Set-Location $originalLocation
+    }
+}
+
+function Get-VercelEnvPolicy {
+    param([string]$Key, [switch]$Frontend)
+
+    # Keep the allowlist intentionally small: only values safe to expose in Vercel's UI.
+    $publicKeys = @(
+        'PORT',
+        'FRONTEND_URL',
+        'EMAIL_VERIFICATION_ENABLED',
+        'SUPABASE_URL',
+        'GOOGLE_CLIENT_ID',
+        'NEXT_PUBLIC_STRIPE_ENABLED',
+        'BANK_NAME',
+        'BANK_ACCOUNT_NAME',
+        'BANK_ACCOUNT_NUMBER',
+        'BANK_SORT_CODE',
+        'ADMIN_EMAIL',
+        'EMAIL_FROM_NOREPLY',
+        'EMAIL_FROM_ORDERS',
+        'SUPPORT_EMAIL',
+        'SUPPORT_PHONE',
+        'COMPANY_WEBSITE',
+        'COMPANY_NAME',
+        'LOGO_URL'
+    )
+
+    $sensitiveKeys = @(
+        'SUPABASE_SERVICE_ROLE_KEY',
+        'PAYSTACK_SECRET_KEY',
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'STRIPE_METER_KEY',
+        'GREY_API_KEY',
+        'GREY_WEBHOOK_SECRET',
+        'RESEND_API_KEY',
+        'GOOGLE_CLIENT_SECRET',
+        'DATABASE_URL',
+        'SUPABASE_DB_PASSWORD'
+    )
+
+    if ($Key -like 'NEXT_PUBLIC_*') {
+        return [pscustomobject]@{ Sensitive = $false }
+    }
+
+    if ($sensitiveKeys -contains $Key) {
+        return [pscustomobject]@{ Sensitive = $true }
+    }
+
+    if ($publicKeys -contains $Key) {
+        return [pscustomobject]@{ Sensitive = $false }
+    }
+
+    # Default to sensitive so newly added secrets are protected automatically.
+    return [pscustomobject]@{ Sensitive = $true }
+}
+
+function Sync-VercelEnvFile {
+    param(
+        [string]$ProjectDir,
+        [string]$EnvFilePath,
+        [string[]]$Targets
+    )
+
+    if (-not (Test-Path $EnvFilePath)) {
+        Write-Status "!" "Env file not found: $EnvFilePath" -Color "Yellow"
+        return 0
+    }
+
+    $entries = Read-EnvFile $EnvFilePath
+    if (-not $entries -or $entries.Count -eq 0) {
+        Write-Status "!" "No env entries found in $EnvFilePath" -Color "Yellow"
+        return 0
+    }
+
+    $synced = 0
+    foreach ($entry in $entries) {
+        $policy = Get-VercelEnvPolicy -Key $entry.Key
+
+        foreach ($target in $Targets) {
+            try {
+                Invoke-VercelEnvAdd -ProjectDir $ProjectDir -Key $entry.Key -Value $entry.Value -Target $target -Sensitive:($policy.Sensitive)
+                Write-Status "OK" "$($entry.Key) synced to $target" -Color "Green"
+                $synced++
+            } catch {
+                Write-Status "!" ("Failed to sync {0} to {1}: {2}" -f $entry.Key, $target, $_.Exception.Message) -Color "Red"
+            }
+        }
+    }
+
+    return $synced
 }
 
 # Step 0: Check if Vercel CLI is installed
@@ -76,9 +241,10 @@ if ($SkipGitCheck) {
             Write-Host ""
             
             # Ask for confirmation
-            $response = Read-Host "  Do you want to continue? (Y/N)"
+            $response = Read-Host -Prompt "  Do you want to continue? (Y/N)"
             if ($response -notmatch '^[Yy](?:es)?$') {
                 Write-Status "X" "Deployment cancelled by user." -Color "Red"
+                Restore-GitFolder
                 exit 0
             }
         } else {
@@ -126,9 +292,9 @@ if ($existingBackups.Count -gt 0) {
     $existingBackups | ForEach-Object { Write-Host "     - $_" -ForegroundColor Gray }
 
     # Clean up old backups (keep only the most recent 2)
-    if ($existingBackups.Count -ge 2) {
+    if ($existingBackups.Count -gt 2) {
         $sortedBackups = $existingBackups | Sort-Object
-        $oldBackups = $sortedBackups | Select-Object -SkipLast 1
+        $oldBackups = $sortedBackups | Select-Object -First ($sortedBackups.Count - 2)
         Write-Status "*" "Cleaning up $($oldBackups.Count) old backup(s)..." -Color "Cyan"
         foreach ($oldBackup in $oldBackups) {
             try {
@@ -141,9 +307,14 @@ if ($existingBackups.Count -gt 0) {
     }
 
     # Find next available backup name
-    $nextBackupNum = ($existingBackups | Sort-Object | Select-Object -Last 1 |
-                     Select-String -Pattern '\d+$' -AllMatches |
-                     ForEach-Object { [int]$_.Matches.Value }) + 1
+    $backupNumbers = $existingBackups | ForEach-Object {
+        if ($_ -eq '.git.backup') { 0 }
+        elseif ($_ -match '\.git\.backup\.(\d+)$') { [int]$matches[1] }
+    }
+    $nextBackupNum = 1
+    if ($backupNumbers -and $backupNumbers.Count -gt 0) {
+        $nextBackupNum = (($backupNumbers | Measure-Object -Maximum).Maximum) + 1
+    }
     $backupGitName = ".git.backup.$nextBackupNum"
     Write-Status "*" "Will use $backupGitName for new backup" -Color "Cyan"
 } else {
@@ -238,9 +409,10 @@ if ($SkipEnvCheck) {
 
     if ($foundSensitive.Count -gt 0) {
         Write-Status "!" "Sensitive keys detected in frontend envs: $($foundSensitive -join ', ')" -Color "Red"
-        $resp = Read-Host "Remove them on Vercel or proceed anyway? (Y to proceed, N to abort)"
+        $resp = Read-Host -Prompt "Remove them on Vercel or proceed anyway? (Y to proceed, N to abort)"
         if ($resp -notmatch '^[Yy]') {
             Write-Status "X" "Aborting due to sensitive keys present in frontend envs" -Color "Red"
+            Restore-GitFolder
             exit 1
         }
     }
@@ -256,16 +428,56 @@ if ($SkipEnvCheck) {
     if ($missingBackend.Count -gt 0) { Write-Status "!" "Missing backend envs: $($missingBackend -join ', ')" -Color "Yellow" }
 
     if (($missingFrontend.Count -gt 0) -or ($missingBackend.Count -gt 0)) {
-        $resp2 = Read-Host "Some required envs are missing. Proceed with deploy? (Y/N)"
+        $resp2 = Read-Host -Prompt "Some required envs are missing. Proceed with deploy? (Y/N)"
         if ($resp2 -notmatch '^[Yy]') {
             Write-Status "X" "Aborted due to missing envs" -Color "Red"
+            Restore-GitFolder
             exit 1
         }
     }
 }
 
-# Optional: Interactive env sync step
+# Optional: Automated env sync step
 if ($SyncEnv) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host "     ENVIRONMENT SYNCHRONIZATION      " -ForegroundColor Cyan
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    $syncTotal = 0
+
+    if (Test-Path "frontend") {
+        Write-Host "FRONTEND ENVIRONMENT VARIABLES" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        $frontendEnvFile = if (Test-Path "frontend\.env.local") { "frontend\.env.local" } elseif (Test-Path "frontend\.env") { "frontend\.env" } else { $null }
+        if ($frontendEnvFile) {
+            $syncTotal += Sync-VercelEnvFile -ProjectDir "frontend" -EnvFilePath $frontendEnvFile -Targets @('production', 'preview', 'development')
+        } else {
+            Write-Status "!" "No frontend env file found (.env.local or .env)" -Color "Yellow"
+        }
+    }
+
+    if (Test-Path "backend") {
+        Write-Host ""
+        Write-Host "BACKEND ENVIRONMENT VARIABLES" -ForegroundColor Green
+        Write-Host "========================================" -ForegroundColor Green
+        $backendEnvFile = if (Test-Path "backend\.env") { "backend\.env" } elseif (Test-Path "backend\.env.local") { "backend\.env.local" } else { $null }
+        if ($backendEnvFile) {
+            $syncTotal += Sync-VercelEnvFile -ProjectDir "backend" -EnvFilePath $backendEnvFile -Targets @('production', 'preview', 'development')
+        } else {
+            Write-Status "!" "No backend env file found (.env or .env.local)" -Color "Yellow"
+        }
+    }
+
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Status "OK" "Env sync complete. $syncTotal vars added or updated." -Color "Green"
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host ""
+}
+
+if ($false -and $SyncEnv) {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "    INTERACTIVE ENVIRONMENT SYNC      " -ForegroundColor Cyan
@@ -331,7 +543,7 @@ if ($SyncEnv) {
                 Write-Host "  [3] development (dev)"
                 Write-Host "  [4] all three"
                 
-                $envOpt = Read-Host "Enter 1-4 (default: 1 for production)"
+                $envOpt = Read-Host -Prompt "Enter 1-4 (default: 1 for production)"
                 
                 switch ($envOpt) {
                     "2" { Prompt-And-AddEnv "frontend" $k "preview" }
@@ -376,7 +588,7 @@ if ($SyncEnv) {
                 Write-Host "  [3] development (dev)"
                 Write-Host "  [4] all three"
                 
-                $envOpt = Read-Host "Enter 1-4 (default: 1 for production)"
+                $envOpt = Read-Host -Prompt "Enter 1-4 (default: 1 for production)"
                 
                 switch ($envOpt) {
                     "2" { Prompt-And-AddEnv "backend" $k "preview" }

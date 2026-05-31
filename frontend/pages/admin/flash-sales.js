@@ -4,6 +4,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { apiFetch } from '../../lib/apiClient';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
+import { normalizePricing } from '../../lib/pricing';
 import { categoriesData } from '@/pages/categories';
 import styles from '@/css/fix.module.css';
 
@@ -652,9 +653,10 @@ export default function AdminFlashSales() {
               <tbody>
                 {sales.map(sale => {
                   const expired = isExpired(sale.expires_at);
-                  const discount = sale.original_price
-                    ? Math.round((1 - sale.sale_price / sale.original_price) * 100)
-                    : 0;
+                  const discount = normalizePricing({
+                    price: sale.sale_price,
+                    originalPrice: sale.original_price,
+                  }).discountPercent;
                   const img = sale.products?.images?.[0] || sale.products?.image_url;
                   return (
                     <tr key={sale.id} style={{ borderBottom: '1px solid #e2e8f0' }}>

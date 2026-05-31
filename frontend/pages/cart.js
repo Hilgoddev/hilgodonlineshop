@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import ConfirmModal from '@/components/ConfirmModal';
+import { normalizePricing } from '@/lib/pricing';
 
 export default function Cart() {
   const { cart, removeFromCart, updateCartQty, clearCart, showToast } = useShop();
@@ -52,7 +53,9 @@ export default function Cart() {
     let totalItems = 0;
     
     cart.forEach(item => {
-      subtotal += (item.product.price || 0) * item.quantity;
+      // Backend returns effective price (already includes flash sales)
+      const itemPrice = normalizePricing(item.product || {}).price;
+      subtotal += itemPrice * item.quantity;
       totalItems += item.quantity;
     });
     
@@ -119,7 +122,9 @@ export default function Cart() {
               
               {/* Cart Items */}
               <div id="cart-table-body">
-                {cart.map(item => (
+                {cart.map(item => {
+                  const itemPricing = normalizePricing(item.product || {});
+                  return (
                   <div key={item.product._id} className="cart-table-row">
                     {/* Checkbox */}
                     <input type="checkbox" className="cart-item-check" />
@@ -147,7 +152,7 @@ export default function Cart() {
                     
                     {/* Price */}
                     <div className="cart-item-price">
-                      {formatPrice(item.product.price || 0, item.product.currency || 'NGN', false)}
+                      {formatPrice(itemPricing.price || 0, item.product.currency || 'NGN', false)}
                     </div>
 
                     {/* Quantity Control */}
@@ -170,7 +175,7 @@ export default function Cart() {
                     
                     {/* Subtotal */}
                     <div className="cart-item-sub">
-                      {formatPrice((item.product.price * item.quantity) || 0, item.product.currency || 'NGN', false)}
+                      {formatPrice((itemPricing.price * item.quantity) || 0, item.product.currency || 'NGN', false)}
                     </div>
                     
                     {/* Remove */}
@@ -182,7 +187,7 @@ export default function Cart() {
                       <i className="fas fa-trash-can"></i>
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
             </div>
 

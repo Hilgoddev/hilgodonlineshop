@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
+import { withNormalizedPricing, normalizePricing } from '@/lib/pricing';
 
 function CountdownBadge({ expiresAt }) {
   const [cd, setCd] = useState({ h: 0, m: 0, s: 0 });
@@ -162,17 +163,15 @@ export default function FlashSales({ flashSales = [] }) {
       <div className="product-grid-5">
         {flashSales.map(sale => {
           const prod = sale.products || {};
-          const discountPct = sale.original_price
-            ? Math.round((1 - sale.sale_price / sale.original_price) * 100)
-            : 0;
-          const productForCard = {
+          const productForCard = withNormalizedPricing({
             ...prod,
             _id: prod.id || sale.product_id,
             id: prod.id || sale.product_id,
             price: sale.sale_price,
             originalPrice: sale.original_price || prod.price,
             badge: 'sale',
-          };
+          });
+          const discountPct = normalizePricing(productForCard).discountPercent;
 
           return (
             <div key={sale.id}>

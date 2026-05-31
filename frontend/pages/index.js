@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
+import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
+import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 
 const CATEGORY_IMAGES = {
   womenswear: 'https://plus.unsplash.com/premium_photo-1661351421471-b288544c3dda?w=600&auto=format&fit=crop&q=60',
@@ -24,6 +26,8 @@ const CATEGORY_IMAGES = {
 };
 
 export default function Home({ products, categories = [], flashSales = [] }) {
+  const [catalogProducts, setCatalogProducts] = useState(products || []);
+  const [catalogLoading, setCatalogLoading] = useState(!products || products.length === 0);
   const [flashProducts, setFlashProducts] = useState([]);
   const [bestsellers, setBestsellers] = useState([]);
   const [electronics, setElectronics] = useState([]);
@@ -62,6 +66,11 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       }
     }
   }, [currentSlide]);
+
+  useEffect(() => {
+    setCatalogProducts(products || []);
+    setCatalogLoading(!products || products.length === 0);
+  }, [products]);
 
   const baseSlides = [
     {
@@ -111,9 +120,15 @@ export default function Home({ products, categories = [], flashSales = [] }) {
     if (flashSales.length === 0) return baseSlides;
     const sale = flashSales[0];
     const prod = sale.products || {};
-    const discountPct = sale.original_price
-      ? Math.round((1 - sale.sale_price / sale.original_price) * 100)
-      : 0;
+    const flashProduct = withNormalizedPricing({
+      ...prod,
+      _id: prod.id || sale.product_id,
+      id: prod.id || sale.product_id,
+      price: sale.sale_price,
+      originalPrice: sale.original_price || prod.price,
+      badge: 'sale',
+    });
+    const discountPct = normalizePricing(flashProduct).discountPercent;
     const flashSlide = {
       id: 'flash',
       bg: 'linear-gradient(135deg,#1a1a1a 0%,#2d1a1a 50%,#3d0000 100%)',
@@ -139,25 +154,55 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 
   // Initialize products by category
   useEffect(() => {
-    if (products && products.length > 0) {
+    if (catalogProducts && catalogProducts.length > 0) {
       const cat = (p) => (p.category || '').toLowerCase();
 
-      const best = [...products]
+      const best = [...catalogProducts]
         .sort((a, b) => (b.ratings?.count || 0) - (a.ratings?.count || 0))
         .slice(0, 5);
       setBestsellers(best);
 
-      setElectronics(products.filter(p => ['electronics', 'accessories', 'phones', 'laptops', 'gadgets'].includes(cat(p))).slice(0, 5));
-      setMenswear(products.filter(p => ['menswear', 'shoes', 'men', 'fashion'].includes(cat(p))).slice(0, 5));
-      setWomenswear(products.filter(p => ['womenswear', 'women', 'fashion'].includes(cat(p))).slice(0, 5));
-      setBeauty(products.filter(p => ['beauty', 'beauty-health', 'skincare', 'cosmetics', 'personal-care'].includes(cat(p))).slice(0, 5));
-      setHomeKitchen(products.filter(p => ['home', 'kitchen', 'home-kitchen', 'appliances', 'furniture'].includes(cat(p))).slice(0, 5));
+      setElectronics(catalogProducts.filter(p => ['electronics', 'accessories', 'phones', 'laptops', 'gadgets'].includes(cat(p))).slice(0, 5));
+      setMenswear(catalogProducts.filter(p => ['menswear', 'shoes', 'men', 'fashion'].includes(cat(p))).slice(0, 5));
+      setWomenswear(catalogProducts.filter(p => ['womenswear', 'women', 'fashion'].includes(cat(p))).slice(0, 5));
+      setBeauty(catalogProducts.filter(p => ['beauty', 'beauty-health', 'skincare', 'cosmetics', 'personal-care'].includes(cat(p))).slice(0, 5));
+      setHomeKitchen(catalogProducts.filter(p => ['home', 'kitchen', 'home-kitchen', 'appliances', 'furniture'].includes(cat(p))).slice(0, 5));
 
-      const newProducts = [...products]
+      const newProducts = [...catalogProducts]
         .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at))
         .slice(0, 5);
       setNewArrivals(newProducts);
+    } else if (!catalogLoading) {
+      setBestsellers([]);
+      setElectronics([]);
+      setMenswear([]);
+      setWomenswear([]);
+      setBeauty([]);
+      setHomeKitchen([]);
+      setNewArrivals([]);
     }
+  }, [catalogProducts, catalogLoading]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProducts = async () => {
+      if (products && products.length > 0) return;
+
+      const data = await fetchJsonWithTimeout('/api/products?limit=500', 15000);
+      if (cancelled || !data?.success || !Array.isArray(data.data)) return;
+
+      setCatalogProducts(data.data);
+      setCatalogLoading(false);
+    };
+
+    loadProducts().finally(() => {
+      if (!cancelled) setCatalogLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [products]);
 
   // Countdown driven by the first active flash sale's expires_at
@@ -183,14 +228,14 @@ export default function Home({ products, categories = [], flashSales = [] }) {
   // Map flash sales to ProductCard-compatible shape
   const flashProductCards = flashSales.map(sale => {
     const prod = sale.products || {};
-    return {
+    return withNormalizedPricing({
       ...prod,
       _id: prod.id || sale.product_id,
       id: prod.id || sale.product_id,
       price: sale.sale_price,
       originalPrice: sale.original_price || prod.price,
       badge: 'sale',
-    };
+    });
   });
 
   return (
@@ -621,6 +666,13 @@ export default function Home({ products, categories = [], flashSales = [] }) {
         </div>
       </div>
 
+      {catalogLoading && catalogProducts.length === 0 && (
+        <div className="products-section" style={{ textAlign: 'center', padding: '28px 16px' }}>
+          <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)' }}></i>
+          <p style={{ marginTop: '12px', color: 'var(--gray-1)' }}>Loading products...</p>
+        </div>
+      )}
+
       {/* Electronics Section */}
       <div className="products-section">
         <div className="section-header">
@@ -792,29 +844,25 @@ export async function getServerSideProps() {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
     // Fetch products, categories and active flash sales in parallel
-    const [prodRes, catRes, flashRes] = await Promise.all([
-      fetch(`${baseUrl}/products?limit=500`),
-      fetch(`${baseUrl}/categories`),
-      fetch(`${baseUrl}/flash-sales`),
+    const [prodData, catData, flashData] = await Promise.all([
+      fetchJsonWithTimeout(`${baseUrl}/products?limit=100`, 4000),
+      fetchJsonWithTimeout(`${baseUrl}/categories`, 4000),
+      fetchJsonWithTimeout(`${baseUrl}/flash-sales`, 4000),
     ]);
-
-    const prodData = await prodRes.json();
-    const catData = await catRes.json();
-    const flashData = await flashRes.json().catch(() => ({ success: false }));
 
     let products = [];
     let categories = [];
     let flashSales = [];
 
-    if (prodData.success && prodData.data) {
+    if (prodData?.success && prodData.data) {
       products = prodData.data;
     }
 
-    if (catData.success && catData.data) {
+    if (catData?.success && catData.data) {
       categories = catData.data;
     }
 
-    if (flashData.success && flashData.data) {
+    if (flashData?.success && flashData.data) {
       flashSales = flashData.data;
     }
 
