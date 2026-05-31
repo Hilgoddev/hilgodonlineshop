@@ -615,13 +615,7 @@ export default function ProductDetail({ product, relatedProducts }) {
 }
 
 export async function getServerSideProps({ params }) {
-  // Build backend base URL: prefer explicit API URL, fall back through proxy
-  const directBase = process.env.NEXT_PUBLIC_API_URL;
-  const proxyBase = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://127.0.0.1:3000';
-
-  const apiBase = directBase || `${proxyBase}/api`;
+  const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
   try {
     const res = await fetch(`${apiBase}/products/${params.id}`, { cache: 'no-store' });

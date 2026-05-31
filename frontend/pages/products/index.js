@@ -34,7 +34,8 @@ export default function ProductsPage({ allProducts = [] }) {
     const loadProducts = async () => {
       if (allProducts && allProducts.length > 0) return;
 
-      const data = await fetchJsonWithTimeout('/api/products?limit=1000', 15000);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+      const data = await fetchJsonWithTimeout(`${apiBase}/products?limit=1000`, 15000);
       if (cancelled || !data?.success || !Array.isArray(data.data)) return;
 
       setCatalogProducts(data.data);
@@ -370,8 +371,8 @@ export default function ProductsPage({ allProducts = [] }) {
 export async function getServerSideProps({ query, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-    const data = await fetchJsonWithTimeout(`${baseUrl}/products?limit=250`, 4000);
+    const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const data = await fetchJsonWithTimeout(`${baseUrl}/products?limit=250`, 12000);
     return {
       props: {
         allProducts: data?.success ? (data.data || []) : [],

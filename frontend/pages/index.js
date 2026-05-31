@@ -6,23 +6,28 @@ import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 
 const CATEGORY_IMAGES = {
-  womenswear: 'https://plus.unsplash.com/premium_photo-1661351421471-b288544c3dda?w=600&auto=format&fit=crop&q=60',
-  home: 'https://plus.unsplash.com/premium_photo-1678742388597-d9d76a759d14?w=600&auto=format&fit=crop&q=60',
-  'home-kitchen': 'https://plus.unsplash.com/premium_photo-1678742388597-d9d76a759d14?w=600&auto=format&fit=crop&q=60',
-  gaming: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=600&auto=format&fit=crop&q=60',
-  herbs: 'https://images.unsplash.com/photo-1563822249548-9a72b6353cd1?w=600&auto=format&fit=crop&q=60',
-  'herbs-spices': 'https://images.unsplash.com/photo-1563822249548-9a72b6353cd1?w=600&auto=format&fit=crop&q=60',
-  electronics: 'https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=600&auto=format&fit=crop&q=60',
-  menswear: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600&auto=format&fit=crop&q=60',
-  fashion: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600&auto=format&fit=crop&q=60',
-  beauty: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&auto=format&fit=crop&q=60',
-  'beauty-health': 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&auto=format&fit=crop&q=60',
-  sports: 'https://images.unsplash.com/photo-1461897104016-0b3b00cc81ee?w=600&auto=format&fit=crop&q=60',
-  'sports-outdoors': 'https://images.unsplash.com/photo-1461897104016-0b3b00cc81ee?w=600&auto=format&fit=crop&q=60',
-  books: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=600&auto=format&fit=crop&q=60',
-  baby: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=600&auto=format&fit=crop&q=60',
-  automotive: 'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=600&auto=format&fit=crop&q=60',
-  accessories: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600&auto=format&fit=crop&q=60',
+  womenswear: 'https://plus.unsplash.com/premium_photo-1661351421471-b288544c3dda?w=300&auto=format&fit=crop&q=60',
+  home: 'https://plus.unsplash.com/premium_photo-1678742388597-d9d76a759d14?w=300&auto=format&fit=crop&q=60',
+  'home-kitchen': 'https://plus.unsplash.com/premium_photo-1678742388597-d9d76a759d14?w=300&auto=format&fit=crop&q=60',
+  gaming: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&auto=format&fit=crop&q=60',
+  herbs: 'https://images.unsplash.com/photo-1563822249548-9a72b6353cd1?w=300&auto=format&fit=crop&q=60',
+  'herbs-spices': 'https://images.unsplash.com/photo-1563822249548-9a72b6353cd1?w=300&auto=format&fit=crop&q=60',
+  electronics: 'https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=300&auto=format&fit=crop&q=60',
+  menswear: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=300&auto=format&fit=crop&q=60',
+  fashion: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?w=300&auto=format&fit=crop&q=60',
+  beauty: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=300&auto=format&fit=crop&q=60',
+  'beauty-health': 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=300&auto=format&fit=crop&q=60',
+  sports: 'https://images.unsplash.com/photo-1461897104016-0b3b00cc81ee?w=300&auto=format&fit=crop&q=60',
+  'sports-outdoors': 'https://images.unsplash.com/photo-1461897104016-0b3b00cc81ee?w=300&auto=format&fit=crop&q=60',
+  books: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=300&auto=format&fit=crop&q=60',
+  baby: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=300&auto=format&fit=crop&q=60',
+  automotive: 'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=300&auto=format&fit=crop&q=60',
+  accessories: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=300&auto=format&fit=crop&q=60',
+  // slugs from DB that aren't in the above list
+  shoes: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&auto=format&fit=crop&q=60',
+  kitchen: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=300&auto=format&fit=crop&q=60',
+  collectibles: 'https://images.unsplash.com/photo-1611604548018-d56bbd85d681?w=300&auto=format&fit=crop&q=60',
+  toys: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=300&auto=format&fit=crop&q=60',
 };
 
 export default function Home({ products, categories = [], flashSales = [] }) {
@@ -189,7 +194,8 @@ export default function Home({ products, categories = [], flashSales = [] }) {
     const loadProducts = async () => {
       if (products && products.length > 0) return;
 
-      const data = await fetchJsonWithTimeout('/api/products?limit=500', 15000);
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+      const data = await fetchJsonWithTimeout(`${apiBase}/products?limit=500`, 15000);
       if (cancelled || !data?.success || !Array.isArray(data.data)) return;
 
       setCatalogProducts(data.data);
@@ -418,9 +424,10 @@ export default function Home({ products, categories = [], flashSales = [] }) {
                   onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--gray-4)'; e.currentTarget.style.transform = 'scale(1)'; }}
                 >
                   <img
-                    src={CATEGORY_IMAGES[category.slug] || category.image || category.image_url || 'https://images.unsplash.com/photo-1563089145-599997674d42?w=150&q=80'}
+                    src={CATEGORY_IMAGES[category.slug] || category.image_url || 'https://images.unsplash.com/photo-1563089145-599997674d42?w=300&q=80'}
                     alt={category.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1563089145-599997674d42?w=300&q=80'; }}
                   />
                 </div>
                 <span style={{
@@ -841,13 +848,13 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 // Fetch products data on the server side
 export async function getServerSideProps() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
 
     // Fetch products, categories and active flash sales in parallel
     const [prodData, catData, flashData] = await Promise.all([
-      fetchJsonWithTimeout(`${baseUrl}/products?limit=100`, 4000),
-      fetchJsonWithTimeout(`${baseUrl}/categories`, 4000),
-      fetchJsonWithTimeout(`${baseUrl}/flash-sales`, 4000),
+      fetchJsonWithTimeout(`${baseUrl}/products?limit=100`, 12000),
+      fetchJsonWithTimeout(`${baseUrl}/categories`, 8000),
+      fetchJsonWithTimeout(`${baseUrl}/flash-sales`, 8000),
     ]);
 
     let products = [];

@@ -192,7 +192,7 @@ export default function FlashSales({ flashSales = [] }) {
 
 export async function getServerSideProps() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
     const res = await fetch(`${baseUrl}/flash-sales`);
     const data = await res.json();
     return {
