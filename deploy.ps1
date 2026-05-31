@@ -208,7 +208,9 @@ function Invoke-VercelEnvAdd {
     $orig = Get-Location
     Set-Location $ProjectDir
     try {
-        $sensitiveFlag = if ($Sensitive) { '--sensitive' } else { '--no-sensitive' }
+        # Vercel does not allow --sensitive on the development environment
+        $effectiveSensitive = $Sensitive -and ($Target -ne 'development')
+        $sensitiveFlag = if ($effectiveSensitive) { '--sensitive' } else { '--no-sensitive' }
         $Value | & vercel env add $Key $Target --yes --force $sensitiveFlag | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "vercel env add exited with code $LASTEXITCODE"
