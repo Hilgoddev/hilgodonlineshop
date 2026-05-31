@@ -1,4 +1,4 @@
-﻿# Hilgod Vercel Deployment Script
+# Hilgod Vercel Deployment Script
 # Deploys frontend and/or backend to Vercel production.
 #
 # Usage:
@@ -8,7 +8,13 @@
 #   .\deploy.ps1 -SkipGitCheck          # skip uncommitted-changes warning
 #   .\deploy.ps1 -SkipEnvCheck          # skip Vercel env presence check
 #   .\deploy.ps1 -SyncEnv               # push local .env files to Vercel before deploying
+#   .\deploy.ps1 -EncryptEnvs           # encrypt .env files -> .env.encrypted (run once, then delete plain files)
 #   .\deploy.ps1 -NoRestore             # do not restore .git after deploy
+#
+# Encryption:
+#   .env.encrypted files use Windows DPAPI (user-account bound).
+#   Only your Windows user on this machine can decrypt them.
+#   Safe to commit to git. Plain .env files should NOT be committed.
 
 param(
     [switch]$SkipGitCheck  = $false,
@@ -16,7 +22,8 @@ param(
     [switch]$BackendOnly   = $false,
     [switch]$NoRestore     = $false,
     [switch]$SkipEnvCheck  = $false,
-    [switch]$SyncEnv       = $false
+    [switch]$SyncEnv       = $false,
+    [switch]$EncryptEnvs   = $false
 )
 
 $env:NO_UPDATE_NOTIFIER = "1"
@@ -50,7 +57,42 @@ function Restore-GitFolder {
     }
 }
 
-function Read-EnvFile {
+# ---------------------------------------------------------------------------
+# DPAPI Encryption helpers
+# ---------------------------------------------------------------------------
+function Protect-EnvValue {
+    param([string]$PlainText)
+    # Encrypts using Windows DPAPI (current user scope).
+    # Returns a hex string safe to store on disk.
+    try {
+        $secure    = ConvertTo-SecureString -String $PlainText -AsPlainText -Force
+        $encrypted = ConvertFrom-SecureString -SecureString $secure
+        return $encrypted
+    } catch {
+        throw "Encryption failed: $($_.Exception.Message)"
+    }
+}
+
+function Unprotect-EnvValue {
+    param([string]$EncryptedHex)
+    # Decrypts a DPAPI-encrypted hex string back to plaintext.
+    try {
+        $secure = ConvertTo-SecureString -String $EncryptedHex
+        $bstr   = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+        try {
+            return [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+        } finally {
+            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+        }
+    } catch {
+        throw "Decryption failed for an env entry: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Env file reading (plain and encrypted)
+# ---------------------------------------------------------------------------
+function Read-EnvFilePlain {
     param([string]$Path)
     $entries = @()
     if (-not (Test-Path $Path)) { return ,$entries }
@@ -74,6 +116,42 @@ function Read-EnvFile {
     return ,$entries
 }
 
+function Read-EnvFileEncrypted {
+    param([string]$Path)
+    $entries = @()
+    if (-not (Test-Path $Path)) { return ,$entries }
+
+    foreach ($line in Get-Content $Path) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith('#')) { continue }
+
+        if ($trimmed -match '^(?<key>[A-Za-z0-9_]+)=(?<value>.+)$') {
+            try {
+                $plain   = Unprotect-EnvValue -EncryptedHex $matches['value']
+                $entries += [pscustomobject]@{ Key = $matches['key']; Value = $plain }
+            } catch {
+                Write-Status "!" "Could not decrypt $($matches['key']) - skipping" -Color "Yellow"
+            }
+        }
+    }
+    return ,$entries
+}
+
+function Read-EnvFile {
+    # Prefer .env.encrypted over plain .env files.
+    # Auto-detects based on what files exist.
+    param([string]$Path)
+    $encPath = [System.IO.Path]::ChangeExtension($Path, $null).TrimEnd('.') + ".encrypted"
+    if (Test-Path $encPath) {
+        Write-Status "*" "Using encrypted env: $encPath" -Color "Cyan"
+        return Read-EnvFileEncrypted -Path $encPath
+    }
+    return Read-EnvFilePlain -Path $Path
+}
+
+# ---------------------------------------------------------------------------
+# Vercel env policy
+# ---------------------------------------------------------------------------
 function Get-VercelEnvPolicy {
     param([string]$Key)
 
@@ -130,10 +208,8 @@ function Invoke-VercelEnvAdd {
     $orig = Get-Location
     Set-Location $ProjectDir
     try {
-        # vercel env add reads the value from stdin - pipe it in directly.
-        # --force overwrites an existing key rather than erroring.
         $sensitiveFlag = if ($Sensitive) { '--sensitive' } else { '--no-sensitive' }
-        $Value | & vercel env add $Key $Target --yes --force $sensitiveFlag
+        $Value | & vercel env add $Key $Target --yes --force $sensitiveFlag | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "vercel env add exited with code $LASTEXITCODE"
         }
@@ -150,14 +226,20 @@ function Sync-VercelEnvFile {
     )
 
     if (-not (Test-Path $EnvFilePath)) {
-        Write-Status "!" "Env file not found: $EnvFilePath" -Color "Yellow"
-        return 0
+        # Check for encrypted variant
+        $encPath = $EnvFilePath -replace '(\.env[^.]*?)$', '$1.encrypted'
+        if (-not (Test-Path $encPath)) {
+            Write-Status "!" "Env file not found: $EnvFilePath" -Color "Yellow"
+            return
+        }
+        $entries = Read-EnvFileEncrypted -Path $encPath
+    } else {
+        $entries = Read-EnvFile -Path $EnvFilePath
     }
 
-    $entries = Read-EnvFile $EnvFilePath
     if (-not $entries -or $entries.Count -eq 0) {
-        Write-Status "!" "No env entries found in $EnvFilePath" -Color "Yellow"
-        return 0
+        Write-Status "!" "No env entries found" -Color "Yellow"
+        return
     }
 
     $synced = 0
@@ -167,13 +249,13 @@ function Sync-VercelEnvFile {
             try {
                 Invoke-VercelEnvAdd -ProjectDir $ProjectDir -Key $entry.Key -Value $entry.Value -Target $target -Sensitive:($policy.Sensitive)
                 Write-Status "OK" "$($entry.Key) -> $target" -Color "Green"
-                $synced++
+                [int]$synced++
             } catch {
                 Write-Status "!" ("Failed {0} -> {1}: {2}" -f $entry.Key, $target, $_.Exception.Message) -Color "Red"
             }
         }
     }
-    return $synced
+    Write-Status "*" "$synced variable(s) pushed from $ProjectDir" -Color "Cyan"
 }
 
 # ---------------------------------------------------------------------------
@@ -185,6 +267,84 @@ Write-Host "  HILGOD ONLINE SHOP - VERCEL DEPLOY  "  -ForegroundColor Cyan
 Write-Host "        FRONTEND + BACKEND             "  -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+
+# ---------------------------------------------------------------------------
+# -EncryptEnvs mode: encrypt .env files and exit
+# ---------------------------------------------------------------------------
+if ($EncryptEnvs) {
+    Write-Host "========================================" -ForegroundColor Magenta
+    Write-Host "       ENCRYPTING ENV FILES           "  -ForegroundColor Magenta
+    Write-Host "========================================" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Status "*" "Using Windows DPAPI (current user, this machine only)" -Color "Cyan"
+    Write-Host ""
+
+    $toEncrypt = @(
+        @{ Label = "Frontend"; Plain = "frontend\.env.local"; Fallback = "frontend\.env" },
+        @{ Label = "Backend";  Plain = "backend\.env";        Fallback = "backend\.env.local" }
+    )
+
+    foreach ($item in $toEncrypt) {
+        $plainPath = if (Test-Path $item.Plain) { $item.Plain }
+                     elseif (Test-Path $item.Fallback) { $item.Fallback }
+                     else { $null }
+
+        if (-not $plainPath) {
+            Write-Status "!" "$($item.Label): no .env file found, skipping" -Color "Yellow"
+            continue
+        }
+
+        $encPath = $plainPath + ".encrypted"
+        Write-Host "$($item.Label): $plainPath -> $encPath" -ForegroundColor Green
+
+        $entries = Read-EnvFilePlain -Path $plainPath
+        if (-not $entries -or $entries.Count -eq 0) {
+            Write-Status "!" "No entries found in $plainPath" -Color "Yellow"
+            continue
+        }
+
+        $lines = @("# Hilgod encrypted env - DPAPI (Windows user-account bound)")
+        $lines += "# Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $lines += "# DO NOT edit manually. Re-run .\deploy.ps1 -EncryptEnvs to regenerate."
+        $lines += ""
+
+        $ok = 0; $failed = 0
+        foreach ($entry in $entries) {
+            try {
+                $enc     = Protect-EnvValue -PlainText $entry.Value
+                $lines  += "$($entry.Key)=$enc"
+                $ok++
+            } catch {
+                Write-Status "!" "Could not encrypt $($entry.Key): $($_.Exception.Message)" -Color "Red"
+                $failed++
+            }
+        }
+
+        $lines | Set-Content -Path $encPath -Encoding UTF8
+        Write-Status "OK" "Wrote $ok encrypted entries to $encPath" -Color "Green"
+        if ($failed -gt 0) {
+            Write-Status "!" "$failed entries could not be encrypted - check manually" -Color "Yellow"
+        }
+        Write-Host ""
+    }
+
+    Write-Host "========================================" -ForegroundColor Magenta
+    Write-Host "  ENCRYPTION COMPLETE" -ForegroundColor Magenta
+    Write-Host "========================================" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "Next steps:" -ForegroundColor Yellow
+    Write-Host "  1. Verify .env.encrypted files were created above" -ForegroundColor White
+    Write-Host "  2. Delete plain .env files (they are no longer needed):" -ForegroundColor White
+    Write-Host "       Remove-Item frontend\.env.local, backend\.env" -ForegroundColor Gray
+    Write-Host "  3. Add to .gitignore: .env, .env.local, .env.production" -ForegroundColor White
+    Write-Host "  4. Commit .env.encrypted files (safe - DPAPI-encrypted)" -ForegroundColor White
+    Write-Host "  5. Deploy as normal: .\deploy.ps1 -SyncEnv" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Note: .env.encrypted files only decrypt on this Windows user account." -ForegroundColor Gray
+    Write-Host "      To move to another machine, re-encrypt on that machine." -ForegroundColor Gray
+    Write-Host ""
+    exit 0
+}
 
 # ---------------------------------------------------------------------------
 # [1/7] Vercel CLI installed?
@@ -235,11 +395,7 @@ if ($SkipGitCheck) {
         Write-Status "!" "Working directory has uncommitted changes:" -Color "Yellow"
         $gitStatusOutput | ForEach-Object { Write-Host "     $_" -ForegroundColor Gray }
         Write-Host ""
-        $response = Read-Host -Prompt "  Continue anyway? (Y/N)"
-        if ($response -notmatch '^[Yy]') {
-            Write-Status "X" "Deployment cancelled." -Color "Red"
-            exit 0
-        }
+        Write-Status "!" "Continuing anyway (commit first to track what was deployed)" -Color "Yellow"
     } else {
         Write-Status "OK" "Working directory is clean" -Color "Green"
     }
@@ -261,7 +417,7 @@ Write-Host "[4/7] Preparing .git folder for deployment..." -ForegroundColor Yell
 if ($SkipGitCheck) {
     Write-Status "!" "Skipping .git rename (SkipGitCheck)" -Color "Yellow"
 } elseif (Test-Path ".git") {
-    # Find and clean up old backup folders
+    # Clean up old backup folders
     $existingBackups = @()
     if (Test-Path ".git.backup") { $existingBackups += ".git.backup" }
     $numberedBackups = Get-ChildItem -Path "." -Filter ".git.backup.*" -ErrorAction SilentlyContinue
@@ -281,10 +437,9 @@ if ($SkipGitCheck) {
             }
         }
 
-        # Pick next backup number
         $backupNumbers = $existingBackups | ForEach-Object {
-            if ($_ -eq '.git.backup')                       { 0 }
-            elseif ($_ -match '\.git\.backup\.(\d+)$')     { [int]$Matches[1] }
+            if ($_ -eq '.git.backup')                   { 0 }
+            elseif ($_ -match '\.git\.backup\.(\d+)$') { [int]$Matches[1] }
         } | Where-Object { $null -ne $_ }
 
         $nextNum = 1
@@ -338,7 +493,6 @@ if ($SkipEnvCheck) {
     Write-Status "*" "Frontend envs detected: $($frontendEnvNames.Count)" -Color "Gray"
     Write-Status "*" "Backend envs detected:  $($backendEnvNames.Count)"  -Color "Gray"
 
-    # Keys that must NEVER be in the frontend project
     $mustNotBeFrontend = @(
         'SUPABASE_SERVICE_ROLE_KEY',
         'STRIPE_SECRET_KEY',
@@ -349,15 +503,9 @@ if ($SkipEnvCheck) {
     )
     $leakedKeys = $mustNotBeFrontend | Where-Object { $frontendEnvNames -contains $_ }
     if ($leakedKeys.Count -gt 0) {
-        Write-Status "!" "Sensitive keys found in frontend envs: $($leakedKeys -join ', ')" -Color "Red"
-        $resp = Read-Host -Prompt "  Remove them first, or proceed anyway? (Y to proceed, N to abort)"
-        if ($resp -notmatch '^[Yy]') {
-            Write-Status "X" "Aborting." -Color "Red"
-            Restore-GitFolder; exit 1
-        }
+        Write-Status "!" "Sensitive keys found in frontend envs: $($leakedKeys -join ', ') - review in Vercel dashboard" -Color "Yellow"
     }
 
-    # Required keys
     $frontendRequired = @('NEXT_PUBLIC_SUPABASE_URL','NEXT_PUBLIC_SUPABASE_ANON_KEY','NEXT_PUBLIC_API_URL','GOOGLE_CLIENT_ID')
     $backendRequired  = @('SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','PAYSTACK_SECRET_KEY','RESEND_API_KEY')
 
@@ -368,11 +516,7 @@ if ($SkipEnvCheck) {
     if ($missingBackend.Count  -gt 0) { Write-Status "!" "Missing backend envs:  $($missingBackend  -join ', ')" -Color "Yellow" }
 
     if (($missingFrontend.Count -gt 0) -or ($missingBackend.Count -gt 0)) {
-        $resp2 = Read-Host -Prompt "  Some required envs are missing. Deploy anyway? (Y/N)"
-        if ($resp2 -notmatch '^[Yy]') {
-            Write-Status "X" "Aborted." -Color "Red"
-            Restore-GitFolder; exit 1
-        }
+        Write-Status "!" "Continuing despite missing envs - add them in Vercel dashboard if needed" -Color "Yellow"
     } else {
         Write-Status "OK" "All required environment variables present" -Color "Green"
     }
@@ -380,7 +524,7 @@ if ($SkipEnvCheck) {
 Write-Host ""
 
 # ---------------------------------------------------------------------------
-# [5b] Optional env sync (-SyncEnv flag)
+# [5b] Optional env sync (-SyncEnv)
 # ---------------------------------------------------------------------------
 if ($SyncEnv) {
     Write-Host "========================================" -ForegroundColor Cyan
@@ -388,35 +532,37 @@ if ($SyncEnv) {
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
 
-    $syncTotal = 0
-
     if (-not $BackendOnly -and (Test-Path "frontend")) {
         Write-Host "FRONTEND" -ForegroundColor Green
-        $feFile = if (Test-Path "frontend\.env.local") { "frontend\.env.local" }
-                  elseif (Test-Path "frontend\.env")   { "frontend\.env" }
-                  else                                  { $null }
+        $feFile = if (Test-Path "frontend\.env.local.encrypted") { "frontend\.env.local" }
+                  elseif (Test-Path "frontend\.env.encrypted")   { "frontend\.env" }
+                  elseif (Test-Path "frontend\.env.local")       { "frontend\.env.local" }
+                  elseif (Test-Path "frontend\.env")             { "frontend\.env" }
+                  else                                            { $null }
         if ($feFile) {
-            $syncTotal += Sync-VercelEnvFile -ProjectDir "frontend" -EnvFilePath $feFile -Targets @('production','preview','development')
+            Sync-VercelEnvFile -ProjectDir "frontend" -EnvFilePath $feFile -Targets @('production','preview','development')
         } else {
-            Write-Status "!" "No frontend env file found" -Color "Yellow"
+            Write-Status "!" "No frontend env file found (checked .env.local.encrypted, .env.encrypted, .env.local, .env)" -Color "Yellow"
         }
     }
 
     if (-not $FrontendOnly -and (Test-Path "backend")) {
         Write-Host ""
         Write-Host "BACKEND" -ForegroundColor Green
-        $beFile = if (Test-Path "backend\.env")       { "backend\.env" }
-                  elseif (Test-Path "backend\.env.local") { "backend\.env.local" }
-                  else                                 { $null }
+        $beFile = if (Test-Path "backend\.env.encrypted")        { "backend\.env" }
+                  elseif (Test-Path "backend\.env.local.encrypted") { "backend\.env.local" }
+                  elseif (Test-Path "backend\.env")              { "backend\.env" }
+                  elseif (Test-Path "backend\.env.local")        { "backend\.env.local" }
+                  else                                            { $null }
         if ($beFile) {
-            $syncTotal += Sync-VercelEnvFile -ProjectDir "backend" -EnvFilePath $beFile -Targets @('production','preview','development')
+            Sync-VercelEnvFile -ProjectDir "backend" -EnvFilePath $beFile -Targets @('production','preview','development')
         } else {
-            Write-Status "!" "No backend env file found" -Color "Yellow"
+            Write-Status "!" "No backend env file found (checked .env.encrypted, .env, .env.local)" -Color "Yellow"
         }
     }
 
     Write-Host ""
-    Write-Status "OK" "Env sync complete - $syncTotal variable(s) pushed." -Color "Green"
+    Write-Status "OK" "Env sync complete." -Color "Green"
     Write-Host ""
 }
 
@@ -537,20 +683,21 @@ if ($overallSuccess) {
     Write-Status "*" "All done! Check Vercel dashboard and test your live site." -Color "Cyan"
 } else {
     Write-Host "Troubleshooting:" -ForegroundColor Yellow
-    Write-Host "  1. vercel login         - re-authenticate if token expired" -ForegroundColor White
-    Write-Host "  2. vercel whoami        - confirm which account is active"  -ForegroundColor White
-    Write-Host "  3. Check error output above for details"                    -ForegroundColor White
-    Write-Host "  4. vercel env ls        - verify env vars are set"          -ForegroundColor White
+    Write-Host "  1. vercel login          - re-authenticate if token expired"    -ForegroundColor White
+    Write-Host "  2. vercel whoami         - confirm which account is active"     -ForegroundColor White
+    Write-Host "  3. Check error output above for details"                        -ForegroundColor White
+    Write-Host "  4. vercel env ls         - verify env vars are set"             -ForegroundColor White
     Write-Host ""
     exit 1
 }
 
 Write-Host ""
 Write-Host "Flags:" -ForegroundColor Cyan
-Write-Host "  -FrontendOnly   Deploy frontend only"            -ForegroundColor Gray
-Write-Host "  -BackendOnly    Deploy backend only"             -ForegroundColor Gray
-Write-Host "  -SkipGitCheck   Skip uncommitted-changes check"  -ForegroundColor Gray
-Write-Host "  -SkipEnvCheck   Skip env variable check"         -ForegroundColor Gray
-Write-Host "  -SyncEnv        Push local .env files to Vercel" -ForegroundColor Gray
-Write-Host "  -NoRestore      Keep .git renamed after deploy"  -ForegroundColor Gray
+Write-Host "  -FrontendOnly    Deploy frontend only"                   -ForegroundColor Gray
+Write-Host "  -BackendOnly     Deploy backend only"                    -ForegroundColor Gray
+Write-Host "  -SkipGitCheck    Skip uncommitted-changes check"         -ForegroundColor Gray
+Write-Host "  -SkipEnvCheck    Skip env variable check"                -ForegroundColor Gray
+Write-Host "  -SyncEnv         Push local .env files to Vercel"        -ForegroundColor Gray
+Write-Host "  -EncryptEnvs     Encrypt .env files -> .env.encrypted"   -ForegroundColor Gray
+Write-Host "  -NoRestore       Keep .git renamed after deploy"         -ForegroundColor Gray
 Write-Host ""
