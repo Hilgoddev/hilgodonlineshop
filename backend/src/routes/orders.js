@@ -405,11 +405,11 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const orderId = updatedOrder.id;
         const newStatus = updatedOrder.status;
         if (updatedOrder.user_id) {
-            supabase.from('profiles').select('email').eq('id', updatedOrder.user_id).single()
-                .then(({ data: profile }) => {
-                    if (profile?.email) {
+            supabase.auth.admin.getUserById(updatedOrder.user_id)
+                .then(({ data: { user } }) => {
+                    if (user?.email) {
                         sendEmail({
-                            to: profile.email,
+                            to: user.email,
                             subject: `Order Update — Hilgod`,
                             html: orderStatusHtml(orderId, newStatus),
                             emailType: 'order_status',

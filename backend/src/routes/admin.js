@@ -474,7 +474,6 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
 
         // Notify applicant by email
         if (status === 'approved') {
-            const { sendEmail } = require('../services/email');
             sendEmail({
                 to: data.email,
                 subject: 'Your Hilgod Rider Application Has Been Approved!',
@@ -487,7 +486,6 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
                 userId: user_id,
             }).catch(() => { });
         } else if (status === 'rejected') {
-            const { sendEmail } = require('../services/email');
             sendEmail({
                 to: data.email,
                 subject: 'Update on Your Hilgod Rider Application',

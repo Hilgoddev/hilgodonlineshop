@@ -53,9 +53,11 @@ async function handlePaymentSuccess(order_id, user_id) {
           sendEmail({
             to: user.email,
             subject: `Payment Confirmed — Order #${String(order_id).slice(0, 8).toUpperCase()}`,
-            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName),            emailType: 'payment_confirmed',
+            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName),
+            emailType: 'payment_confirmed',
             orderId: order_id,
-            userId: user_id,          }).catch(() => {});
+            userId: user_id,
+          }).catch(() => {});
         }
       } catch {}
     }
