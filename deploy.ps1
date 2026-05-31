@@ -1,4 +1,4 @@
-# Hilgod Vercel Deployment Script
+﻿# Hilgod Vercel Deployment Script
 # Deploys frontend and/or backend to Vercel production.
 #
 # Usage:
@@ -44,7 +44,7 @@ function Restore-GitFolder {
             Rename-Item -Path $backupGitName -NewName ".git" -ErrorAction Stop
             Write-Status "OK" ".git folder restored" -Color "Green"
         } catch {
-            Write-Status "!" "Could not restore .git — rename '$backupGitName' to '.git' manually." -Color "Red"
+            Write-Status "!" "Could not restore .git - rename '$backupGitName' to '.git' manually." -Color "Red"
             Write-Status "*" "Error: $($_.Exception.Message)" -Color "White"
         }
     }
@@ -130,7 +130,7 @@ function Invoke-VercelEnvAdd {
     $orig = Get-Location
     Set-Location $ProjectDir
     try {
-        # vercel env add reads the value from stdin — pipe it in directly.
+        # vercel env add reads the value from stdin - pipe it in directly.
         # --force overwrites an existing key rather than erroring.
         $sensitiveFlag = if ($Sensitive) { '--sensitive' } else { '--no-sensitive' }
         $Value | & vercel env add $Key $Target --yes --force $sensitiveFlag
@@ -416,7 +416,7 @@ if ($SyncEnv) {
     }
 
     Write-Host ""
-    Write-Status "OK" "Env sync complete — $syncTotal variable(s) pushed." -Color "Green"
+    Write-Status "OK" "Env sync complete - $syncTotal variable(s) pushed." -Color "Green"
     Write-Host ""
 }
 
@@ -479,14 +479,14 @@ if ($gitRenamed -and -not $NoRestore) {
             Rename-Item -Path $backupGitName -NewName ".git" -ErrorAction Stop
             Write-Status "OK" ".git restored" -Color "Green"
         } catch {
-            Write-Status "!" "Restore failed — rename '$backupGitName' to '.git' manually." -Color "Red"
+            Write-Status "!" "Restore failed - rename '$backupGitName' to '.git' manually." -Color "Red"
             Write-Status "*" "Error: $($_.Exception.Message)" -Color "White"
         }
     } else {
-        Write-Status "!" "Backup '$backupGitName' not found — cannot restore." -Color "Yellow"
+        Write-Status "!" "Backup '$backupGitName' not found - cannot restore." -Color "Yellow"
     }
 } elseif ($NoRestore) {
-    Write-Status "!" "Skipping restore (NoRestore) — rename '$backupGitName' to '.git' manually." -Color "Yellow"
+    Write-Status "!" "Skipping restore (NoRestore) - rename '$backupGitName' to '.git' manually." -Color "Yellow"
 } else {
     Write-Status "i" "Nothing to restore" -Color "Gray"
 }
@@ -537,10 +537,10 @@ if ($overallSuccess) {
     Write-Status "*" "All done! Check Vercel dashboard and test your live site." -Color "Cyan"
 } else {
     Write-Host "Troubleshooting:" -ForegroundColor Yellow
-    Write-Host "  1. vercel login         — re-authenticate if token expired" -ForegroundColor White
-    Write-Host "  2. vercel whoami        — confirm which account is active"  -ForegroundColor White
+    Write-Host "  1. vercel login         - re-authenticate if token expired" -ForegroundColor White
+    Write-Host "  2. vercel whoami        - confirm which account is active"  -ForegroundColor White
     Write-Host "  3. Check error output above for details"                    -ForegroundColor White
-    Write-Host "  4. vercel env ls        — verify env vars are set"          -ForegroundColor White
+    Write-Host "  4. vercel env ls        - verify env vars are set"          -ForegroundColor White
     Write-Host ""
     exit 1
 }

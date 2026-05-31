@@ -147,7 +147,8 @@ router.get('/', async (req, res, next) => {
             }
         }
 
-        const flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id));
+        let flashSaleMap = new Map();
+        try { flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id)); } catch {}
 
         const payload = {
             success: true,
@@ -178,7 +179,8 @@ router.get('/all', verifyToken, async (req, res, next) => {
 
         if (error) throw error;
         res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
-        const flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id));
+        let flashSaleMap = new Map();
+        try { flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id)); } catch {}
         res.status(200).json({
             success: true,
             data: (data || []).map((p) => mapProduct(p, flashSaleMap.get(p.id))),
@@ -237,7 +239,8 @@ router.get('/:id', async (req, res, next) => {
             };
         }
 
-        const flashSaleMap = await getActiveFlashSaleMap([data.id]);
+        let flashSaleMap = new Map();
+        try { flashSaleMap = await getActiveFlashSaleMap([data.id]); } catch {}
         const payload = { success: true, data: mapProduct(data, flashSaleMap.get(data.id)) };
         res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
         res.status(200).json(payload);

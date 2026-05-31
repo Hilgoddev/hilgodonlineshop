@@ -483,7 +483,7 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
                   <p>Our onboarding team will reach out to you at <strong>${data.phone}</strong> within 24 hours to get you started.</p>
                 </div>`,
                 emailType: 'rider_approval',
-                userId: user_id,
+                userId: req.user.id,
             }).catch(() => { });
         } else if (status === 'rejected') {
             sendEmail({
@@ -496,7 +496,7 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
                   <p>You are welcome to reapply in the future. Email <a href="mailto:hilgodonline@gmail.com">hilgodonline@gmail.com</a> if you have questions.</p>
                 </div>`,
                 emailType: 'rider_rejection',
-                userId: user_id,
+                userId: req.user.id,
             }).catch(() => {});
         }
 
