@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
+const { withTimeout, makeCache } = require('../lib/resilience');
+const meCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Middleware to verify Supabase token
 const verifyToken = async (req, res, next) => {
@@ -10,7 +12,17 @@ const verifyToken = async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    let user, error;
+    try {
+        ({ data: { user } = {}, error } = await withTimeout(
+            () => supabase.auth.getUser(token),
+            8 * 1000,
+        ));
+    } catch (e) {
+        // Timeout / transient outage — NOT an auth failure. Tell the client to
+        // retry instead of masquerading as 401 (bad token) or 500 (our bug).
+        return res.status(503).json({ success: false, message: 'Auth temporarily unavailable' });
+    }
 
     if (error || !user) {
         return res.status(401).json({ success: false, message: 'Invalid token' });
@@ -100,19 +112,22 @@ router.post('/auto-confirm', async (req, res, next) => {
 
 // Get current user profile
 router.get('/me', verifyToken, async (req, res, next) => {
+    const cacheKey = req.user.id;
     try {
-        const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', req.user.id)
-            .maybeSingle();
-
+        const { data: profile, error } = await withTimeout(
+            (signal) => supabase.from('profiles').select('*').eq('id', req.user.id).maybeSingle().abortSignal(signal),
+            8 * 1000,
+        );
         if (error) throw error;
         if (!profile) return res.status(404).json({ success: false, data: null, message: 'Profile not found' });
 
+        meCache.set(cacheKey, profile);
         res.status(200).json({ success: true, data: profile });
     } catch (err) {
-        next(err);
+        // Serve a recently cached profile rather than 500 on a transient stall.
+        const cached = meCache.get(cacheKey);
+        if (cached) return res.status(200).json({ success: true, data: cached.value, stale: true });
+        return res.status(503).json({ success: false, message: 'Profile temporarily unavailable' });
     }
 });
 
