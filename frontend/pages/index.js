@@ -33,6 +33,7 @@ const CATEGORY_IMAGES = {
 export default function Home({ products, categories = [], flashSales = [] }) {
   const [catalogProducts, setCatalogProducts] = useState(products || []);
   const [catalogLoading, setCatalogLoading] = useState(!products || products.length === 0);
+  const [categoryList, setCategoryList] = useState(categories || []);
   const [flashProducts, setFlashProducts] = useState([]);
   const [bestsellers, setBestsellers] = useState([]);
   const [electronics, setElectronics] = useState([]);
@@ -210,6 +211,30 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       cancelled = true;
     };
   }, [products]);
+
+  // Keep categories in sync with SSR props, and fall back to a client-side
+  // fetch when SSR returned none (e.g. the server-side fetch timed out).
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setCategoryList(categories);
+      return;
+    }
+
+    let cancelled = false;
+    const loadCategories = async () => {
+      const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api')
+        .replace(/^﻿/, '')
+        .trim();
+      const data = await fetchJsonWithTimeout(`${apiBase}/categories`, 15000);
+      if (cancelled || !data?.success || !Array.isArray(data.data)) return;
+      setCategoryList(data.data);
+    };
+    loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [categories]);
 
   // Countdown driven by the first active flash sale's expires_at
   useEffect(() => {
@@ -397,7 +422,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
               }
             `}} />
 
-            {categories.slice(0, 12).map(category => (
+            {categoryList.slice(0, 12).map(category => (
               <Link
                 key={category.id || category.slug}
                 href={`/products?category=${category.slug}`}
