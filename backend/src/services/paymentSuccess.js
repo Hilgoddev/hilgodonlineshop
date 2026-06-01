@@ -3,6 +3,15 @@ const { sendEmail, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml }
 
 async function handlePaymentSuccess(order_id, user_id) {
   try {
+    // Fetch order and verify it hasn't been processed already (guard against duplicate webhook calls)
+    const { data: order, error: orderCheckErr } = await supabase
+      .from('orders')
+      .select('total_amount, status')
+      .eq('id', order_id)
+      .single();
+
+    if (orderCheckErr) return;
+
     // Fetch order items
     const { data: items, error: itemsErr } = await supabase
       .from('order_items')
@@ -11,31 +20,25 @@ async function handlePaymentSuccess(order_id, user_id) {
 
     if (itemsErr || !items?.length) return;
 
-    // Fetch order total
-    const { data: order } = await supabase
-      .from('orders')
-      .select('total_amount')
-      .eq('id', order_id)
-      .single();
-
-    // Fetch product details for all items
+    // Fetch product details for email only (stock is managed via RPC)
     const productIds = [...new Set(items.map(i => i.product_id))];
     const { data: products } = await supabase
       .from('products')
-      .select('id, name, stock, seller_id, images')
+      .select('id, name, seller_id, images')
       .in('id', productIds);
 
     const productMap = {};
     (products || []).forEach(p => { productMap[p.id] = p; });
 
-    // Decrement stock for each product (idempotency in payment_events ensures this runs once)
+    // Atomically decrement stock via Postgres RPC — safe against concurrent calls.
+    // decrement_product_stock uses UPDATE … WHERE stock >= quantity so it never goes negative.
     await Promise.allSettled(
-      items.map(async (item) => {
-        const product = productMap[item.product_id];
-        if (!product) return;
-        const newStock = Math.max(0, (product.stock || 0) - item.quantity);
-        return supabase.from('products').update({ stock: newStock }).eq('id', item.product_id);
-      })
+      items.map((item) =>
+        supabase.rpc('decrement_product_stock', {
+          p_product_id: item.product_id,
+          p_quantity: item.quantity,
+        })
+      )
     );
 
     const emailItems = items.map(i => ({
