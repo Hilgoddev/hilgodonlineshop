@@ -50,10 +50,19 @@ const initializePayment = async (req, res, next) => {
         const sanitize = (s) => (s || '').replace(/[﻿​-‍⁠]/g, '').trim();
         const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
-        const payerEmail = [sanitize(email), sanitize(req.user?.email)]
+        // Try, in order: the email sent with the request, the email captured on
+        // the order's shipping address at checkout, then the account email.
+        const orderEmail = order?.shipping_address?.email;
+        const payerEmail = [sanitize(email), sanitize(orderEmail), sanitize(req.user?.email)]
             .find(isValidEmail);
 
         if (!payerEmail) {
+            console.error('[PAYMENT] No valid payer email', {
+                order_id,
+                bodyEmail: !!email,
+                orderEmail: !!orderEmail,
+                userEmail: !!req.user?.email,
+            });
             return res.status(400).json({ success: false, message: 'A valid payer email is required' });
         }
 

@@ -191,7 +191,8 @@ export default function Checkout() {
           clearCart(); // clear only on successful redirect to Paystack
           window.location.href = payResult.data.authorization_url;
         } else {
-          showToast('Payment initialization failed. Your order is saved — please retry or choose a different payment method.', 'error');
+          const reason = payResult.message ? ` (${payResult.message})` : '';
+          showToast(`Payment initialization failed${reason}. Your order is saved — please retry or choose a different payment method.`, 'error');
           setSubmitting(false);
         }
 
