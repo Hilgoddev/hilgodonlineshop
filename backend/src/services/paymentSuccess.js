@@ -96,9 +96,10 @@ async function handlePaymentSuccess(order_id, user_id) {
     }
 
     // Notify admin
-    if (process.env.ADMIN_EMAIL) {
+    const adminEmail = require('../lib/env').cleanEnv(process.env.ADMIN_EMAIL);
+    if (adminEmail) {
       sendEmail({
-        to: process.env.ADMIN_EMAIL,
+        to: adminEmail,
         subject: `New Paid Order — #${String(order_id).slice(0, 8).toUpperCase()}`,
         html: newOrderAdminHtml(order_id, emailItems, order?.total_amount || 0, user_id || 'Unknown'),
         emailType: 'new_order_admin',

@@ -9,23 +9,31 @@ function escapeHtml(str) {
     .replace(/'/g, '&#x27;');
 }
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const BASE_URL = process.env.FRONTEND_URL || 'https://hilgod-frontend.onrender.com';
+const { cleanEnv } = require('../lib/env');
+
+// Sanitize the key — a BOM/zero-width char (common in copied-in dashboard env
+// vars) makes the "Authorization: Bearer <key>" header throw and silently
+// breaks ALL emails in production while working locally.
+const RESEND_API_KEY = cleanEnv(process.env.RESEND_API_KEY);
+const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://hilgod-frontend.onrender.com';
 const supabase = require('../config/supabase');
+
+const FROM_ORDERS = cleanEnv(process.env.EMAIL_FROM_ORDERS) || 'Order Notifications <contact@hilgod.com>';
+const FROM_NOREPLY = cleanEnv(process.env.EMAIL_FROM_NOREPLY) || 'Hilgod <noreply@hilgod.com>';
 
 // Email type to sender address mapping
 const EMAIL_FROM_MAP = {
-  order_confirmation: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
-  order_status: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
-  payment_confirmed: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
-  new_order_seller: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
-  new_order_admin: process.env.EMAIL_FROM_ORDERS || 'Order Notifications <contact@hilgod.com>',
-  seller_approval: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
-  rider_approval: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
-  rider_rejection: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
-  newsletter: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
-  admin_alert: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
-  general: process.env.EMAIL_FROM_NOREPLY || 'Hilgod <noreply@hilgod.com>',
+  order_confirmation: FROM_ORDERS,
+  order_status: FROM_ORDERS,
+  payment_confirmed: FROM_ORDERS,
+  new_order_seller: FROM_ORDERS,
+  new_order_admin: FROM_ORDERS,
+  seller_approval: FROM_NOREPLY,
+  rider_approval: FROM_NOREPLY,
+  rider_rejection: FROM_NOREPLY,
+  newsletter: FROM_NOREPLY,
+  admin_alert: FROM_NOREPLY,
+  general: FROM_NOREPLY,
 };
 
 /**
@@ -68,7 +76,11 @@ function getEmailFooter() {
  */
 async function sendEmail({ to, subject, html, emailType = 'general', orderId = null, userId = null, metadata = {} }) {
   const logId = crypto.randomUUID();
-  
+
+  // Sanitize recipient too — a BOM/zero-width char here would make Resend
+  // reject the address or break the request.
+  to = cleanEnv(to);
+
   // Get sender address based on email type
   const fromEmail = EMAIL_FROM_MAP[emailType] || EMAIL_FROM_MAP.general;
   
