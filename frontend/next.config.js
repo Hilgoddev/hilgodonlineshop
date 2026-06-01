@@ -13,10 +13,15 @@ const nextConfig = {
   },
 
   async rewrites() {
+    // Strip a leading BOM/zero-width no-break space and surrounding whitespace
+    // that can sneak into the env var and break Next's rewrite URL validation.
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api')
+      .replace(/^﻿/, '')
+      .trim()
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api'}/:path*`,
+        destination: `${apiBase}/:path*`,
       },
     ]
   },
