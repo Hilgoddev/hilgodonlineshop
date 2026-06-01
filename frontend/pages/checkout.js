@@ -4,7 +4,7 @@ import Layout from '@/components/Layout';
 import AuthGuard from '@/components/AuthGuard';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { apiFetch } from '../lib/apiClient';
+import { apiFetch, safeJson } from '../lib/apiClient';
 import { normalizePricing } from '../lib/pricing';
 import { cleanEnv } from '../lib/env';
 import { loadStripe } from '@stripe/stripe-js';
@@ -169,7 +169,7 @@ export default function Checkout() {
           paymentMethod: selectedPayment,
         }),
       });
-      const orderResult = await orderRes.json();
+      const orderResult = await safeJson(orderRes);
 
       if (!orderResult.success) {
         showToast(orderResult.error || orderResult.message || 'Failed to place order. Please try again.', 'error');
@@ -188,7 +188,7 @@ export default function Checkout() {
           method: 'POST',
           body: JSON.stringify({ orderId, amount: snapshot.total, email: formData.email }),
         });
-        const payResult = await payRes.json();
+        const payResult = await safeJson(payRes);
         if (payResult.success) {
           clearCart(); // clear only on successful redirect to Paystack
           window.location.href = payResult.data.authorization_url;
@@ -203,7 +203,7 @@ export default function Checkout() {
           method: 'POST',
           body: JSON.stringify({ order_id: orderId }),
         });
-        const piResult = await piRes.json();
+        const piResult = await safeJson(piRes);
         if (piResult.success) {
           clearCart(); // clear when entering Stripe payment flow
           setStripeClientSecret(piResult.clientSecret);
@@ -218,7 +218,7 @@ export default function Checkout() {
 
       } else if (selectedPayment === 'bank_transfer') {
         const bdRes = await apiFetch('/api/payment/bank-details');
-        const bdResult = await bdRes.json();
+        const bdResult = await safeJson(bdRes);
         if (bdResult.success) setBankDetails(bdResult.data);
         clearCart(); // order placed, awaiting bank transfer confirmation
         setView('bank_transfer');
