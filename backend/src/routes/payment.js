@@ -7,6 +7,7 @@ const { verifyToken } = require('./auth');
 const { paymentInitLimiter } = require('../middleware/rateLimit');
 const { handlePaymentSuccess } = require('../services/paymentSuccess');
 const { cleanEnv } = require('../lib/env');
+const { withTimeout } = require('../lib/resilience');
 
 const initializePayment = async (req, res, next) => {
     const __t = Date.now();
@@ -20,13 +21,23 @@ const initializePayment = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'order_id/orderId is required' });
         }
 
-        // Ensure order belongs to user
-        const { data: order, error: orderError } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', order_id)
-            .eq('user_id', req.user.id)
-            .single();
+        // Ensure order belongs to user — hard 7s timeout so we never blow the 10s limit
+        let order, orderError;
+        try {
+            ({ data: order, error: orderError } = await withTimeout(
+                (signal) => supabase
+                    .from('orders')
+                    .select('id, user_id, total_amount, shipping_address, payment_reference')
+                    .eq('id', order_id)
+                    .eq('user_id', req.user.id)
+                    .abortSignal(signal)
+                    .single(),
+                7000,
+            ));
+        } catch (e) {
+            console.error('[PAYMENT] order fetch timed out:', e.message);
+            return res.status(503).json({ success: false, message: 'Order service is slow right now. Please try again.' });
+        }
         __lap('order fetched');
 
         if (orderError || !order) {
@@ -70,26 +81,34 @@ const initializePayment = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'A valid payer email is required' });
         }
 
-        // Initialize Paystack transaction
-        const frontendUrl = (process.env.FRONTEND_URL || 'https://hilgod.vercel.app').replace(/\/$/, '');
+        // Initialize Paystack transaction — 6s timeout so total stays under 10s
+        const frontendUrl = cleanEnv(process.env.FRONTEND_URL || 'https://www.hilgod.com').replace(/\/$/, '');
         __lap('before paystack.initialize');
-        const response = await paystack.transaction.initialize({
-            email: payerEmail,
-            amount: amount * 100, // convert to subunits
-            reference: `ORD_${order_id}_${Date.now()}`,
-            callback_url: `${frontendUrl}/checkout`,
-            metadata: {
-                order_id: order_id,
-                user_id: req.user.id
+        let response;
+        try {
+            response = await withTimeout(
+                () => paystack.transaction.initialize({
+                    email: payerEmail,
+                    amount: amount * 100, // convert to subunits
+                    reference: `ORD_${order_id}_${Date.now()}`,
+                    callback_url: `${frontendUrl}/checkout`,
+                    metadata: { order_id, user_id: req.user.id },
+                }),
+                6000,
+            );
+        } catch (e) {
+            if (e.message && e.message.includes('timed out')) {
+                return res.status(503).json({ success: false, message: 'Payment gateway timed out. Please try again.' });
             }
-        });
+            throw e; // re-throw for the outer catch to handle as a gateway error
+        }
         __lap('paystack.initialize done');
 
-        // Save the payment reference to the order
-        await supabase
-            .from('orders')
-            .update({ payment_reference: response.data.reference })
-            .eq('id', order_id);
+        // Save the payment reference (best-effort, 3s max — don't block the redirect)
+        withTimeout(
+            (signal) => supabase.from('orders').update({ payment_reference: response.data.reference }).eq('id', order_id).abortSignal(signal),
+            3000,
+        ).catch((e) => console.warn('[PAYMENT] reference save failed (non-fatal):', e.message));
         __lap('order updated + responding');
 
         res.status(200).json({ success: true, data: response.data });
