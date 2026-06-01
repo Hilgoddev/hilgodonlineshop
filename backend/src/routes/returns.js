@@ -117,6 +117,16 @@ router.patch('/:id', verifyToken, requireAdmin, async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Invalid status' });
         }
 
+        // Read the current state first so we can detect the transition into a
+        // stock-restoring status (approved/refunded) and avoid double-restoring.
+        const { data: existing, error: existingErr } = await supabase
+            .from('return_requests')
+            .select('order_id, status')
+            .eq('id', req.params.id)
+            .maybeSingle();
+        if (existingErr) throw existingErr;
+        if (!existing) return res.status(404).json({ success: false, error: 'Return request not found' });
+
         const update = {};
         if (status) update.status = status;
         if (admin_notes !== undefined) update.admin_notes = admin_notes;
@@ -129,6 +139,34 @@ router.patch('/:id', verifyToken, requireAdmin, async (req, res, next) => {
             .single();
 
         if (error) throw error;
+
+        // Restore stock when a return moves INTO approved/refunded from a state
+        // outside that set. Returns are order-scoped here, so restore every item
+        // of the order that was actually decremented (paid order) and not already
+        // cancelled (cancellation restores its own stock in seller.js).
+        const RESTORE_STATES = ['approved', 'refunded'];
+        if (status && RESTORE_STATES.includes(status) && !RESTORE_STATES.includes(existing.status)) {
+            const { data: ord } = await supabase
+                .from('orders')
+                .select('status')
+                .eq('id', existing.order_id)
+                .maybeSingle();
+            if (ord && ['paid', 'shipped', 'delivered'].includes(ord.status)) {
+                const { data: orderItems } = await supabase
+                    .from('order_items')
+                    .select('product_id, quantity, fulfillment_status')
+                    .eq('order_id', existing.order_id);
+                await Promise.allSettled(
+                    (orderItems || [])
+                        .filter((it) => it.fulfillment_status !== 'cancelled')
+                        .map((it) => supabase.rpc('increment_product_stock', {
+                            p_product_id: it.product_id,
+                            p_quantity: it.quantity,
+                        }))
+                );
+            }
+        }
+
         res.status(200).json({ success: true, data });
     } catch (err) {
         next(err);

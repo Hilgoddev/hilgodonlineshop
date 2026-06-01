@@ -119,6 +119,25 @@ router.post('/webhook', async (req, res) => {
       if (insertError?.code === '23505') return res.sendStatus(200);
       if (insertError) throw insertError;
 
+      // Verify the paid amount matches the order total before marking paid
+      // (parity with Paystack/Stripe). Grey sends amount in major NGN units, the
+      // same units create-payment submitted. Skip only if Grey omitted an amount.
+      const { data: greyOrder, error: greyOrderErr } = await supabase
+        .from('orders')
+        .select('total_amount')
+        .eq('id', order_id)
+        .eq('payment_reference', reference)
+        .maybeSingle();
+      if (greyOrderErr) throw greyOrderErr;
+      if (!greyOrder) return res.sendStatus(200);
+
+      const paidAmount = Number(event.data?.amount);
+      const orderAmount = Number(greyOrder.total_amount || 0);
+      if (Number.isFinite(paidAmount) && Math.abs(paidAmount - orderAmount) > 0.01) {
+        console.error(`[GREY] Amount mismatch for order ${order_id}: paid=${paidAmount}, expected=${orderAmount}`);
+        return res.sendStatus(400);
+      }
+
       await supabase
         .from('orders')
         .update({ status: 'paid' })

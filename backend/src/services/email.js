@@ -134,7 +134,7 @@ async function sendEmail({ to, subject, html, emailType = 'general', orderId = n
 
 function orderConfirmationHtml(orderId, items, total) {
   const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Order Confirmed!</h2>
@@ -206,7 +206,7 @@ function paymentConfirmedHtml(orderId, items, total, buyerName) {
 
 function newOrderSellerHtml(orderId, items) {
   const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Order Received!</h2>
@@ -222,7 +222,7 @@ function newOrderSellerHtml(orderId, items) {
 
 function newOrderAdminHtml(orderId, items, total, buyerUserId) {
   const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Paid Order</h2>

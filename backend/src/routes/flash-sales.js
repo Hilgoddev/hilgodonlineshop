@@ -58,9 +58,11 @@ router.post('/', verifyToken, requireAdmin, async (req, res, next) => {
       .from('products')
       .select('price, name')
       .eq('id', product_id)
-      .single();
+      .eq('is_active', true)
+      .eq('status', 'approved')
+      .maybeSingle();
     if (prodErr || !product) {
-      return res.status(404).json({ success: false, error: 'Product not found' });
+      return res.status(400).json({ success: false, error: 'Product not found or not approved/active' });
     }
 
     const hours = Math.max(1, parseInt(timer_hours) || 24);

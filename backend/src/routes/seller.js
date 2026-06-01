@@ -272,7 +272,7 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
 
     const { data: item, error: itemErr } = await supabase
       .from('order_items')
-      .select('id, order_id, product_id')
+      .select('id, order_id, product_id, quantity, fulfillment_status')
       .eq('id', itemId)
       .maybeSingle();
     if (itemErr) throw itemErr;
@@ -296,6 +296,23 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
       .select('id, order_id, product_id, quantity, unit_price, fulfillment_status')
       .single();
     if (updateErr) throw updateErr;
+
+    // Restore reserved stock when an item is cancelled. Stock is only decremented
+    // on payment success (reserve-on-pay), so only restore for paid-through orders
+    // and only on the transition INTO cancelled (guards against double-restore).
+    if (fulfillmentStatus === 'cancelled' && item.fulfillment_status !== 'cancelled') {
+      const { data: ord } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', item.order_id)
+        .maybeSingle();
+      if (ord && ['paid', 'shipped', 'delivered'].includes(ord.status)) {
+        await supabase.rpc('increment_product_stock', {
+          p_product_id: item.product_id,
+          p_quantity: updatedItem.quantity,
+        });
+      }
+    }
 
     // Best-effort: if all items are delivered/cancelled, bring order status in sync.
     const { data: allItems, error: allItemsErr } = await supabase
