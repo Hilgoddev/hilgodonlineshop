@@ -4,19 +4,6 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 
-// ─── Simple in-memory cache ────────────────────────────────────────────────
-const _cache = new Map();
-function cacheGet(key) {
-    const entry = _cache.get(key);
-    if (!entry) return null;
-    if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
-    return entry.value;
-}
-function cacheSet(key, value, ttlMs = 30000) {
-    _cache.set(key, { value, expiresAt: Date.now() + ttlMs });
-}
-// ──────────────────────────────────────────────────────────────────────────
-
 // Helper to get display store/seller info
 // Priority: 1. Product's store, 2. Seller's store, 3. Seller name, 4. Hilgod Shop
 const getStoreInfo = (p) => {
@@ -81,17 +68,6 @@ router.get('/', async (req, res, next) => {
         const { category, subcategory, search, seller_id, limit = 20, page = 1 } = req.query;
         const parsedLimit = Math.max(1, Number(limit) || 20);
         const parsedPage  = Math.max(1, Number(page)  || 1);
-
-        // Cache key — skip cache for search queries
-        const cacheKey = !search ? `products:${category||''}:${subcategory||''}:${seller_id||''}:${parsedLimit}:${parsedPage}` : null;
-        if (cacheKey) {
-            const cached = cacheGet(cacheKey);
-            if (cached) {
-                res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
-                res.setHeader('X-Cache', 'HIT');
-                return res.status(200).json(cached);
-            }
-        }
 
         // Query products with store and seller info
         // Also include seller's store via a separate query if needed
@@ -181,9 +157,7 @@ router.get('/', async (req, res, next) => {
             pagination: { total: count || 0, page: parsedPage, limit: parsedLimit, pages: Math.ceil((count || 0) / parsedLimit) }
         };
 
-        if (cacheKey) cacheSet(cacheKey, payload, 30000);
         res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
-        res.setHeader('X-Cache', 'MISS');
         res.status(200).json(payload);
     } catch (err) {
         next(err);

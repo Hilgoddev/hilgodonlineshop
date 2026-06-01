@@ -1,7 +1,7 @@
 {
   "name": "hilgod-onlineshop-backend",
   "version": "1.0.0",
-  "description": "Hilgod Online Shop Backend with Next.js, MongoDB, and Google Auth",
+  "description": "Hilgod Online Shop — Next.js frontend with Supabase Auth and Stripe/Paystack payments",
   "private": true,
   "scripts": {
     "dev": "next dev",

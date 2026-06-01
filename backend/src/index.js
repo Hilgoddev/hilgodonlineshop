@@ -1,10 +1,12 @@
 require('dotenv').config();
+const validateEnv = require('./scripts/validateEnv');
+validateEnv();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const crypto = require('crypto');
-const { sendEmail, newsletterConfirmHtml } = require('./services/email');
+const { sendEmail, escapeHtml, newsletterConfirmHtml } = require('./services/email');
 
 // Initialize Express app
 const app = express();
@@ -59,7 +61,7 @@ const flashSaleRoutes = require('./routes/flash-sales');
 const exchangeRatesRoutes = require('./routes/exchange-rates');
 const returnsRoutes = require('./routes/returns');
 const supabase = require('./config/supabase');
-const { generalApiLimiter, adminApiLimiter } = require('./middleware/rateLimit');
+const { generalApiLimiter, adminApiLimiter, newsletterLimiter, deliveryLimiter } = require('./middleware/rateLimit');
 
 // Apply Routes
 app.use('/api', generalApiLimiter);
@@ -93,7 +95,7 @@ app.get('/api/db-test', async (req, res, next) => {
     }
 });
 
-app.post('/api/newsletter/subscribe', async (req, res) => {
+app.post('/api/newsletter/subscribe', newsletterLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email || !email.includes('@')) {
     return res.status(400).json({ success: false, error: 'Valid email required' });
@@ -118,7 +120,7 @@ app.post('/api/newsletter/subscribe', async (req, res) => {
   res.status(200).json({ success: true, message: 'Subscribed successfully' });
 });
 
-app.post('/api/delivery/apply', async (req, res) => {
+app.post('/api/delivery/apply', deliveryLimiter, async (req, res) => {
   const { fullName, phone, email, state, vehicleType, hasLicense, dateOfBirth } = req.body;
   if (!fullName || !phone || !email) {
     return res.status(400).json({ success: false, error: 'Name, phone and email are required' });
@@ -140,19 +142,27 @@ app.post('/api/delivery/apply', async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to save your application. Please try again.' });
   }
 
+  const safeName        = escapeHtml(fullName);
+  const safeEmail       = escapeHtml(email);
+  const safePhone       = escapeHtml(phone);
+  const safeState       = escapeHtml(state || 'N/A');
+  const safeVehicle     = escapeHtml(vehicleType || 'N/A');
+  const safeDob         = escapeHtml(dateOfBirth || 'N/A');
+  const frontendUrl     = process.env.FRONTEND_URL || 'https://hilgod.com';
+
   // Notify admin by email
   sendEmail({
     to: process.env.ADMIN_EMAIL || email,
-    subject: `New Delivery Partner Application — ${fullName}`,
+    subject: `New Delivery Partner Application — ${safeName}`,
     html: `<div style="font-family:sans-serif"><h2>New Delivery Application</h2>
-      <p><strong>Name:</strong> ${fullName}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Phone:</strong> ${phone}</p>
-      <p><strong>State:</strong> ${state || 'N/A'}</p>
-      <p><strong>Vehicle:</strong> ${vehicleType || 'N/A'}</p>
+      <p><strong>Name:</strong> ${safeName}</p>
+      <p><strong>Email:</strong> ${safeEmail}</p>
+      <p><strong>Phone:</strong> ${safePhone}</p>
+      <p><strong>State:</strong> ${safeState}</p>
+      <p><strong>Vehicle:</strong> ${safeVehicle}</p>
       <p><strong>Has License:</strong> ${hasLicense === 'yes' ? 'Yes' : 'No'}</p>
-      <p><strong>DOB:</strong> ${dateOfBirth || 'N/A'}</p>
-      <p><a href="${process.env.FRONTEND_URL || 'https://hilgod.com'}/admin/riders" style="color:#E31C1C">View in Admin Panel</a></p>
+      <p><strong>DOB:</strong> ${safeDob}</p>
+      <p><a href="${frontendUrl}/admin/riders" style="color:#E31C1C">View in Admin Panel</a></p>
     </div>`,
   }).catch(() => {});
 
@@ -162,7 +172,7 @@ app.post('/api/delivery/apply', async (req, res) => {
     subject: 'Hilgod Delivery Partner Application Received',
     html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
       <h2 style="color:#E31C1C">Application Received!</h2>
-      <p>Hi <strong>${fullName}</strong>, thank you for applying to join Hilgod's delivery fleet.</p>
+      <p>Hi <strong>${safeName}</strong>, thank you for applying to join Hilgod's delivery fleet.</p>
       <p>Our team will review your application and contact you within <strong>48 hours</strong>.</p>
       <p style="color:#666">If you have any questions, email us at <a href="mailto:hilgodonline@gmail.com">hilgodonline@gmail.com</a></p>
     </div>`,

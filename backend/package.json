@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Hilgod Online Shop — Express/Supabase backend API",
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",

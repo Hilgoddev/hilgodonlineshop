@@ -2,23 +2,34 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
-const { sendEmail } = require('../services/email');
+const requireAdmin = require('../middleware/requireAdmin');
+const { sendEmail, escapeHtml } = require('../services/email');
 
-const requireAdmin = async (req, res, next) => {
-    try {
-        const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
-        if (error || !profile || profile.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
-        next();
-    } catch (err) { next(err); }
-};
-
-// POST /api/returns  — public, anyone can submit with order ID + email
-router.post('/', async (req, res, next) => {
+// POST /api/returns — authenticated; verifies order ownership and email match
+router.post('/', verifyToken, async (req, res, next) => {
     try {
         const { orderId, email, reason, details } = req.body;
 
         if (!orderId || !email || !reason) {
             return res.status(400).json({ success: false, error: 'orderId, email, and reason are required' });
+        }
+
+        // Fetch the order and verify it belongs to the authenticated user
+        const { data: order, error: orderError } = await supabase
+            .from('orders')
+            .select('id, user_id')
+            .eq('id', orderId.trim())
+            .maybeSingle();
+
+        if (orderError) throw orderError;
+        if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
+        if (order.user_id !== req.user.id) {
+            return res.status(403).json({ success: false, error: 'Order does not belong to your account' });
+        }
+
+        // Verify supplied email matches the authenticated user's email
+        if (req.user.email && email.trim().toLowerCase() !== req.user.email.toLowerCase()) {
+            return res.status(400).json({ success: false, error: 'Email does not match your account' });
         }
 
         const { data, error } = await supabase
@@ -35,18 +46,24 @@ router.post('/', async (req, res, next) => {
 
         if (error) throw error;
 
+        const safeOrderId   = escapeHtml(String(orderId).slice(0, 8).toUpperCase());
+        const safeEmail     = escapeHtml(email);
+        const safeReason    = escapeHtml(reason);
+        const safeDetails   = details ? escapeHtml(details) : null;
+        const frontendUrl   = process.env.FRONTEND_URL || 'https://hilgod.com';
+
         // Notify admin
         if (process.env.ADMIN_EMAIL) {
             sendEmail({
                 to: process.env.ADMIN_EMAIL,
-                subject: `New Return Request — Order #${String(orderId).slice(0, 8).toUpperCase()}`,
+                subject: `New Return Request — Order #${safeOrderId}`,
                 html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
                   <h2 style="color:#E31C1C">New Return Request</h2>
-                  <p><strong>Order ID:</strong> ${orderId}</p>
-                  <p><strong>Customer Email:</strong> ${email}</p>
-                  <p><strong>Reason:</strong> ${reason}</p>
-                  ${details ? `<p><strong>Details:</strong> ${details}</p>` : ''}
-                  <a href="${process.env.FRONTEND_URL || 'https://hilgod.com'}/admin/orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View in Admin</a>
+                  <p><strong>Order ID:</strong> ${safeOrderId}</p>
+                  <p><strong>Customer Email:</strong> ${safeEmail}</p>
+                  <p><strong>Reason:</strong> ${safeReason}</p>
+                  ${safeDetails ? `<p><strong>Details:</strong> ${safeDetails}</p>` : ''}
+                  <a href="${frontendUrl}/admin/orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View in Admin</a>
                 </div>`,
                 emailType: 'admin_alert',
             }).catch(() => {});
@@ -54,12 +71,12 @@ router.post('/', async (req, res, next) => {
 
         // Confirm to customer
         sendEmail({
-            to: email,
-            subject: `Return Request Received — Order #${String(orderId).slice(0, 8).toUpperCase()}`,
+            to: email.trim().toLowerCase(),
+            subject: `Return Request Received — Order #${safeOrderId}`,
             html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
               <h2 style="color:#E31C1C">We've received your return request</h2>
-              <p>Hi, your return request for order <strong>#${String(orderId).slice(0, 8).toUpperCase()}</strong> has been submitted.</p>
-              <p><strong>Reason:</strong> ${reason}</p>
+              <p>Hi, your return request for order <strong>#${safeOrderId}</strong> has been submitted.</p>
+              <p><strong>Reason:</strong> ${safeReason}</p>
               <p>Our support team will review your request and get back to you within 24 hours.</p>
               <p style="color:#666;font-size:.88rem">Questions? Email us at <a href="mailto:hilgodonline@gmail.com" style="color:#E31C1C">hilgodonline@gmail.com</a></p>
             </div>`,
@@ -72,7 +89,7 @@ router.post('/', async (req, res, next) => {
     }
 });
 
-// GET /api/returns  — admin only
+// GET /api/returns — admin only
 router.get('/', verifyToken, requireAdmin, async (req, res, next) => {
     try {
         const { status } = req.query;
@@ -91,7 +108,7 @@ router.get('/', verifyToken, requireAdmin, async (req, res, next) => {
     }
 });
 
-// PATCH /api/returns/:id  — admin update status/notes
+// PATCH /api/returns/:id — admin update status/notes
 router.patch('/:id', verifyToken, requireAdmin, async (req, res, next) => {
     try {
         const { status, admin_notes } = req.body;

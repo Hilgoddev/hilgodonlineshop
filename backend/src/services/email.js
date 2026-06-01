@@ -1,4 +1,14 @@
 const crypto = require('crypto');
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const BASE_URL = process.env.FRONTEND_URL || 'https://hilgod-frontend.onrender.com';
 const supabase = require('../config/supabase');
@@ -155,9 +165,11 @@ function orderStatusHtml(orderId, status) {
 }
 
 function sellerApprovedHtml(sellerName, businessName) {
+  const safeName = escapeHtml(sellerName);
+  const safeBiz  = escapeHtml(businessName);
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-    <h2 style="color:#E31C1C">Congratulations, ${sellerName}!</h2>
-    <p>Your seller application for <strong>${businessName}</strong> has been approved by Hilgod.</p>
+    <h2 style="color:#E31C1C">Congratulations, ${safeName}!</h2>
+    <p>Your seller application for <strong>${safeBiz}</strong> has been approved by Hilgod.</p>
     <p>You can now log in and start listing products on the platform.</p>
     <a href="${BASE_URL}/seller/dashboard" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Go to Seller Dashboard</a>
   </div>`;
@@ -172,13 +184,16 @@ function newsletterConfirmHtml(email) {
 }
 
 function paymentConfirmedHtml(orderId, items, total, buyerName) {
+  const safeBuyerName = escapeHtml(buyerName);
   const rows = items.map(i => {
-    const img = i.image ? `<img src="${i.image}" alt="${i.name}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px" />` : '';
-    return `<tr><td style="padding:8px;border-bottom:1px solid #eee">${img}${i.name}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`;
+    const safeName = escapeHtml(i.name);
+    const safeImg  = i.image ? escapeHtml(i.image) : '';
+    const img = safeImg ? `<img src="${safeImg}" alt="${safeName}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px" />` : '';
+    return `<tr><td style="padding:8px;border-bottom:1px solid #eee">${img}${safeName}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">₦${Number(i.price * i.quantity).toLocaleString()}</td></tr>`;
   }).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Payment Confirmed!</h2>
-    <p>Hi <strong>${buyerName}</strong>, your payment for order <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong> has been received and confirmed.</p>
+    <p>Hi <strong>${safeBuyerName}</strong>, your payment for order <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong> has been received and confirmed.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
       <thead><tr style="background:#f8f8f8"><th style="padding:8px;text-align:left">Product</th><th style="padding:8px;text-align:center">Qty</th><th style="padding:8px;text-align:right">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -221,4 +236,4 @@ function newOrderAdminHtml(orderId, items, total, buyerUserId) {
   </div>`;
 }
 
-module.exports = { sendEmail, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml };
+module.exports = { sendEmail, escapeHtml, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml };

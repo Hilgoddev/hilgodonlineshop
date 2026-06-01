@@ -35,4 +35,26 @@ const paymentInitLimiter = rateLimit({
   },
 });
 
-module.exports = { generalApiLimiter, adminApiLimiter, paymentInitLimiter };
+// Newsletter subscription limiter — prevents email spam via our send path
+const newsletterLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: isDev ? 100 : 5,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many subscription attempts, please try again later.',
+  },
+});
+
+// Delivery partner application limiter
+const deliveryLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: isDev ? 50 : 3,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many application attempts, please try again later.',
+  },
+});
+
+module.exports = { generalApiLimiter, adminApiLimiter, paymentInitLimiter, newsletterLimiter, deliveryLimiter };

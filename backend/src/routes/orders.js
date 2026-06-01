@@ -223,18 +223,56 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         const order = orderRows[0];
 
+        // Insert order items — clean up order if this fails
         const { error: itemErr } = await supabase
             .from('order_items')
             .insert(
                 orderItems.map((it) => ({
-                    order_id: order.id,
+                    order_id:   order.id,
                     product_id: it.product_id,
-                    quantity: it.quantity,
+                    quantity:   it.quantity,
                     unit_price: it.unit_price,
-                    seller_id: it.seller_id, // Include seller_id from product
+                    seller_id:  it.seller_id,
                 })),
             );
-        if (itemErr) throw itemErr;
+        if (itemErr) {
+            await supabase.from('orders').delete().eq('id', order.id);
+            throw itemErr;
+        }
+
+        // Atomically decrement stock for each product via DB function.
+        // On conflict (stock changed between check and decrement) roll back
+        // all successful decrements, clean up the order, and return 409.
+        const decremented = [];
+        let stockConflict = null;
+
+        for (const it of orderItems) {
+            const { data: ok, error: rpcErr } = await supabase
+                .rpc('decrement_product_stock', { p_product_id: it.product_id, p_quantity: it.quantity });
+
+            if (rpcErr) {
+                stockConflict = { type: 'error', productId: it.product_id, err: rpcErr };
+                break;
+            }
+            if (!ok) {
+                stockConflict = { type: 'insufficient', productId: it.product_id };
+                break;
+            }
+            decremented.push(it);
+        }
+
+        if (stockConflict) {
+            // Restore already-decremented products
+            for (const it of decremented) {
+                await supabase.rpc('increment_product_stock', { p_product_id: it.product_id, p_quantity: it.quantity })
+                    .catch((e) => console.error('[ORDER_CREATE] Stock restore error:', e.message));
+            }
+            await supabase.from('order_items').delete().eq('order_id', order.id);
+            await supabase.from('orders').delete().eq('id', order.id);
+
+            if (stockConflict.type === 'error') throw stockConflict.err;
+            return res.status(409).json({ success: false, error: `Insufficient stock for product ${stockConflict.productId}. Please retry.` });
+        }
 
         const response = mapOrder(order, responseItems);
         res.status(201).json({ success: true, data: response });
@@ -258,7 +296,15 @@ router.get('/all', verifyToken, async (req, res, next) => {
         const { data: me, error: meErr } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
         if (meErr || !me || me.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
 
-        const { data: orders, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+        const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
+        const parsedLimit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const offset      = (parsedPage - 1) * parsedLimit;
+
+        const { data: orders, error, count } = await supabase
+            .from('orders')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + parsedLimit - 1);
         if (error) throw error;
 
         const userIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
@@ -310,7 +356,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
 
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || [], userMap.get(o.user_id) || null));
         const totalRevenue = data.reduce((sum, o) => sum + (o.status === 'paid' || o.status === 'delivered' ? o.totalAmount : 0), 0);
-        res.status(200).json({ success: true, data, totalRevenue, pagination: { total: data.length } });
+        res.status(200).json({ success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
     } catch (err) {
         next(err);
     }

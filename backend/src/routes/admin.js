@@ -2,17 +2,8 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
-const { sendEmail, sellerApprovedHtml } = require('../services/email');
-
-const requireAdmin = async (req, res, next) => {
-    try {
-        const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
-        if (error || !profile || profile.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
-        next();
-    } catch (err) {
-        next(err);
-    }
-};
+const requireAdmin = require('../middleware/requireAdmin');
+const { sendEmail, escapeHtml, sellerApprovedHtml } = require('../services/email');
 
 router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
     try {
@@ -34,13 +25,13 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         if (storesRes.error) throw storesRes.error;
         if (sellerAppsRes.error) throw sellerAppsRes.error;
 
-        const products = productsRes.data || [];
-        const orders = ordersRecentRes.data || [];
-        const orderCount = typeof ordersCountRes.count === 'number' ? ordersCountRes.count : orders.length;
+        const products    = productsRes.data || [];
+        const orders      = ordersRecentRes.data || [];
+        const orderCount  = typeof ordersCountRes.count === 'number' ? ordersCountRes.count : orders.length;
         const customerCount = typeof customersCountRes.count === 'number' ? customersCountRes.count : 0;
-        const stores = storesRes.data || [];
-        const sellerApps = sellerAppsRes.data || [];
-        const reviews = reviewsRes.error ? [] : (reviewsRes.data || []);
+        const stores      = storesRes.data || [];
+        const sellerApps  = sellerAppsRes.data || [];
+        const reviews     = reviewsRes.error ? [] : (reviewsRes.data || []);
 
         const lowStockItems = products
             .filter((p) => Number(p.stock || 0) < 10)
@@ -51,17 +42,17 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             products.filter((p) => p.status === 'pending').length +
             stores.filter((s) => s.status === 'pending').length +
             sellerApps.filter((a) => a.status === 'pending').length;
-        const pendingProductsCount = products.filter((p) => p.status === 'pending').length;
-        const pendingStoresCount = stores.filter((s) => s.status === 'pending').length;
-        const pendingSellerAppsCount = sellerApps.filter((a) => a.status === 'pending').length;
-        const totalReviews = reviews.length;
-        const averageRating = totalReviews
+        const pendingProductsCount    = products.filter((p) => p.status === 'pending').length;
+        const pendingStoresCount      = stores.filter((s) => s.status === 'pending').length;
+        const pendingSellerAppsCount  = sellerApps.filter((a) => a.status === 'pending').length;
+        const totalReviews    = reviews.length;
+        const averageRating   = totalReviews
             ? Number((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalReviews).toFixed(2))
             : 0;
 
         const totalRevenue = (orders || []).reduce(
             (sum, order) => sum + (['paid', 'delivered'].includes(order.status) ? Number(order.total_amount || 0) : 0),
-            0
+            0,
         );
 
         const orderUserIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
@@ -69,6 +60,13 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             ? await supabase.from('profiles').select('id, full_name, username').in('id', orderUserIds)
             : { data: [], error: null };
         if (orderUsersError) throw orderUsersError;
+
+        // Fetch real emails for order users
+        const { data: authData } = orderUserIds.length
+            ? await supabase.auth.admin.listUsers({ perPage: 1000 })
+            : { data: { users: [] } };
+        const emailMap = new Map((authData?.users || []).map((u) => [u.id, u.email]));
+
         const orderUserMap = new Map((orderUsers || []).map((u) => [u.id, u]));
 
         res.status(200).json({
@@ -86,12 +84,12 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                     totalAmount: Number(o.total_amount || 0),
                     createdAt: o.created_at,
                     user: (() => {
-                        const raw = orderUserMap.get(o.user_id);
+                        const raw   = orderUserMap.get(o.user_id);
                         const parts = String(raw?.full_name || '').trim().split(' ').filter(Boolean);
                         return {
                             firstName: parts[0] || raw?.username || 'User',
-                            lastName: parts.slice(1).join(' ') || '',
-                            email: raw?.username || '',
+                            lastName:  parts.slice(1).join(' ') || '',
+                            email:     emailMap.get(o.user_id) || raw?.username || '',
                         };
                     })(),
                 })),
@@ -113,13 +111,25 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
 
 router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { data: profiles, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+        const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
+        const parsedLimit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+        const offset      = (parsedPage - 1) * parsedLimit;
+
+        const { data: profiles, error, count } = await supabase
+            .from('profiles')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + parsedLimit - 1);
         if (error) throw error;
 
         const userIds = (profiles || []).map((p) => p.id);
         const { data: orders } = userIds.length
             ? await supabase.from('orders').select('id, user_id, total_amount').in('status', ['paid', 'shipped', 'delivered'])
             : { data: [] };
+
+        // Fetch real emails in one batch
+        const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        const emailMap = new Map((authData?.users || []).map((u) => [u.id, u.email]));
 
         const stats = (orders || []).reduce((map, o) => {
             const entry = map.get(o.user_id) || { orderCount: 0, totalSpent: 0 };
@@ -131,92 +141,84 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
 
         const data = (profiles || []).map((p) => {
             const names = (p.full_name || '').split(' ');
-            const s = stats.get(p.id) || { orderCount: 0, totalSpent: 0 };
+            const s     = stats.get(p.id) || { orderCount: 0, totalSpent: 0 };
             return {
-                _id: p.id,
-                id: p.id,
-                firstName: names[0] || p.username || 'User',
-                lastName: names.slice(1).join(' ') || '',
-                email: p.username || '',
-                image: p.avatar_url || '',
-                provider: 'email',
-                role: p.role || 'customer',
+                _id:        p.id,
+                id:         p.id,
+                firstName:  names[0] || p.username || 'User',
+                lastName:   names.slice(1).join(' ') || '',
+                email:      emailMap.get(p.id) || p.username || '',
+                image:      p.avatar_url || '',
+                provider:   'email',
+                role:       p.role || 'customer',
                 orderCount: s.orderCount,
                 totalSpent: s.totalSpent,
-                createdAt: p.created_at
+                createdAt:  p.created_at,
             };
         });
 
-        res.status(200).json({ success: true, data, pagination: { total: data.length } });
+        res.status(200).json({ success: true, data, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
     } catch (err) {
         next(err);
     }
 });
 
-// GET /admin/sellers
 router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { data: profiles, error } = await supabase
+        const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
+        const parsedLimit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+        const offset      = (parsedPage - 1) * parsedLimit;
+
+        const { data: profiles, error, count } = await supabase
             .from('profiles')
-            .select('*')
+            .select('*', { count: 'exact' })
             .eq('role', 'seller')
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(offset, offset + parsedLimit - 1);
         if (error) throw error;
 
-        const sellerIds = (profiles || []).map(p => p.id);
-        let stores = [];
+        const sellerIds = (profiles || []).map((p) => p.id);
+        let stores   = [];
         let products = [];
 
         if (sellerIds.length) {
             const [storesRes, productsRes] = await Promise.all([
                 supabase.from('stores').select('id, owner_id, name, slug, status, logo_url').in('owner_id', sellerIds),
-                supabase.from('products').select('id, seller_id').eq('is_active', true).in('seller_id', sellerIds)
+                supabase.from('products').select('id, seller_id').eq('is_active', true).in('seller_id', sellerIds),
             ]);
-
-            if (storesRes.error) {
-                console.error('[ADMIN/SELLERS] Stores query error:', storesRes.error);
-            } else {
-                stores = storesRes.data || [];
-            }
-
-            if (productsRes.error) {
-                console.error('[ADMIN/SELLERS] Products query error:', productsRes.error);
-            } else {
-                products = productsRes.data || [];
-            }
+            if (!storesRes.error)   stores   = storesRes.data   || [];
+            if (!productsRes.error) products = productsRes.data || [];
         }
 
-        const storeMap = new Map((stores || []).map(s => [
+        // Fetch real emails
+        const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        const emailMap = new Map((authData?.users || []).map((u) => [u.id, u.email]));
+
+        const storeMap = new Map((stores || []).map((s) => [
             s.owner_id,
-            {
-                id: s.id,
-                name: s.name,
-                slug: s.slug,
-                status: s.status || 'pending',
-                logo_url: s.logo_url
-            }
+            { id: s.id, name: s.name, slug: s.slug, status: s.status || 'pending', logo_url: s.logo_url },
         ]));
         const productCountMap = (products || []).reduce((map, p) => {
             map.set(p.seller_id, (map.get(p.seller_id) || 0) + 1);
             return map;
         }, new Map());
 
-        const data = (profiles || []).map(p => {
+        const data = (profiles || []).map((p) => {
             const names = (p.full_name || '').split(' ');
             const store = storeMap.get(p.id) || null;
             return {
-                _id: p.id,
-                firstName: names[0] || p.username || 'Seller',
-                lastName: names.slice(1).join(' ') || '',
-                email: p.username || '',
-                image: p.avatar_url || '',
+                _id:          p.id,
+                firstName:    names[0] || p.username || 'Seller',
+                lastName:     names.slice(1).join(' ') || '',
+                email:        emailMap.get(p.id) || p.username || '',
+                image:        p.avatar_url || '',
                 store,
                 productCount: productCountMap.get(p.id) || 0,
-                joinedAt: p.created_at,
+                joinedAt:     p.created_at,
             };
         });
 
-        res.status(200).json({ success: true, data, pagination: { total: data.length } });
+        res.status(200).json({ success: true, data, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
     } catch (err) {
         next(err);
     }
@@ -259,7 +261,6 @@ router.put('/promote', verifyToken, requireAdmin, async (req, res, next) => {
         const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
         if (error) throw error;
 
-        // Auto-create store if promoting to seller
         if (newRole === 'seller' && profile.role !== 'seller') {
             try {
                 const { data: existingStore } = await supabase
@@ -269,17 +270,17 @@ router.put('/promote', verifyToken, requireAdmin, async (req, res, next) => {
                     .maybeSingle();
 
                 if (!existingStore) {
-                    const storeName = profile.full_name ? `${profile.full_name}'s Store` : 'My Store';
-                    const baseSlug = storeName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                    const storeName    = profile.full_name ? `${profile.full_name}'s Store` : 'My Store';
+                    const baseSlug     = storeName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-                    const slug = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${userId.slice(0, 8)}`;
+                    const slug         = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${userId.slice(0, 8)}`;
 
                     await supabase.from('stores').insert({
-                        owner_id: userId,
-                        name: storeName,
+                        owner_id:    userId,
+                        name:        storeName,
                         slug,
                         description: `Welcome to ${storeName}!`,
-                        status: 'pending'
+                        status:      'pending',
                     });
                 }
             } catch (err) {
@@ -308,11 +309,7 @@ router.get('/seller-applications', verifyToken, requireAdmin, async (req, res, n
         const { data, error } = await query;
         if (error) throw error;
 
-        res.status(200).json({
-            success: true,
-            data: data || [],
-            pagination: { total: (data || []).length },
-        });
+        res.status(200).json({ success: true, data: data || [], pagination: { total: (data || []).length } });
     } catch (err) {
         next(err);
     }
@@ -320,8 +317,8 @@ router.get('/seller-applications', verifyToken, requireAdmin, async (req, res, n
 
 router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { user_id } = req.params;
-        const adminNotes = req.body?.adminNotes || null;
+        const { user_id }   = req.params;
+        const adminNotes    = req.body?.adminNotes || null;
 
         const { data: application, error: appError } = await supabase
             .from('seller_applications')
@@ -342,7 +339,7 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
         const { data, error: updateError } = await supabase
             .from('seller_applications')
             .update({
-                status: 'approved',
+                status:      'approved',
                 reviewed_by: req.user.id,
                 reviewed_at: new Date().toISOString(),
                 admin_notes: adminNotes,
@@ -352,7 +349,6 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
             .single();
         if (updateError) throw updateError;
 
-        // Auto-generate store for the approved seller
         try {
             const { data: existingStore } = await supabase
                 .from('stores')
@@ -362,23 +358,18 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
 
             if (!existingStore) {
                 const businessName = application.business_name || 'My Store';
-                const baseSlug = businessName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                const baseSlug     = businessName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
                 const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-                const slug = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${user_id.slice(0, 8)}`;
+                const slug         = baseSlug ? `${baseSlug}-${randomSuffix}` : `store-${user_id.slice(0, 8)}`;
 
                 const { error: storeError } = await supabase.from('stores').insert({
-                    owner_id: user_id,
-                    name: businessName,
-                    slug: slug,
+                    owner_id:    user_id,
+                    name:        businessName,
+                    slug,
                     description: `Welcome to ${businessName}!`,
-                    status: 'approved'
+                    status:      'approved',
                 });
-
-                if (storeError) {
-                    console.error('[APPROVE_SELLER] Failed to create store:', storeError.message);
-                } else {
-                    console.log(`[APPROVE_SELLER] Store auto-created for seller ${user_id}: ${slug}`);
-                }
+                if (storeError) console.error('[APPROVE_SELLER] Failed to create store:', storeError.message);
             }
         } catch (storeCreateErr) {
             console.error('[APPROVE_SELLER] Store creation catch-block error:', storeCreateErr.message);
@@ -386,17 +377,13 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
 
         res.status(200).json({ success: true, data });
 
-        // Fire-and-forget approval email
-        const applicantEmail = application.email;
-        const applicantName = application.full_name || 'Seller';
-        const businessName = application.business_name || 'your business';
         sendEmail({
-            to: applicantEmail,
-            subject: 'Your Hilgod Seller Application Has Been Approved',
-            html: sellerApprovedHtml(applicantName, businessName),
-            emailType: 'seller_approval',
-            userId: user_id,
-        }).catch(() => { });
+            to:          application.email,
+            subject:     'Your Hilgod Seller Application Has Been Approved',
+            html:        sellerApprovedHtml(application.full_name || 'Seller', application.business_name || 'your business'),
+            emailType:   'seller_approval',
+            userId:      user_id,
+        }).catch(() => {});
     } catch (err) {
         next(err);
     }
@@ -405,7 +392,7 @@ router.post('/approve-seller/:user_id', verifyToken, requireAdmin, async (req, r
 router.post('/reject-seller/:user_id', verifyToken, requireAdmin, async (req, res, next) => {
     try {
         const { user_id } = req.params;
-        const adminNotes = req.body?.adminNotes || null;
+        const adminNotes  = req.body?.adminNotes || null;
 
         const { data: application, error: appError } = await supabase
             .from('seller_applications')
@@ -426,7 +413,7 @@ router.post('/reject-seller/:user_id', verifyToken, requireAdmin, async (req, re
         const { data, error: updateError } = await supabase
             .from('seller_applications')
             .update({
-                status: 'rejected',
+                status:      'rejected',
                 reviewed_by: req.user.id,
                 reviewed_at: new Date().toISOString(),
                 admin_notes: adminNotes,
@@ -457,7 +444,7 @@ router.get('/riders', verifyToken, requireAdmin, async (req, res, next) => {
 
 router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { id } = req.params;
+        const { id }                  = req.params;
         const { status, admin_notes } = req.body;
         const allowed = ['pending', 'approved', 'rejected'];
         if (!allowed.includes(status)) {
@@ -472,31 +459,34 @@ router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
         if (error) throw error;
         if (!data) return res.status(404).json({ success: false, error: 'Application not found' });
 
-        // Notify applicant by email
+        const safeName  = escapeHtml(data.full_name || 'Applicant');
+        const safePhone = escapeHtml(data.phone || '');
+        const safeNotes = data.admin_notes ? escapeHtml(data.admin_notes) : null;
+
         if (status === 'approved') {
             sendEmail({
-                to: data.email,
-                subject: 'Your Hilgod Rider Application Has Been Approved!',
-                html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-                  <h2 style="color:#E31C1C">Congratulations, ${data.full_name}!</h2>
+                to:        data.email,
+                subject:   'Your Hilgod Rider Application Has Been Approved!',
+                html:      `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+                  <h2 style="color:#E31C1C">Congratulations, ${safeName}!</h2>
                   <p>Your application to join Hilgod's delivery fleet has been <strong>approved</strong>.</p>
-                  <p>Our onboarding team will reach out to you at <strong>${data.phone}</strong> within 24 hours to get you started.</p>
+                  <p>Our onboarding team will reach out to you at <strong>${safePhone}</strong> within 24 hours to get you started.</p>
                 </div>`,
                 emailType: 'rider_approval',
-                userId: req.user.id,
-            }).catch(() => { });
+                userId:    req.user.id,
+            }).catch(() => {});
         } else if (status === 'rejected') {
             sendEmail({
-                to: data.email,
-                subject: 'Update on Your Hilgod Rider Application',
-                html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+                to:        data.email,
+                subject:   'Update on Your Hilgod Rider Application',
+                html:      `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
                   <h2 style="color:#333">Application Update</h2>
-                  <p>Hi ${data.full_name}, unfortunately your rider application was not successful at this time.</p>
-                  ${data.admin_notes ? `<p><strong>Reason:</strong> ${data.admin_notes}</p>` : ''}
+                  <p>Hi ${safeName}, unfortunately your rider application was not successful at this time.</p>
+                  ${safeNotes ? `<p><strong>Reason:</strong> ${safeNotes}</p>` : ''}
                   <p>You are welcome to reapply in the future. Email <a href="mailto:hilgodonline@gmail.com">hilgodonline@gmail.com</a> if you have questions.</p>
                 </div>`,
                 emailType: 'rider_rejection',
-                userId: req.user.id,
+                userId:    req.user.id,
             }).catch(() => {});
         }
 
