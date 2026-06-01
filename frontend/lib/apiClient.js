@@ -11,7 +11,10 @@ export async function apiFetch(path, options = {}) {
   };
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    // Strip BOM / zero-width chars that can contaminate localStorage-stored tokens
+    // and cause "Invalid character in header content" fetch errors.
+    const cleanToken = String(token).replace(/[^\x20-\x7E]/g, '').trim();
+    if (cleanToken) headers.Authorization = `Bearer ${cleanToken}`;
   }
 
   return await fetch(path, { ...fetchOptions, headers });
