@@ -17,8 +17,9 @@ const mapOrder = (order, items = [], user = null) => ({
     createdAt: order.created_at,
     updatedAt: order.updated_at,
     deliveryAddress: order.shipping_address || null,
+    paymentReference: order.payment_reference || null,
     items,
-    user
+    user   // { firstName, lastName, email, phone }
 });
 
 // Seller email is stored on auth.users (not profiles), so resolve it via the
@@ -347,28 +348,48 @@ router.get('/all', verifyToken, async (req, res, next) => {
         const userIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
         const orderIds = (orders || []).map((o) => o.id);
 
-        const [{ data: profiles }] = await Promise.all([
-            userIds.length ? supabase.from('profiles').select('id, full_name, username').in('id', userIds) : Promise.resolve({ data: [] }),
-        ]);
+        // Fetch profiles + auth emails in parallel with order items.
+        // profiles gives us full_name/phone; auth.admin.listUsers gives real emails.
+        let profiles = [], authEmails = new Map();
         let items = [];
-        if (orderIds.length) {
-            let itemErr;
-            ({ data: items, error: itemErr } = await supabase
-                .from('order_items')
-                .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
-                .in('order_id', orderIds));
-            if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
+        await Promise.all([
+            (async () => {
+                if (!userIds.length) return;
+                const { data } = await supabase.from('profiles').select('id, full_name, username, phone_number').in('id', userIds);
+                profiles = data || [];
+                // Fetch real emails from auth for each user (batched, best-effort)
+                await Promise.allSettled(userIds.map(async (uid) => {
+                    try {
+                        const { data: { user } } = await supabase.auth.admin.getUserById(uid);
+                        if (user?.email) authEmails.set(uid, user.email);
+                    } catch {}
+                }));
+            })(),
+            (async () => {
+                if (!orderIds.length) return;
+                let itemErr;
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
-                    .select('id, order_id, quantity, unit_price, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
+                    .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
                     .in('order_id', orderIds));
-            }
-            if (itemErr) throw itemErr;
-        }
+                if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
+                    ({ data: items, error: itemErr } = await supabase
+                        .from('order_items')
+                        .select('id, order_id, quantity, unit_price, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
+                        .in('order_id', orderIds));
+                }
+                if (itemErr) throw itemErr;
+            })(),
+        ]);
 
         const userMap = new Map((profiles || []).map((p) => {
             const names = (p.full_name || '').split(' ');
-            return [p.id, { firstName: names[0] || p.username || 'User', lastName: names.slice(1).join(' ') || '', email: p.username || '' }];
+            return [p.id, {
+                firstName: names[0] || p.username || 'User',
+                lastName: names.slice(1).join(' ') || '',
+                email: authEmails.get(p.id) || p.username || '',
+                phone: p.phone_number || '',
+            }];
         }));
         const itemMap = (items || []).reduce((map, it) => {
             const list = map.get(it.order_id) || [];

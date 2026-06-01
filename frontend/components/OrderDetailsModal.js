@@ -68,6 +68,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
               <div style={{ fontSize: '.75rem', textTransform: 'uppercase', color: 'var(--gray-1)', fontWeight: '700', letterSpacing: '.5px', marginBottom: '4px' }}>Customer</div>
               <div style={{ fontWeight: '600' }}>{custName}</div>
               <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{custEmail}</div>
+              {order.user?.phone && <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}><i className="fas fa-phone" style={{ fontSize: '.7rem', marginRight: 4 }}></i>{order.user.phone}</div>}
             </div>
             {addr && (
               <div>

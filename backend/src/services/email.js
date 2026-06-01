@@ -161,7 +161,7 @@ function orderConfirmationHtml(orderId, items, total) {
       <tbody>${rows}</tbody>
     </table>
     <p style="font-size:1.1rem"><strong>Total: ₦${Number(total).toLocaleString()}</strong></p>
-    <a href="${BASE_URL}/track-order" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Track Your Order</a>
+    <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
   </div>`;
 }
 
@@ -217,7 +217,7 @@ function paymentConfirmedHtml(orderId, items, total, buyerName) {
     </table>
     <p style="font-size:1.1rem"><strong>Total Paid: ₦${Number(total).toLocaleString()}</strong></p>
     <p style="color:#666;font-size:.88rem">We are now preparing your order for dispatch.</p>
-    <a href="${BASE_URL}/track-order" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Track Your Order</a>
+    <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
   </div>`;
 }
 

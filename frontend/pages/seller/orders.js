@@ -4,6 +4,7 @@ import SellerGuard from '@/components/SellerGuard';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/apiClient';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '../../lib/supabaseClient';
 
 const STATUS_STYLE = {
   pending: { bg: '#fef3c7', color: '#92400e' },
@@ -61,8 +62,22 @@ export default function SellerOrders() {
 
   useEffect(() => {
     loadOrders();
-    const id = setInterval(() => loadOrders({ silent: true }), 15000);
-    return () => clearInterval(id);
+    // Supabase real-time: re-fetch when any order or order_item changes.
+    const channel = supabase
+      .channel('seller-orders-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadOrders({ silent: true });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => {
+        loadOrders({ silent: true });
+      })
+      .subscribe();
+    // Fallback poll every 30s in case real-time is unavailable.
+    const id = setInterval(() => loadOrders({ silent: true }), 30000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(id);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

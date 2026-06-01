@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import OrderDetailsModal from '@/components/OrderDetailsModal';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function AdminOrders() {
   const { formatPrice } = useCurrency();
@@ -38,7 +39,17 @@ export default function AdminOrders() {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  // Initial load + Supabase real-time: re-fetch whenever any order row changes.
+  useEffect(() => {
+    fetchOrders();
+    const channel = supabase
+      .channel('admin-orders-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrders();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handleStatusChange = (id, val) => setLocalStatuses(prev => ({ ...prev, [id]: val }));
 
@@ -88,6 +99,7 @@ export default function AdminOrders() {
           <select className="form-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All Statuses</option>
             <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
             <option value="processing">Processing</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
