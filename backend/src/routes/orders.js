@@ -240,39 +240,11 @@ router.post('/', verifyToken, async (req, res, next) => {
             throw itemErr;
         }
 
-        // Atomically decrement stock for each product via DB function.
-        // On conflict (stock changed between check and decrement) roll back
-        // all successful decrements, clean up the order, and return 409.
-        const decremented = [];
-        let stockConflict = null;
-
-        for (const it of orderItems) {
-            const { data: ok, error: rpcErr } = await supabase
-                .rpc('decrement_product_stock', { p_product_id: it.product_id, p_quantity: it.quantity });
-
-            if (rpcErr) {
-                stockConflict = { type: 'error', productId: it.product_id, err: rpcErr };
-                break;
-            }
-            if (!ok) {
-                stockConflict = { type: 'insufficient', productId: it.product_id };
-                break;
-            }
-            decremented.push(it);
-        }
-
-        if (stockConflict) {
-            // Restore already-decremented products
-            for (const it of decremented) {
-                await supabase.rpc('increment_product_stock', { p_product_id: it.product_id, p_quantity: it.quantity })
-                    .catch((e) => console.error('[ORDER_CREATE] Stock restore error:', e.message));
-            }
-            await supabase.from('order_items').delete().eq('order_id', order.id);
-            await supabase.from('orders').delete().eq('id', order.id);
-
-            if (stockConflict.type === 'error') throw stockConflict.err;
-            return res.status(409).json({ success: false, error: `Insufficient stock for product ${stockConflict.productId}. Please retry.` });
-        }
+        // NOTE: Stock is NOT decremented here. Decrement happens only after a
+        // successful payment in services/paymentSuccess.js (reserve-on-pay).
+        // Decrementing at order creation would wrongly reduce stock for orders
+        // that are abandoned before payment, and would double-count against the
+        // payment-success decrement. Stock availability is still validated above.
 
         const response = mapOrder(order, responseItems);
         res.status(201).json({ success: true, data: response });

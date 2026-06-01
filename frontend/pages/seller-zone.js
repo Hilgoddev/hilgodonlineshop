@@ -31,10 +31,12 @@ export default function SellerZone() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Restore saved form data on mount; pre-fill email from session if not already set
+  // Restore saved form data on mount; pre-fill email from session if not already set.
+  // Uses localStorage (not sessionStorage) so the data survives the signup email-
+  // verification round-trip, which opens the confirmation link in a new browser tab.
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(FORM_KEY);
+      const saved = localStorage.getItem(FORM_KEY);
       const parsed = saved ? JSON.parse(saved) : {};
       setFormData(prev => ({
         ...prev,
@@ -48,7 +50,7 @@ export default function SellerZone() {
   useEffect(() => {
     const hasData = Object.values(formData).some(v => v && v !== 'Electronics & Gadgets' && v !== 'Just starting');
     if (hasData) {
-      try { sessionStorage.setItem(FORM_KEY, JSON.stringify(formData)); } catch (_) {}
+      try { localStorage.setItem(FORM_KEY, JSON.stringify(formData)); } catch (_) {}
     }
   }, [formData]);
 
@@ -76,7 +78,7 @@ export default function SellerZone() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!session) {
-      try { sessionStorage.setItem(FORM_KEY, JSON.stringify(formData)); } catch (_) {}
+      try { localStorage.setItem(FORM_KEY, JSON.stringify(formData)); } catch (_) {}
       router.push('/auth/login?redirect=/seller-zone');
       return;
     }
@@ -88,7 +90,7 @@ export default function SellerZone() {
       });
       const data = await res.json();
       if (data.success) {
-        try { sessionStorage.removeItem(FORM_KEY); } catch (_) {}
+        try { localStorage.removeItem(FORM_KEY); } catch (_) {}
         setModal({ open: true, title: 'Application Submitted', message: 'Your application has been submitted and is pending admin approval.', type: 'alert', onConfirm: () => { closeModal(); router.replace('/account'); } });
       } else {
         setModal({ open: true, title: 'Submission Failed', message: data.error || data.message || 'Failed to submit application', type: 'alert', danger: true, onConfirm: closeModal });
