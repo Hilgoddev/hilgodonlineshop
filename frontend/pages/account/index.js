@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { signOut, useSession } from '../../contexts/AuthContext';
@@ -7,6 +7,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { apiFetch } from '../../lib/apiClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function Account() {
   const { formatPrice } = useCurrency();
@@ -29,6 +30,9 @@ export default function Account() {
   const [passSaving, setPassSaving] = useState(false);
   const [passStrength, setPassStrength] = useState(0);
 
+  const [expandedOrder, setExpandedOrder] = useState(null);
+  const toggleOrder = useCallback((id) => setExpandedOrder(prev => prev === id ? null : id), []);
+
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -39,12 +43,12 @@ export default function Account() {
         const meRes = await apiFetch('/api/auth/me');
         const meData = await meRes.json();
         const role = meData?.data?.role || session?.user?.role;
-        if (role === 'admin') { router.replace('/admin'); return; }
-        if (role === 'seller') { router.replace('/seller/dashboard'); }
+        if (role === 'admin') { router.replace('/admin/orders'); return; }
+        if (role === 'seller') { router.replace('/seller/orders'); }
       } catch (_) {
         const fallbackRole = session?.user?.role;
-        if (fallbackRole === 'admin') { router.replace('/admin'); return; }
-        if (fallbackRole === 'seller') { router.replace('/seller/dashboard'); }
+        if (fallbackRole === 'admin') { router.replace('/admin/orders'); return; }
+        if (fallbackRole === 'seller') { router.replace('/seller/orders'); }
       }
     };
     redirectByAuthoritativeRole();
@@ -90,19 +94,21 @@ export default function Account() {
   useEffect(() => { if (session) fetchUserData(); }, [session]);
   useEffect(() => { if (router.query.tab) setActiveTab(router.query.tab); }, [router.query.tab]);
 
-  // Live status updates - poll for order updates every 30 seconds when on orders tab
+  // Real-time order status updates: subscribe when on orders tab, fall back to 30s poll.
   useEffect(() => {
     if (activeTab !== 'orders' || !session) return;
-    
-    // Initial refresh when switching to orders tab
     refreshOrders();
-    
-    // Set up polling interval (30 seconds)
-    const intervalId = setInterval(() => {
-      refreshOrders();
-    }, 30000);
-    
-    return () => clearInterval(intervalId);
+    const channel = supabase
+      .channel('customer-orders-watch')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, () => {
+        refreshOrders();
+      })
+      .subscribe();
+    const intervalId = setInterval(refreshOrders, 30000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(intervalId);
+    };
   }, [activeTab, session]);
 
   const handleProfileUpdate = async (e) => {
@@ -298,7 +304,7 @@ export default function Account() {
                   <div className="acct-quick-grid">
                     {[
                       { href: '/products', icon: 'fa-shopping-bag', label: 'Shop Now', color: 'var(--primary)' },
-                      { href: '/track-order', icon: 'fa-truck-fast', label: 'Track Order', color: 'var(--info)' },
+                      { href: '/account?tab=orders', icon: 'fa-box', label: 'My Orders', color: 'var(--info)' },
                       { href: '/wishlist', icon: 'fa-heart', label: 'Wishlist', color: 'var(--danger)' },
                       { href: '/return-request', icon: 'fa-rotate-left', label: 'Returns', color: 'var(--warning)' },
                     ].map(({ href, icon, label, color }) => (
@@ -441,41 +447,85 @@ export default function Account() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {orders.map(order => (
-                      <div key={order._id} style={{ border: '1px solid var(--gray-4)', borderRadius: 'var(--radius-md)', padding: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid var(--gray-5)', flexWrap: 'wrap', gap: '12px' }}>
-                          <div>
-                            <div style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '4px' }}>#HGD-{order._id.substring(order._id.length - 8).toUpperCase()}</div>
-                            <div style={{ fontSize: '.82rem', color: 'var(--gray-1)' }}>Placed {new Date(order.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '1.1rem' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</div>
-                            <span style={{ fontSize: '.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '999px', background: order.status === 'delivered' ? '#dcfce7' : order.status === 'shipped' ? '#ede9fe' : '#fef3c7', color: order.status === 'delivered' ? '#15803d' : order.status === 'shipped' ? '#6d28d9' : '#92400e', textTransform: 'capitalize' }}>{order.status || 'pending'}</span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {order.items?.slice(0, 3).map((item, idx) => (
-                              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--gray-6)', borderRadius: 'var(--radius)', padding: '6px 10px 6px 6px', border: '1px solid var(--gray-4)' }}>
-                                <img src={item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=40&q=60'} alt="Item" style={{ width: '36px', height: '36px', objectFit: 'cover', borderRadius: '4px' }} />
-                                <div>
-                                  <div style={{ fontSize: '.75rem', fontWeight: 700, maxWidth: '100px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
-                                  <div style={{ fontSize: '.68rem', color: 'var(--gray-1)' }}>×{item.quantity}</div>
-                                  {item.seller && (
-                                    <div style={{ fontSize: '.62rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                                      <i className="fas fa-store" style={{ fontSize: '.55rem' }}></i>
-                                      <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.seller.storeName || item.seller.name}</span>
-                                    </div>
-                                  )}
-                                </div>
+                    {orders.map(order => {
+                      const isExpanded = expandedOrder === order._id;
+                      const statusColor = { delivered: '#15803d', shipped: '#6d28d9', paid: '#0369a1', processing: '#1e40af', cancelled: '#b91c1c' }[order.status] || '#92400e';
+                      const statusBg = { delivered: '#dcfce7', shipped: '#ede9fe', paid: '#e0f2fe', processing: '#dbeafe', cancelled: '#fee2e2' }[order.status] || '#fef3c7';
+                      const addr = order.deliveryAddress;
+                      return (
+                        <div key={order._id} style={{ border: '1px solid var(--gray-4)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                          {/* Order header — click to expand */}
+                          <div
+                            onClick={() => toggleOrder(order._id)}
+                            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px', cursor: 'pointer', background: isExpanded ? 'var(--gray-6)' : '#fff', gap: '12px', flexWrap: 'wrap' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+                              <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: `${statusColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <i className="fas fa-box" style={{ color: statusColor, fontSize: '.85rem' }}></i>
                               </div>
-                            ))}
-                            {order.items?.length > 3 && <span style={{ fontSize: '.78rem', color: 'var(--gray-1)', alignSelf: 'center' }}>+{order.items.length - 3} more</span>}
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 800, fontSize: '.95rem' }}>#HGD-{order._id.slice(-8).toUpperCase()}</div>
+                                <div style={{ fontSize: '.75rem', color: 'var(--gray-1)' }}>{new Date(order.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })} · {order.items?.length || 0} item{order.items?.length !== 1 ? 's' : ''}</div>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</div>
+                                <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: statusBg, color: statusColor, textTransform: 'capitalize' }}>{order.status || 'pending'}</span>
+                              </div>
+                              <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} style={{ color: 'var(--gray-2)', fontSize: '.75rem', flexShrink: 0 }}></i>
+                            </div>
                           </div>
-                          <Link href={`/track-order?id=${order._id}`} className="btn btn-outline btn-sm"><i className="fas fa-truck-fast"></i> Track</Link>
+
+                          {/* Expanded details */}
+                          {isExpanded && (
+                            <div style={{ borderTop: '1px solid var(--gray-4)', padding: '18px 20px', background: '#fff' }}>
+                              {/* Items list */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: addr ? '18px' : 0 }}>
+                                {order.items?.map((item, idx) => (
+                                  <div key={idx} style={{ display: 'flex', gap: '12px', background: 'var(--gray-6)', padding: '10px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--gray-4)', alignItems: 'center' }}>
+                                    <img
+                                      src={item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=60'}
+                                      alt={item.name}
+                                      style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover', flexShrink: 0 }}
+                                      onError={e => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=60'; }}
+                                    />
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: '2px' }}>{item.name}</div>
+                                      <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>
+                                        Qty: {item.quantity} · {formatPrice(item.price || 0, 'NGN', false)}
+                                      </div>
+                                      {item.seller && (
+                                        <div style={{ fontSize: '.72rem', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <i className="fas fa-store" style={{ fontSize: '.6rem' }}></i>
+                                          {item.seller.storeName || item.seller.name}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div style={{ fontWeight: 800, fontSize: '.88rem', flexShrink: 0 }}>
+                                      {formatPrice((item.price || 0) * (item.quantity || 1), 'NGN', false)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Delivery address */}
+                              {addr && (
+                                <div style={{ background: 'var(--gray-6)', borderRadius: 'var(--radius)', padding: '12px 14px', border: '1px solid var(--gray-4)', marginTop: '10px' }}>
+                                  <div style={{ fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-1)', letterSpacing: '.5px', marginBottom: '6px' }}>
+                                    <i className="fas fa-map-marker-alt" style={{ marginRight: '5px', color: 'var(--primary)' }}></i>Delivery Address
+                                  </div>
+                                  <div style={{ fontSize: '.85rem', fontWeight: 600 }}>
+                                    {[addr.street, addr.city, addr.state, addr.country].filter(Boolean).join(', ')}
+                                  </div>
+                                  {addr.phone && <div style={{ fontSize: '.8rem', color: 'var(--gray-1)', marginTop: '3px' }}><i className="fas fa-phone" style={{ fontSize: '.65rem', marginRight: '4px' }}></i>{addr.phone}</div>}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
