@@ -4,6 +4,36 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 
+// Short-lived in-memory cache for the public product list. Supabase (free tier)
+// can be cold/slow on the first hit, which makes SSR and serverless requests
+// time out. Serving a recent payload keeps pages responsive and shields the DB
+// from repeated identical queries.
+const LIST_CACHE_TTL_MS = 60 * 1000;
+// Hard cap on how long a single Supabase query may run. The free-tier DB can be
+// cold/slow and a hung query would otherwise block the request (and pile up
+// under concurrency). Failing fast lets us fall back to cached data instead.
+const QUERY_TIMEOUT_MS = 12 * 1000;
+// Background refreshes/warm-ups don't block a user, so they may wait longer for
+// a cold database to respond and populate the cache for subsequent requests.
+const BG_QUERY_TIMEOUT_MS = 45 * 1000;
+const listCache = new Map();
+// In-flight queries keyed by cacheKey, so concurrent cold requests share a
+// single database round-trip instead of each running the (slow) query.
+const inflight = new Map();
+
+// Run buildProductsPayload for a key, coalescing concurrent callers.
+function fetchProductsOnce(cacheKey, params, timeoutMs = QUERY_TIMEOUT_MS) {
+    if (inflight.has(cacheKey)) return inflight.get(cacheKey);
+    const promise = buildProductsPayload(params, timeoutMs)
+        .then((payload) => {
+            listCache.set(cacheKey, { payload, freshUntil: Date.now() + LIST_CACHE_TTL_MS, revalidating: false });
+            return payload;
+        })
+        .finally(() => { inflight.delete(cacheKey); });
+    inflight.set(cacheKey, promise);
+    return promise;
+}
+
 // Helper to get display store/seller info
 // Priority: 1. Product's store, 2. Seller's store, 3. Seller name, 4. Hilgod Shop
 const getStoreInfo = (p) => {
@@ -62,18 +92,15 @@ const mapProduct = (p, flashSale = null) => {
     };
 };
 
-// GET /api/products
-router.get('/', async (req, res, next) => {
-    try {
-        const { category, subcategory, search, seller_id, limit = 20, page = 1 } = req.query;
-        const parsedLimit = Math.max(1, Number(limit) || 20);
-        const parsedPage  = Math.max(1, Number(page)  || 1);
-
+// Build the public product-list payload from Supabase. Extracted so the route
+// can refresh it in the background (stale-while-revalidate) without blocking
+// the response on a cold/slow database.
+async function buildProductsPayload({ category, subcategory, search, seller_id, parsedLimit, parsedPage }, timeoutMs = QUERY_TIMEOUT_MS) {
         // Query products with store and seller info
         // Also include seller's store via a separate query if needed
         let query = supabase
             .from('products')
-            .select('*, store:stores(name, slug, status, logo_url), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url)', { count: 'exact' })
+            .select('*, store:stores(name, slug, status, logo_url), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url)', { count: 'estimated' })
             .eq('is_active', true)
             .eq('status', 'approved');
 
@@ -85,7 +112,14 @@ router.get('/', async (req, res, next) => {
         const offset = (parsedPage - 1) * parsedLimit;
         query = query.range(offset, offset + parsedLimit - 1);
 
-        const { data, error, count } = await query;
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), timeoutMs);
+        let data, error, count;
+        try {
+            ({ data, error, count } = await query.abortSignal(ac.signal));
+        } finally {
+            clearTimeout(timer);
+        }
         if (error) throw error;
 
         // If there are products, also fetch seller stores for products without direct store association
@@ -150,15 +184,74 @@ router.get('/', async (req, res, next) => {
         let flashSaleMap = new Map();
         try { flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id)); } catch {}
 
-        const payload = {
+        return {
             success: true,
             data: (data || []).map((p) => mapProduct(p, flashSaleMap.get(p.id))),
             meta: { total: count || 0, page: parsedPage, limit: parsedLimit },
             pagination: { total: count || 0, page: parsedPage, limit: parsedLimit, pages: Math.ceil((count || 0) / parsedLimit) }
         };
+}
 
-        res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
-        res.status(200).json(payload);
+// Refresh a cache entry in the background; never throws.
+function revalidateProducts(cacheKey, params) {
+    const entry = listCache.get(cacheKey);
+    if (entry && entry.revalidating) return;
+    if (entry) entry.revalidating = true;
+    fetchProductsOnce(cacheKey, params, BG_QUERY_TIMEOUT_MS)
+        .catch((err) => {
+            if (entry) entry.revalidating = false;
+            console.error('Products cache revalidation failed:', err?.message || err);
+        });
+}
+
+// GET /api/products
+router.get('/', async (req, res, next) => {
+    try {
+        const { category, subcategory, search, seller_id, limit = 20, page = 1 } = req.query;
+        const parsedLimit = Math.max(1, Number(limit) || 20);
+        const parsedPage  = Math.max(1, Number(page)  || 1);
+        const params = { category, subcategory, search, seller_id, parsedLimit, parsedPage };
+
+        const cacheKey = JSON.stringify(params);
+        const cached = listCache.get(cacheKey);
+
+        // Stale-while-revalidate: if we have any cached payload, serve it
+        // immediately. When it has gone stale, kick off a background refresh so
+        // users never wait on a cold/slow database query.
+        if (cached && cached.payload) {
+            res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+            res.status(200).json(cached.payload);
+            if (cached.freshUntil <= Date.now()) revalidateProducts(cacheKey, params);
+            return;
+        }
+
+        // No cache yet. Start a single coalesced fetch with the long timeout so it
+        // keeps running (and populates the cache) even if it's slow — but only wait
+        // QUERY_TIMEOUT_MS before responding so users/SSR never hang on a cold DB.
+        const fetchPromise = fetchProductsOnce(cacheKey, params, BG_QUERY_TIMEOUT_MS);
+        fetchPromise.catch((err) => {
+            console.error('Products fetch failed (no cache):', err?.message || err);
+        });
+
+        const payload = await Promise.race([
+            fetchPromise.catch(() => null),
+            new Promise((resolve) => setTimeout(() => resolve(null), QUERY_TIMEOUT_MS)),
+        ]);
+
+        if (payload) {
+            res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+            return res.status(200).json(payload);
+        }
+
+        // Still loading/unavailable — return an empty list gracefully (not a 500).
+        // The fetch above continues in the background and will warm the cache.
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(200).json({
+            success: true,
+            data: [],
+            meta: { total: 0, page: parsedPage, limit: parsedLimit },
+            pagination: { total: 0, page: parsedPage, limit: parsedLimit, pages: 0 }
+        });
     } catch (err) {
         next(err);
     }
