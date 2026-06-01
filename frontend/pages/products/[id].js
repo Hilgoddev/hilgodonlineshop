@@ -6,6 +6,7 @@ import ProductCard from '@/components/ProductCard';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { normalizePricing } from '@/lib/pricing';
+import { resolveServerApiBase } from '@/lib/env';
 
 export default function ProductDetail({ product, relatedProducts }) {
   const router = useRouter();
@@ -614,8 +615,8 @@ export default function ProductDetail({ product, relatedProducts }) {
   );
 }
 
-export async function getServerSideProps({ params }) {
-  const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+export async function getServerSideProps({ params, req }) {
+  const apiBase = resolveServerApiBase(req);
 
   try {
     const res = await fetch(`${apiBase}/products/${params.id}`, { cache: 'no-store' });

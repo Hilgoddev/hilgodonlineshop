@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
+import { cleanEnv, resolveServerApiBase } from '@/lib/env';
 
 const PAGE_SIZE = 20;
 // How many rows we pull per network round-trip. We page over this buffer
@@ -47,7 +48,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   // SSR so the first client render reuses the server payload (no refetch).
   const filterKey = useRef(makeFilterKey(initCategory, initSubs, 'default'));
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+  const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
   const buildParams = (limit, page) => {
     const params = new URLSearchParams({ limit: String(limit), page: String(page) });
     if (selectedCategories[0]) params.set('category', selectedCategories[0]);
@@ -389,7 +390,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   );
 }
 
-export async function getServerSideProps({ query, res }) {
+export async function getServerSideProps({ query, req, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   const BATCH_SIZE = 60;
   const SORT_MAP = {
@@ -400,7 +401,7 @@ export async function getServerSideProps({ query, res }) {
     'default': '',
   };
   try {
-    const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const baseUrl = resolveServerApiBase(req);
     // Always seed the first batch; the client pages over it and lazy-loads more.
     const params = new URLSearchParams({ limit: String(BATCH_SIZE), page: '1' });
     if (query.category) params.set('category', query.category);
