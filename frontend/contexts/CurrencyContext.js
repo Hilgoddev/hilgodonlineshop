@@ -99,31 +99,32 @@ export function CurrencyProvider({ children }) {
                 }
 
                 // ── Dynamic-first geolocation ────────────────────────────
-                // Run BOTH the server API and the client-side IP lookup in
-                // parallel so we get the fastest real answer.
+                // Try server-side geo FIRST (Vercel/Cloudflare headers — fast,
+                // no CORS). Only fall back to the third-party ipwho.is lookup
+                // when the server had no real geo, so we avoid its frequent 403s.
                 let geoCurrency = null;
                 let geoDetected = false; // true only when a *real* IP geo source answered
 
-                // Fire both requests at once
-                const [serverResult, clientResult] = await Promise.allSettled([
-                    fetch('/api/location-currency', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-                    fetch('https://ipwho.is/', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-                ]);
-
-                // 1) Prefer server-side geo (Vercel/Cloudflare headers — fastest & no CORS)
-                const serverData = serverResult.status === 'fulfilled' ? serverResult.value : null;
-                if (serverData?.success && serverData?.detected && serverData?.currency?.code) {
-                    geoCurrency = serverData.currency.code;
-                    geoDetected = true;
-                }
-
-                // 2) Fallback to client-side ipwho.is when server had no real geo
-                if (!geoCurrency) {
-                    const clientData = clientResult.status === 'fulfilled' ? clientResult.value : null;
-                    if (clientData?.success && clientData?.currency?.code) {
-                        geoCurrency = clientData.currency.code;
+                // 1) Prefer server-side geo
+                try {
+                    const serverData = await fetch('/api/location-currency', { cache: 'no-store' })
+                        .then(r => r.ok ? r.json() : null);
+                    if (serverData?.success && serverData?.detected && serverData?.currency?.code) {
+                        geoCurrency = serverData.currency.code;
                         geoDetected = true;
                     }
+                } catch (_) {}
+
+                // 2) Fallback to client-side ipwho.is only when server had no real geo
+                if (!geoCurrency) {
+                    try {
+                        const clientData = await fetch('https://ipwho.is/', { cache: 'no-store' })
+                            .then(r => r.ok ? r.json() : null);
+                        if (clientData?.success && clientData?.currency?.code) {
+                            geoCurrency = clientData.currency.code;
+                            geoDetected = true;
+                        }
+                    } catch (_) {}
                 }
 
                 // ── Priority: saved > IP geo > timezone > locale > USD ───
