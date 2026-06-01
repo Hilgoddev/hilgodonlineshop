@@ -4,6 +4,8 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { sendEmail, orderConfirmationHtml, orderStatusHtml } = require('../services/email');
 const { getActiveFlashSaleMap } = require('../utils/pricing');
+const { withTimeout, makeCache } = require('../lib/resilience');
+const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 const mapOrder = (order, items = [], user = null) => ({
     _id: order.id,
@@ -299,11 +301,19 @@ router.get('/all', verifyToken, async (req, res, next) => {
         const parsedLimit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
         const offset      = (parsedPage - 1) * parsedLimit;
 
-        const { data: orders, error, count } = await supabase
-            .from('orders')
-            .select('*', { count: 'exact' })
-            .order('created_at', { ascending: false })
-            .range(offset, offset + parsedLimit - 1);
+        const cacheKey = `orders-all:${parsedPage}:${parsedLimit}`;
+        const hit = ordersAllCache.get(cacheKey);
+        if (hit && hit.fresh) return res.status(200).json(hit.value);
+
+        const { data: orders, error, count } = await withTimeout(
+            (signal) => supabase
+                .from('orders')
+                .select('*', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range(offset, offset + parsedLimit - 1)
+                .abortSignal(signal),
+            12 * 1000,
+        );
         if (error) throw error;
 
         const userIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
@@ -357,9 +367,14 @@ router.get('/all', verifyToken, async (req, res, next) => {
 
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || [], userMap.get(o.user_id) || null));
         const totalRevenue = data.reduce((sum, o) => sum + (o.status === 'paid' || o.status === 'delivered' ? o.totalAmount : 0), 0);
-        res.status(200).json({ success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
+        const payload = { success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } };
+        ordersAllCache.set(cacheKey, payload);
+        return res.status(200).json(payload);
     } catch (err) {
-        next(err);
+        const hit = ordersAllCache.get(`orders-all:${Math.max(1, Number(req.query.page) || 1)}:${Math.min(200, Math.max(1, Number(req.query.limit) || 50))}`);
+        if (hit) return res.status(200).json({ ...hit.value, stale: true });
+        console.error('orders /all failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Orders temporarily unavailable' });
     }
 });
 
