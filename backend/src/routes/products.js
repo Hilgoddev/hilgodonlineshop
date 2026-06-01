@@ -3,6 +3,8 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
+const { withTimeout, makeCache } = require('../lib/resilience');
+const allCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Short-lived in-memory cache for the public product list. Supabase (free tier)
 // can be cold/slow on the first hit, which makes SSR and serverless requests
@@ -257,30 +259,56 @@ router.get('/', async (req, res, next) => {
     }
 });
 
-// GET /api/products/all  (admin — never cached, shows all including inactive)
+// GET /api/products/all  (admin — shows all including inactive). Paginated +
+// cached + timeout-guarded so a slow free-tier query degrades gracefully.
 router.get('/all', verifyToken, async (req, res, next) => {
     try {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
+        const { data: profile } = await withTimeout(
+            (signal) => supabase.from('profiles').select('role').eq('id', req.user.id).single().abortSignal(signal),
+            8 * 1000,
+        );
         if (!profile || profile.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
 
-        const { limit = 1000 } = req.query;
-        const { data, error, count } = await supabase
-            .from('products')
-            .select('*, store:stores(name, slug, status), category_ref:categories(name, slug)', { count: 'exact' })
-            .order('created_at', { ascending: false })
-            .limit(Number(limit));
+        const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
+        const parsedLimit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const offset      = (parsedPage - 1) * parsedLimit;
+        const search      = req.query.search || '';
 
+        const cacheKey = `all:${parsedPage}:${parsedLimit}:${search}`;
+        const hit = allCache.get(cacheKey);
+        if (hit && hit.fresh) {
+            res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+            return res.status(200).json(hit.value);
+        }
+
+        let q = supabase
+            .from('products')
+            .select('*, store:stores(name, slug, status), category_ref:categories(name, slug)', { count: 'estimated' })
+            .order('created_at', { ascending: false });
+        if (search) q = q.ilike('name', `%${search}%`);
+        q = q.range(offset, offset + parsedLimit - 1);
+
+        const { data, error, count } = await withTimeout((signal) => q.abortSignal(signal), 12 * 1000);
         if (error) throw error;
-        res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+
         let flashSaleMap = new Map();
         try { flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id)); } catch {}
-        res.status(200).json({
+
+        const payload = {
             success: true,
             data: (data || []).map((p) => mapProduct(p, flashSaleMap.get(p.id))),
-            pagination: { total: count }
-        });
+            pagination: { total: count || 0, page: parsedPage, limit: parsedLimit, pages: Math.ceil((count || 0) / parsedLimit) },
+        };
+        allCache.set(cacheKey, payload);
+        res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+        return res.status(200).json(payload);
     } catch (err) {
-        next(err);
+        const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
+        const parsedLimit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const hit = allCache.get(`all:${parsedPage}:${parsedLimit}:${req.query.search || ''}`);
+        if (hit) return res.status(200).json({ ...hit.value, stale: true });
+        console.error('products /all failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Products temporarily unavailable' });
     }
 });
 
