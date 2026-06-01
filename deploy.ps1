@@ -211,7 +211,13 @@ function Invoke-VercelEnvAdd {
         # Vercel does not allow --sensitive on the development environment
         $effectiveSensitive = $Sensitive -and ($Target -ne 'development')
         $sensitiveFlag = if ($effectiveSensitive) { '--sensitive' } else { '--no-sensitive' }
-        $Value | & vercel env add $Key $Target --yes --force $sensitiveFlag | Out-Host
+        # Strip a leading UTF-8 BOM (U+FEFF) so it never lands in a header value
+        # on Vercel (a BOM in e.g. SUPABASE_SERVICE_ROLE_KEY breaks every request).
+        $cleanValue = $Value -replace "^﻿", ""
+        # Pass the value via --value rather than stdin. Piping to the native CLI in
+        # non-interactive (agent) mode saves an EMPTY value, and PowerShell can also
+        # prepend a BOM to piped stdin. --value avoids both failure modes.
+        & vercel env add $Key $Target --value $cleanValue --yes --force $sensitiveFlag | Out-Host
         if ($LASTEXITCODE -ne 0) {
             throw "vercel env add exited with code $LASTEXITCODE"
         }
