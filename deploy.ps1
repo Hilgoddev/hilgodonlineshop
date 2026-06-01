@@ -569,8 +569,10 @@ if ($SyncEnv) {
 }
 
 # ---------------------------------------------------------------------------
-# [6/7] Deploy
+# [6/7] Deploy  (wrapped in try/finally so .git is ALWAYS restored)
 # ---------------------------------------------------------------------------
+try {
+
 if (-not $BackendOnly) {
     Write-Host "[6/7] Deploying Frontend..." -ForegroundColor Green
     Write-Host "========================================" -ForegroundColor Green
@@ -615,28 +617,26 @@ if (-not $FrontendOnly) {
     Write-Host ""
 }
 
-# ---------------------------------------------------------------------------
-# [7/7] Restore .git
-# ---------------------------------------------------------------------------
-Write-Host "[7/7] Restoring .git folder..." -ForegroundColor Yellow
+} finally {
+    # ── Always restore .git, even on Ctrl+C or unhandled error ──────────────
+    Restore-GitFolder
+}
 
-if ($gitRenamed -and -not $NoRestore) {
-    if (Test-Path $backupGitName) {
-        Write-Status "*" "Renaming $backupGitName -> .git..." -Color "Yellow"
-        try {
-            Rename-Item -Path $backupGitName -NewName ".git" -ErrorAction Stop
-            Write-Status "OK" ".git restored" -Color "Green"
-        } catch {
-            Write-Status "!" "Restore failed - rename '$backupGitName' to '.git' manually." -Color "Red"
-            Write-Status "*" "Error: $($_.Exception.Message)" -Color "White"
-        }
-    } else {
-        Write-Status "!" "Backup '$backupGitName' not found - cannot restore." -Color "Yellow"
-    }
+# ---------------------------------------------------------------------------
+# [7/7] Git restore confirmation
+# ---------------------------------------------------------------------------
+Write-Host "[7/7] Git restore..." -ForegroundColor Yellow
+if (-not $gitRenamed) {
+    Write-Status "i" "Nothing to restore (.git was not renamed)" -Color "Gray"
 } elseif ($NoRestore) {
-    Write-Status "!" "Skipping restore (NoRestore) - rename '$backupGitName' to '.git' manually." -Color "Yellow"
+    Write-Status "!" "Skipped restore (NoRestore) - rename '$backupGitName' to '.git' manually." -Color "Yellow"
 } else {
-    Write-Status "i" "Nothing to restore" -Color "Gray"
+    # Already restored by the finally block above; just confirm
+    if (Test-Path ".git") {
+        Write-Status "OK" ".git is present" -Color "Green"
+    } else {
+        Write-Status "!" ".git still missing - rename '$backupGitName' to '.git' manually." -Color "Red"
+    }
 }
 Write-Host ""
 
