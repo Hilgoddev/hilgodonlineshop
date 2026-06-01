@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -8,12 +8,20 @@ import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 
 const PAGE_SIZE = 20;
 
-export default function ProductsPage({ allProducts = [] }) {
-  const router = useRouter();
-  const [catalogProducts, setCatalogProducts] = useState(allProducts || []);
-  const [catalogLoading, setCatalogLoading] = useState(!allProducts || allProducts.length === 0);
+const SORT_MAP = {
+  'price-asc':  'price_asc',
+  'price-desc': 'price_desc',
+  'new':        'newest',
+  'rating':     'rating',
+  'default':    '',
+};
 
-  // Derive initial state from URL query on first render
+export default function ProductsPage({ initialProducts = [], initialTotal = 0, initialPage = 1 }) {
+  const router = useRouter();
+  const [products, setProducts] = useState(initialProducts || []);
+  const [total, setTotal] = useState(initialTotal || 0);
+  const [loading, setLoading] = useState(false);
+
   const initCategory = router.query.category ? [router.query.category] : [];
   const initSubs = router.query.subcategory ? router.query.subcategory.split(',') : [];
 
@@ -21,35 +29,7 @@ export default function ProductsPage({ allProducts = [] }) {
   const [selectedSubcategories, setSelectedSubcategories] = useState(initSubs);
   const [sortBy, setSortBy] = useState('default');
   const [viewMode, setViewMode] = useState('grid');
-  const [currentPage, setCurrentPage] = useState(1);
-
-  useEffect(() => {
-    setCatalogProducts(allProducts || []);
-    setCatalogLoading(!allProducts || allProducts.length === 0);
-  }, [allProducts]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadProducts = async () => {
-      if (allProducts && allProducts.length > 0) return;
-
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-      const data = await fetchJsonWithTimeout(`${apiBase}/products?limit=1000`, 15000);
-      if (cancelled || !data?.success || !Array.isArray(data.data)) return;
-
-      setCatalogProducts(data.data);
-      setCatalogLoading(false);
-    };
-
-    loadProducts().finally(() => {
-      if (!cancelled) setCatalogLoading(false);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [allProducts]);
+  const [currentPage, setCurrentPage] = useState(initialPage || 1);
 
   // Sync category / subcategory from URL (navbar links change the URL)
   useEffect(() => {
@@ -68,35 +48,32 @@ export default function ProductsPage({ allProducts = [] }) {
     setCurrentPage(1);
   }, [router.isReady, router.query.category, router.query.subcategory]);
 
-  // All filtering + sorting happens client-side — no network request
-  const filteredAndSorted = useMemo(() => {
-    let list = catalogProducts;
+  // Fetch the current page from the server whenever filters / sort / page change.
+  useEffect(() => {
+    if (!router.isReady) return;
+    let cancelled = false;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(currentPage) });
+    if (selectedCategories[0]) params.set('category', selectedCategories[0]);
+    if (selectedSubcategories.length === 1) params.set('subcategory', selectedSubcategories[0]);
+    const sort = SORT_MAP[sortBy];
+    if (sort) params.set('sort', sort);
 
-    if (selectedCategories.length > 0) {
-      list = list.filter(p => selectedCategories.includes(p.category));
-    }
-    if (selectedSubcategories.length > 0) {
-      list = list.filter(p => selectedSubcategories.includes(p.subcategory));
-    }
+    setLoading(true);
+    fetchJsonWithTimeout(`${apiBase}/products?${params.toString()}`, 15000)
+      .then((data) => {
+        if (cancelled || !data?.success || !Array.isArray(data.data)) return;
+        setProducts(data.data);
+        setTotal(data.pagination?.total ?? data.meta?.total ?? data.data.length);
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
 
-    switch (sortBy) {
-      case 'price-asc':  return [...list].sort((a, b) => a.price - b.price);
-      case 'price-desc': return [...list].sort((a, b) => b.price - a.price);
-      case 'rating':     return [...list].sort((a, b) => (b.ratings?.average || 0) - (a.ratings?.average || 0));
-      case 'new':        return [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      default:           return list;
-    }
-  }, [catalogProducts, selectedCategories, selectedSubcategories, sortBy]);
+    return () => { cancelled = true; };
+  }, [router.isReady, selectedCategories, selectedSubcategories, sortBy, currentPage]);
 
-  // Pagination derived from filteredAndSorted
-  const totalPages = Math.ceil(filteredAndSorted.length / PAGE_SIZE);
-  const pageProducts = filteredAndSorted.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
-
-  // Reset to page 1 whenever filters or sort change
-  useEffect(() => { setCurrentPage(1); }, [selectedCategories, selectedSubcategories, sortBy]);
+  // The server already filtered/sorted/paginated — render rows as-is.
+  const pageProducts = products;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const goToPage = (p) => {
     setCurrentPage(p);
@@ -315,7 +292,7 @@ export default function ProductsPage({ allProducts = [] }) {
         <div className="products-main">
           <div className="products-topbar">
             <div className="products-count">
-              <strong>{filteredAndSorted.length}</strong> products found
+              <strong>{total}</strong> products found
             </div>
             <div className="sort-controls">
               <span className="sort-label hide-mobile">Sort by:</span>
@@ -337,7 +314,7 @@ export default function ProductsPage({ allProducts = [] }) {
             </div>
           </div>
 
-          {catalogLoading && pageProducts.length === 0 ? (
+          {loading && pageProducts.length === 0 ? (
             <div className="no-products" style={{ textAlign: 'center', padding: '40px' }}>
               <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: 'var(--primary)' }}></i>
               <p style={{ marginTop: '16px', fontSize: '1.1rem', color: 'var(--gray-1)' }}>
@@ -370,15 +347,35 @@ export default function ProductsPage({ allProducts = [] }) {
 
 export async function getServerSideProps({ query, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  const PAGE_SIZE = 20;
+  const SORT_MAP = {
+    'price-asc': 'price_asc',
+    'price-desc': 'price_desc',
+    'new': 'newest',
+    'rating': 'rating',
+    'default': '',
+  };
   try {
     const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-    const data = await fetchJsonWithTimeout(`${baseUrl}/products?limit=250`, 12000);
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page) });
+    if (query.category) params.set('category', query.category);
+    if (query.subcategory && !String(query.subcategory).includes(',')) {
+      params.set('subcategory', String(query.subcategory));
+    }
+    const sort = SORT_MAP[query.sort];
+    if (sort) params.set('sort', sort);
+
+    const data = await fetchJsonWithTimeout(`${baseUrl}/products?${params.toString()}`, 12000);
+    const ok = data?.success && Array.isArray(data.data);
     return {
       props: {
-        allProducts: data?.success ? (data.data || []) : [],
+        initialProducts: ok ? data.data : [],
+        initialTotal: ok ? (data.pagination?.total ?? data.meta?.total ?? data.data.length) : 0,
+        initialPage: page,
       },
     };
   } catch {
-    return { props: { allProducts: [] } };
+    return { props: { initialProducts: [], initialTotal: 0, initialPage: 1 } };
   }
 }
