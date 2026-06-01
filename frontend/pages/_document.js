@@ -2,7 +2,7 @@ import { Html, Head, Main, NextScript } from 'next/document'
 
 export default function Document() {
   return (
-    <Html lang="en">
+    <Html lang="en" data-scroll-behavior="smooth">
       <Head>
         <link rel="icon" href="/fav.png" type="image/png" sizes="32x32" />
         <link rel="icon" href="/logo.png" type="image/png" sizes="192x192" />
