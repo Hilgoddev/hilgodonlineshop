@@ -22,7 +22,9 @@ export function resolveServerApiBase(req) {
 
   const host = req?.headers?.host;
   if (host) {
-    const proto = req.headers['x-forwarded-proto'] || (host.startsWith('localhost') ? 'http' : 'https');
+    // x-forwarded-proto can arrive as "https,https" on Vercel — take first value only.
+    const rawProto = req.headers['x-forwarded-proto'] || '';
+    const proto = rawProto.split(',')[0].trim() || (host.startsWith('localhost') ? 'http' : 'https');
     const path = configured && configured.startsWith('/') ? configured : '/api';
     return `${proto}://${host}${path}`;
   }

@@ -617,19 +617,30 @@ export default function ProductDetail({ product, relatedProducts }) {
 
 export async function getServerSideProps({ params, req }) {
   const apiBase = resolveServerApiBase(req);
+  const productUrl = `${apiBase}/products/${params.id}`;
 
   try {
-    const res = await fetch(`${apiBase}/products/${params.id}`, { cache: 'no-store' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    let res;
+    try {
+      res = await fetch(productUrl, { cache: 'no-store', signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
 
     if (res.status === 404) return { notFound: true };
 
     if (!res.ok) {
-      console.error(`[PDP] Backend error ${res.status} for product ${params.id}`);
+      console.error(`[PDP] Backend error ${res.status} for product ${params.id} (url: ${productUrl})`);
       return { notFound: true };
     }
 
     const data = await res.json();
-    if (!data.success || !data.data) return { notFound: true };
+    if (!data.success || !data.data) {
+      console.error(`[PDP] Bad data for product ${params.id}:`, JSON.stringify(data).slice(0, 200));
+      return { notFound: true };
+    }
 
     let relatedProducts = [];
     try {
@@ -645,7 +656,7 @@ export async function getServerSideProps({ params, req }) {
 
     return { props: { product: data.data, relatedProducts } };
   } catch (error) {
-    console.error(`[PDP] Failed to fetch product ${params.id}:`, error.message);
+    console.error(`[PDP] Failed to fetch product ${params.id} from ${productUrl}:`, error.message);
     return { notFound: true };
   }
 }
