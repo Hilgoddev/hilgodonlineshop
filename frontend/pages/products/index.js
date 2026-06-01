@@ -7,6 +7,9 @@ import { categoriesData } from '@/pages/categories';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 
 const PAGE_SIZE = 20;
+// How many rows we pull per network round-trip. We page over this buffer
+// 20-at-a-time client-side, so one fetch covers three instant pages.
+const BATCH_SIZE = 60;
 
 const SORT_MAP = {
   'price-asc':  'price_asc',
@@ -16,16 +19,20 @@ const SORT_MAP = {
   'default':    '',
 };
 
-// Stable string for a set of list params, used to skip a redundant client
-// fetch when the server already returned that exact page during SSR.
-const makeParamsKey = (page, cats, subs, sort) =>
-  [page, cats[0] || '', subs.length === 1 ? subs[0] : '', SORT_MAP[sort] || ''].join('|');
+// Stable string for a filter/sort combo. When it changes we throw away the
+// buffer and fetch a fresh first batch; when it matches SSR we skip the refetch.
+const makeFilterKey = (cats, subs, sort) =>
+  [cats[0] || '', subs.length === 1 ? subs[0] : '', SORT_MAP[sort] || ''].join('|');
 
-export default function ProductsPage({ initialProducts = [], initialTotal = 0, initialPage = 1 }) {
+export default function ProductsPage({ initialProducts = [], initialTotal = 0 }) {
   const router = useRouter();
+  // `products` is a client-side buffer of rows for the current filter/sort.
+  // We page over it 20-at-a-time instantly and only hit the network to fetch
+  // the next BATCH when the user pages past what's already loaded.
   const [products, setProducts] = useState(initialProducts || []);
   const [total, setTotal] = useState(initialTotal || 0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);       // full reload (filter/sort change)
+  const [loadingMore, setLoadingMore] = useState(false); // appending the next batch
 
   const initCategory = router.query.category ? [router.query.category] : [];
   const initSubs = router.query.subcategory ? router.query.subcategory.split(',') : [];
@@ -34,11 +41,21 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
   const [selectedSubcategories, setSelectedSubcategories] = useState(initSubs);
   const [sortBy, setSortBy] = useState('default');
   const [viewMode, setViewMode] = useState('grid');
-  const [currentPage, setCurrentPage] = useState(initialPage || 1);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // SSR already fetched this exact page — seed the ref so the first client
-  // render reuses it instead of firing a duplicate network request.
-  const lastFetchedKey = useRef(makeParamsKey(initialPage || 1, initCategory, initSubs, 'default'));
+  // The filter/sort combo whose results are currently buffered. Seeded from
+  // SSR so the first client render reuses the server payload (no refetch).
+  const filterKey = useRef(makeFilterKey(initCategory, initSubs, 'default'));
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+  const buildParams = (limit, page) => {
+    const params = new URLSearchParams({ limit: String(limit), page: String(page) });
+    if (selectedCategories[0]) params.set('category', selectedCategories[0]);
+    if (selectedSubcategories.length === 1) params.set('subcategory', selectedSubcategories[0]);
+    const sort = SORT_MAP[sortBy];
+    if (sort) params.set('sort', sort);
+    return params;
+  };
 
   // Sync category / subcategory from URL (navbar links change the URL)
   useEffect(() => {
@@ -57,25 +74,17 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
     setCurrentPage(1);
   }, [router.isReady, router.query.category, router.query.subcategory]);
 
-  // Fetch the current page from the server whenever filters / sort / page change.
+  // Filter/sort changed → fetch a fresh first batch and replace the buffer.
   useEffect(() => {
     if (!router.isReady) return;
-
-    // Skip the fetch when the current params match what SSR already delivered.
-    const key = makeParamsKey(currentPage, selectedCategories, selectedSubcategories, sortBy);
-    if (key === lastFetchedKey.current) return;
-    lastFetchedKey.current = key;
+    const key = makeFilterKey(selectedCategories, selectedSubcategories, sortBy);
+    if (key === filterKey.current) return; // unchanged (incl. the initial SSR payload)
+    filterKey.current = key;
 
     let cancelled = false;
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(currentPage) });
-    if (selectedCategories[0]) params.set('category', selectedCategories[0]);
-    if (selectedSubcategories.length === 1) params.set('subcategory', selectedSubcategories[0]);
-    const sort = SORT_MAP[sortBy];
-    if (sort) params.set('sort', sort);
-
+    setCurrentPage(1);
     setLoading(true);
-    fetchJsonWithTimeout(`${apiBase}/products?${params.toString()}`, 15000)
+    fetchJsonWithTimeout(`${apiBase}/products?${buildParams(BATCH_SIZE, 1).toString()}`, 15000)
       .then((data) => {
         if (cancelled || !data?.success || !Array.isArray(data.data)) return;
         setProducts(data.data);
@@ -84,11 +93,31 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [router.isReady, selectedCategories, selectedSubcategories, sortBy, currentPage]);
+  }, [router.isReady, selectedCategories, selectedSubcategories, sortBy]);
 
-  // The server already filtered/sorted/paginated — render rows as-is.
-  const pageProducts = products;
+  // Lazy-load deeper batches as the user pages past what's buffered.
+  useEffect(() => {
+    if (!router.isReady || loading || loadingMore) return;
+    const needed = currentPage * PAGE_SIZE;
+    if (products.length >= needed || products.length >= total) return; // enough buffered
+
+    let cancelled = false;
+    const nextBatch = Math.floor(products.length / BATCH_SIZE) + 1;
+    setLoadingMore(true);
+    fetchJsonWithTimeout(`${apiBase}/products?${buildParams(BATCH_SIZE, nextBatch).toString()}`, 15000)
+      .then((data) => {
+        if (cancelled || !data?.success || !Array.isArray(data.data)) return;
+        setProducts((prev) => [...prev, ...data.data]);
+        setTotal(data.pagination?.total ?? data.meta?.total ?? products.length + data.data.length);
+      })
+      .finally(() => { if (!cancelled) setLoadingMore(false); });
+
+    return () => { cancelled = true; };
+  }, [router.isReady, currentPage, products.length, total, loading, loadingMore]);
+
+  // Slice the buffer for the active page — instant, no network.
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageProducts = products.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const goToPage = (p) => {
     setCurrentPage(p);
@@ -329,7 +358,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
             </div>
           </div>
 
-          {loading && pageProducts.length === 0 ? (
+          {(loading || loadingMore) && pageProducts.length === 0 ? (
             <div className="no-products" style={{ textAlign: 'center', padding: '40px' }}>
               <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: 'var(--primary)' }}></i>
               <p style={{ marginTop: '16px', fontSize: '1.1rem', color: 'var(--gray-1)' }}>
@@ -362,7 +391,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
 
 export async function getServerSideProps({ query, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-  const PAGE_SIZE = 20;
+  const BATCH_SIZE = 60;
   const SORT_MAP = {
     'price-asc': 'price_asc',
     'price-desc': 'price_desc',
@@ -372,8 +401,8 @@ export async function getServerSideProps({ query, res }) {
   };
   try {
     const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-    const page = Math.max(1, parseInt(query.page, 10) || 1);
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page) });
+    // Always seed the first batch; the client pages over it and lazy-loads more.
+    const params = new URLSearchParams({ limit: String(BATCH_SIZE), page: '1' });
     if (query.category) params.set('category', query.category);
     if (query.subcategory && !String(query.subcategory).includes(',')) {
       params.set('subcategory', String(query.subcategory));
@@ -387,10 +416,9 @@ export async function getServerSideProps({ query, res }) {
       props: {
         initialProducts: ok ? data.data : [],
         initialTotal: ok ? (data.pagination?.total ?? data.meta?.total ?? data.data.length) : 0,
-        initialPage: page,
       },
     };
   } catch {
-    return { props: { initialProducts: [], initialTotal: 0, initialPage: 1 } };
+    return { props: { initialProducts: [], initialTotal: 0 } };
   }
 }
