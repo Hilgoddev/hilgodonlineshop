@@ -93,6 +93,7 @@ export default function AdminStores() {
                 <tr style={{ background: '#f8fafc', color: '#64748b' }}>
                   <th style={{ padding: '12px 16px' }}>Store</th>
                   <th style={{ padding: '12px 16px' }}>Slug</th>
+                  <th style={{ padding: '12px 16px' }}>Products</th>
                   <th style={{ padding: '12px 16px' }}>Status</th>
                   <th style={{ padding: '12px 16px' }}>Actions</th>
                 </tr>
@@ -102,6 +103,11 @@ export default function AdminStores() {
                   <tr key={s.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 700 }}>{s.name}</td>
                     <td style={{ padding: '12px 16px', color: '#64748b' }}>{s.slug}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '4px 10px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
+                        {s.product_count ?? 0}
+                      </span>
+                    </td>
                     <td style={{ padding: '12px 16px' }}>{badge(s.status)}</td>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

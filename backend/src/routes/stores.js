@@ -81,6 +81,27 @@ router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
             return data || [];
         });
 
+        // Count products per store. Products link to a store via the store's
+        // owner (products.seller_id === stores.owner_id), so tally by seller_id
+        // and map back — one grouped query instead of N per-store queries.
+        const ownerIds = [...new Set(stores.map((s) => s.owner_id).filter(Boolean))];
+        const productCounts = new Map();
+        if (ownerIds.length > 0) {
+            try {
+                const { data: prods } = await withTimeout(
+                    (signal) => supabase
+                        .from('products')
+                        .select('seller_id')
+                        .in('seller_id', ownerIds)
+                        .abortSignal(signal),
+                    12 * 1000,
+                );
+                (prods || []).forEach((p) => {
+                    productCounts.set(p.seller_id, (productCounts.get(p.seller_id) || 0) + 1);
+                });
+            } catch (_) { /* non-fatal: counts fall back to 0 */ }
+        }
+
         const data = stores.map((s) => ({
             id: s.id,
             name: s.name,
@@ -89,6 +110,7 @@ router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
             description: s.description,
             logo_url: s.logo_url,
             owner_id: s.owner_id,
+            product_count: productCounts.get(s.owner_id) || 0,
             created_at: s.created_at,
             updated_at: s.updated_at,
         }));

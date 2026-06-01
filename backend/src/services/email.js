@@ -15,7 +15,10 @@ const { cleanEnv } = require('../lib/env');
 // vars) makes the "Authorization: Bearer <key>" header throw and silently
 // breaks ALL emails in production while working locally.
 const RESEND_API_KEY = cleanEnv(process.env.RESEND_API_KEY);
-const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://hilgod-frontend.onrender.com';
+// Used to build links inside emails (Track Order, View Orders, etc). MUST be
+// the live site in production — a stale/localhost value makes email buttons
+// point at localhost. Defaults to the production domain, not an old host.
+const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const supabase = require('../config/supabase');
 
 const FROM_ORDERS = cleanEnv(process.env.EMAIL_FROM_ORDERS) || 'Order Notifications <contact@hilgod.com>';
@@ -40,11 +43,13 @@ const EMAIL_FROM_MAP = {
  * Generate email footer with logo, company info, and support contact
  */
 function getEmailFooter() {
-  const supportEmail = process.env.SUPPORT_EMAIL || 'support@hilgod.com';
-  const supportPhone = process.env.SUPPORT_PHONE || '+123';
-  const website = process.env.COMPANY_WEBSITE || 'hilgod.com';
-  const logoUrl = process.env.LOGO_URL || 'https://www.hilgod.com/logo.png';
-  const companyName = process.env.COMPANY_NAME || 'Hilgod Online Store';
+  const supportEmail = cleanEnv(process.env.SUPPORT_EMAIL) || 'support@hilgod.com';
+  const supportPhone = cleanEnv(process.env.SUPPORT_PHONE) || '+123';
+  const website = cleanEnv(process.env.COMPANY_WEBSITE) || 'hilgod.com';
+  // Use the lightweight (~5KB) email logo, not the 2MB site logo.png that many
+  // email clients refuse to render. EMAIL_LOGO_URL can override if needed.
+  const logoUrl = cleanEnv(process.env.EMAIL_LOGO_URL) || 'https://www.hilgod.com/email-logo.png';
+  const companyName = cleanEnv(process.env.COMPANY_NAME) || 'Hilgod Online Store';
   
   return `
     <div style="margin-top:40px;padding-top:20px;border-top:1px solid #eee;font-size:0.85rem;color:#666;text-align:center">
