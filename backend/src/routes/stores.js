@@ -2,6 +2,9 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { withTimeout, makeCache, singleFlight } = require('../lib/resilience');
+const storesAllCache = makeCache({ ttlMs: 30 * 1000 });
+const storesFlight = singleFlight();
 
 // Middleware to verify admin role
 const requireAdmin = async (req, res, next) => {
@@ -61,21 +64,24 @@ router.get('/', async (req, res, next) => {
 
 // Admin get all stores (including unapproved)
 router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
+    const cached = storesAllCache.get('all');
+    if (cached && cached.fresh) return res.status(200).json(cached.value);
+
     try {
-        console.log('[stores.js /all] Admin check passed, fetching stores...');
-        const { data: stores, error } = await supabase
-            .from('stores')
-            .select('*')
-            .order('created_at', { ascending: false });
+        const stores = await storesFlight('all', async () => {
+            const { data, error } = await withTimeout(
+                (signal) => supabase
+                    .from('stores')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .abortSignal(signal),
+                12 * 1000,
+            );
+            if (error) throw error;
+            return data || [];
+        });
 
-        if (error) {
-            console.error('[stores.js /all] Supabase error:', error);
-            throw error;
-        }
-
-        console.log('[stores.js /all] Stores fetched:', stores?.length || 0, 'records');
-
-        const data = (stores || []).map(s => ({
+        const data = stores.map((s) => ({
             id: s.id,
             name: s.name,
             slug: s.slug,
@@ -84,14 +90,16 @@ router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
             logo_url: s.logo_url,
             owner_id: s.owner_id,
             created_at: s.created_at,
-            updated_at: s.updated_at
+            updated_at: s.updated_at,
         }));
 
-        console.log('[stores.js /all] Mapped data, sending response');
-        res.status(200).json({ success: true, data });
+        const payload = { success: true, data };
+        storesAllCache.set('all', payload);
+        return res.status(200).json(payload);
     } catch (err) {
-        console.error('[stores.js /all] Error:', err.message, err);
-        next(err);
+        if (cached) return res.status(200).json({ ...cached.value, stale: true });
+        console.error('stores /all failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Stores temporarily unavailable' });
     }
 });
 
