@@ -4,6 +4,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
+import { cleanEnv, resolveServerApiBase } from '@/lib/env';
 
 const CATEGORY_IMAGES = {
   womenswear: 'https://plus.unsplash.com/premium_photo-1661351421471-b288544c3dda?w=300&auto=format&fit=crop&q=60',
@@ -195,8 +196,8 @@ export default function Home({ products, categories = [], flashSales = [] }) {
     const loadProducts = async () => {
       if (products && products.length > 0) return;
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-      const data = await fetchJsonWithTimeout(`${apiBase}/products?limit=500`, 15000);
+      const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
+      const data = await fetchJsonWithTimeout(`${apiBase}/products?limit=20`, 15000);
       if (cancelled || !data?.success || !Array.isArray(data.data)) return;
 
       setCatalogProducts(data.data);
@@ -871,13 +872,13 @@ export default function Home({ products, categories = [], flashSales = [] }) {
 }
 
 // Fetch products data on the server side
-export async function getServerSideProps() {
+export async function getServerSideProps({ req }) {
   try {
-    const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
+    const baseUrl = resolveServerApiBase(req);
 
     // Fetch products, categories and active flash sales in parallel
     const [prodData, catData, flashData] = await Promise.all([
-      fetchJsonWithTimeout(`${baseUrl}/products?limit=100`, 12000),
+      fetchJsonWithTimeout(`${baseUrl}/products?limit=20`, 12000),
       fetchJsonWithTimeout(`${baseUrl}/categories`, 8000),
       fetchJsonWithTimeout(`${baseUrl}/flash-sales`, 8000),
     ]);
