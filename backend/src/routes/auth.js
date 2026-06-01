@@ -1,8 +1,37 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
-const { withTimeout, makeCache } = require('../lib/resilience');
+const { withTimeout, makeCache, singleFlight } = require('../lib/resilience');
 const meCache = makeCache({ ttlMs: 30 * 1000 });
+
+// Supabase's auth endpoint (GoTrue) is slow/flaky on the free tier (~6s per
+// call, occasional connection drops). verifyToken runs on EVERY authenticated
+// request, so re-validating the same token every time pushes requests past the
+// timeout and 503s them (which was blocking checkout). We validate a token once,
+// cache the identity, and reuse it for subsequent requests. Access tokens are
+// short-lived anyway, so a few minutes of caching is safe.
+const tokenCache = makeCache({ ttlMs: 5 * 60 * 1000 });
+const tokenFlight = singleFlight();
+const AUTH_TIMEOUT_MS = 12 * 1000;
+
+// Validate a bearer token against Supabase, coalescing concurrent identical
+// validations. Throws an error tagged `invalidToken` for genuine auth failures
+// (so callers can 401) vs. a plain error for transient outages (so callers can
+// serve a cached identity or 503).
+async function validateToken(token) {
+    return tokenFlight(token, async () => {
+        const { data: { user } = {}, error } = await withTimeout(
+            () => supabase.auth.getUser(token),
+            AUTH_TIMEOUT_MS,
+        );
+        if (error || !user) {
+            const err = new Error('Invalid token');
+            err.invalidToken = true;
+            throw err;
+        }
+        return user;
+    });
+}
 
 // Middleware to verify Supabase token
 const verifyToken = async (req, res, next) => {
@@ -12,24 +41,29 @@ const verifyToken = async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'No token provided' });
     }
 
-    let user, error;
+    const cached = tokenCache.get(token);
+    if (cached && cached.fresh) {
+        req.user = cached.value;
+        return next();
+    }
+
     try {
-        ({ data: { user } = {}, error } = await withTimeout(
-            () => supabase.auth.getUser(token),
-            8 * 1000,
-        ));
+        const user = await validateToken(token);
+        tokenCache.set(token, user);
+        req.user = user;
+        return next();
     } catch (e) {
-        // Timeout / transient outage — NOT an auth failure. Tell the client to
-        // retry instead of masquerading as 401 (bad token) or 500 (our bug).
+        if (e && e.invalidToken) {
+            return res.status(401).json({ success: false, message: 'Invalid token' });
+        }
+        // Timeout / transient outage — NOT an auth failure. If we validated this
+        // exact token recently, trust that identity rather than blocking the user.
+        if (cached) {
+            req.user = cached.value;
+            return next();
+        }
         return res.status(503).json({ success: false, message: 'Auth temporarily unavailable' });
     }
-
-    if (error || !user) {
-        return res.status(401).json({ success: false, message: 'Invalid token' });
-    }
-
-    req.user = user;
-    next();
 };
 
 // Sync user profile after signup/login
