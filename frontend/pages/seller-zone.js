@@ -17,7 +17,8 @@ export default function SellerZone() {
   const closeModal = () => setModal(m => ({ ...m, open: false }));
   const FORM_KEY = 'hilgod_seller_form';
   const [formData, setFormData] = useState({
-    fullName: '',
+    firstName: '',
+    surname: '',
     businessName: '',
     email: '',
     phone: '',
@@ -38,11 +39,14 @@ export default function SellerZone() {
     try {
       const saved = localStorage.getItem(FORM_KEY);
       const parsed = saved ? JSON.parse(saved) : {};
+      const sessionName = (session?.user?.name || '').trim();
+      const nameParts = sessionName ? sessionName.split(/\s+/) : [];
       setFormData(prev => ({
         ...prev,
         ...parsed,
         email: parsed.email || session?.user?.email || prev.email,
-        fullName: parsed.fullName || session?.user?.name || prev.fullName,
+        firstName: parsed.firstName || nameParts[0] || prev.firstName,
+        surname: parsed.surname || nameParts.slice(1).join(' ') || prev.surname,
       }));
     } catch (_) {}
   }, [session]);
@@ -86,7 +90,10 @@ export default function SellerZone() {
     try {
       const res = await apiFetch('/api/seller/apply', {
         method: 'POST',
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          fullName: `${formData.firstName} ${formData.surname}`.trim(),
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -491,29 +498,41 @@ export default function SellerZone() {
             <form onSubmit={handleSubmit}>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Full Name</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Your name" 
+                  <label className="form-label">First Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="First name"
                     required
-                    name="fullName"
-                    value={formData.fullName}
+                    name="firstName"
+                    value={formData.firstName}
                     onChange={handleInputChange}
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Business Name</label>
-                  <input 
-                    type="text" 
-                    className="form-input" 
-                    placeholder="Store/business name" 
+                  <label className="form-label">Surname</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Surname"
                     required
-                    name="businessName"
-                    value={formData.businessName}
+                    name="surname"
+                    value={formData.surname}
                     onChange={handleInputChange}
                   />
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Business Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Store/business name"
+                  required
+                  name="businessName"
+                  value={formData.businessName}
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">Email Address</label>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
+import OrderDetailsModal from '@/components/OrderDetailsModal';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -13,7 +14,7 @@ export default function AdminOrders() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [updatingId, setUpdatingId] = useState(null);
   const [localStatuses, setLocalStatuses] = useState({});
-  const [expandedOrder, setExpandedOrder] = useState(null);
+  const [selectedOrder, setSelectedOrder] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   const fetchOrders = async () => {
@@ -120,11 +121,10 @@ export default function AdminOrders() {
                     const custEmail = order.user?.email || 'N/A';
                     const currentStatus = localStatuses[order._id] || order.status || 'pending';
                     const isChanged = currentStatus !== (order.status || 'pending');
-                    const isExpanded = expandedOrder === order._id;
 
                     return (
                       <React.Fragment key={order._id}>
-                        <tr style={{ borderBottom: isExpanded ? 'none' : '1px solid var(--gray-4)', background: isExpanded ? '#f8fafc' : 'transparent' }}>
+                        <tr style={{ borderBottom: '1px solid var(--gray-4)' }}>
                           <td style={{ padding: '14px 16px', fontWeight: '700', color: 'var(--primary)', verticalAlign: 'top' }}>#{order._id.slice(-8).toUpperCase()}</td>
                           <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                             <div style={{ fontWeight: '600' }}>{custName}</div>
@@ -148,47 +148,11 @@ export default function AdminOrders() {
                           </td>
                           <td style={{ padding: '14px 16px', fontSize: '.82rem', color: 'var(--gray-1)', verticalAlign: 'top' }}>{formatDate(order.createdAt)}</td>
                           <td style={{ padding: '14px 16px', textAlign: 'right', verticalAlign: 'top' }}>
-                            <button className="btn btn-sm btn-outline" onClick={() => setExpandedOrder(isExpanded ? null : order._id)} style={{ fontSize: '.8rem' }}>
-                              {isExpanded ? 'Hide' : 'View'}
+                            <button className="btn btn-sm btn-outline" onClick={() => setSelectedOrder(order)} style={{ fontSize: '.8rem' }}>
+                              View
                             </button>
                           </td>
                         </tr>
-                        {isExpanded && (
-                          <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--gray-4)' }}>
-                            <td colSpan={8} style={{ padding: '20px 24px' }}>
-                              <h4 style={{ fontWeight: '700', marginBottom: '12px' }}>Order #{order._id.slice(-8).toUpperCase()} Details</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                                <div><strong>Customer:</strong> {custName}<br /><span style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{custEmail}</span></div>
-                                {order.deliveryAddress && (
-                                  <div><strong>Delivery:</strong><br /><span style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{order.deliveryAddress.street}, {order.deliveryAddress.city}, {order.deliveryAddress.state} {order.deliveryAddress.zipCode}, {order.deliveryAddress.country}<br />Phone: {order.deliveryAddress.phone}</span></div>
-                                )}
-                              </div>
-                              <strong>Items:</strong>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
-                                {order.items?.map((item, idx) => (
-                                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--gray-4)', fontSize: '.85rem' }}>
-                                    {item.image && <img src={item.image} alt="" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80&auto=format'; }} />}
-                                    <div>
-                                      <div style={{ fontWeight: '600' }}>{item.name}</div>
-                                      <div style={{ color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(item.price || 0, 'NGN', false)}</div>
-                                      {item.fulfillmentStatus && (
-                                        <div style={{ fontSize: '.74rem', color: '#475569', textTransform: 'capitalize' }}>
-                                          Item status: {item.fulfillmentStatus}
-                                        </div>
-                                      )}
-                                      {item.seller && (
-                                        <div style={{ fontSize: '.74rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                          <i className="fas fa-store" style={{ fontSize: '.65rem' }}></i>
-                                          {item.seller.storeName || item.seller.name}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
                       </React.Fragment>
                     );
                   })}
@@ -197,6 +161,12 @@ export default function AdminOrders() {
             </div>
           )}
         </div>
+
+        <OrderDetailsModal
+          order={selectedOrder}
+          isOpen={!!selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
     </>
   );
 }

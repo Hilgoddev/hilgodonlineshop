@@ -67,6 +67,37 @@ router.post('/sync-profile', verifyToken, async (req, res, next) => {
     }
 });
 
+// Auto-confirm email — ONLY active when EMAIL_VERIFICATION_ENABLED=false.
+// When verification is enabled (the default), this returns 403 and the signup
+// page shows the "check your email" modal instead.
+router.post('/auto-confirm', async (req, res, next) => {
+    try {
+        if (process.env.EMAIL_VERIFICATION_ENABLED !== 'false') {
+            return res.status(403).json({ success: false, message: 'Email verification is enabled' });
+        }
+
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ success: false, message: 'Email required' });
+
+        const { data, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        if (listError) throw listError;
+
+        const user = data?.users?.find((u) => u.email === email);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        if (user.email_confirmed_at) {
+            return res.json({ success: true, message: 'Already confirmed' });
+        }
+
+        const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, { email_confirm: true });
+        if (updateError) throw updateError;
+
+        res.json({ success: true, message: 'Email confirmed' });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // Get current user profile
 router.get('/me', verifyToken, async (req, res, next) => {
     try {

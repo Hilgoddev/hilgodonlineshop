@@ -9,7 +9,7 @@ const mapOrder = (order, items = [], user = null) => ({
     _id: order.id,
     id: order.id,
     status: order.status,
-    paymentStatus: order.status === 'paid' ? 'paid' : 'pending',
+    paymentStatus: ['paid', 'shipped', 'delivered'].includes(order.status) ? 'paid' : 'pending',
     totalAmount: Number(order.total_amount || 0),
     currency: order.currency,
     createdAt: order.created_at,
@@ -18,6 +18,31 @@ const mapOrder = (order, items = [], user = null) => ({
     items,
     user
 });
+
+// Seller email is stored on auth.users (not profiles), so resolve it via the
+// admin API. Accepts one or more mapped-item lists, de-duplicates seller IDs
+// across all of them, and attaches `seller.email` in place.
+const attachSellerEmails = async (...itemsLists) => {
+    const lists = itemsLists.flat().filter(Boolean);
+    const ids = [...new Set(lists.flatMap((list) => list.map((it) => it.seller?.id)).filter(Boolean))];
+    if (!ids.length) return;
+
+    const entries = await Promise.all(ids.map(async (id) => {
+        try {
+            const { data } = await supabase.auth.admin.getUserById(id);
+            return [id, data?.user?.email || null];
+        } catch {
+            return [id, null];
+        }
+    }));
+    const emailMap = new Map(entries);
+
+    for (const list of lists) {
+        for (const it of list) {
+            if (it.seller?.id) it.seller.email = emailMap.get(it.seller.id) || null;
+        }
+    }
+};
 
 router.get('/', verifyToken, async (req, res, next) => {
     try {
@@ -66,6 +91,8 @@ router.get('/', verifyToken, async (req, res, next) => {
                 return map;
             }, new Map());
         }
+
+        await attachSellerEmails([...itemMap.values()]);
 
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || []));
         res.status(200).json({ success: true, data, pagination: { total: data.length } });
@@ -133,7 +160,7 @@ router.post('/', verifyToken, async (req, res, next) => {
         const productIds = [...productQuantityMap.keys()];
         const { data: products, error: productsErr } = await supabase
             .from('products')
-            .select('id, name, images, price, stock, is_active, seller_id')
+            .select('id, name, images, price, stock, is_active, status, seller_id')
             .in('id', productIds);
         if (productsErr) throw productsErr;
 
@@ -151,7 +178,7 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         for (const [productId, quantity] of productQuantityMap.entries()) {
             const p = productMap.get(productId);
-            if (!p || p.is_active !== true) {
+            if (!p || p.is_active !== true || p.status !== 'approved') {
                 return res.status(400).json({ success: false, error: `Product not available: ${productId}` });
             }
             if (quantity > maxQuantityPerLine) {
@@ -326,6 +353,8 @@ router.get('/all', verifyToken, async (req, res, next) => {
             return map;
         }, new Map());
 
+        await attachSellerEmails([...itemMap.values()]);
+
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || [], userMap.get(o.user_id) || null));
         const totalRevenue = data.reduce((sum, o) => sum + (o.status === 'paid' || o.status === 'delivered' ? o.totalAmount : 0), 0);
         res.status(200).json({ success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
@@ -392,6 +421,8 @@ router.get('/:id', verifyToken, async (req, res, next) => {
                 storeLogo: it.product?.store?.logo_url || null
             } : null
         }));
+
+        await attachSellerEmails([mappedItems]);
 
         res.status(200).json({ success: true, data: mapOrder(order, mappedItems) });
     } catch (err) {

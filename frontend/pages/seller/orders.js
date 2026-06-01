@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Layout from '@/components/Layout';
 import SellerGuard from '@/components/SellerGuard';
 import Link from 'next/link';
@@ -22,29 +22,48 @@ export default function SellerOrders() {
   const [filter, setFilter] = useState('all');
   const [savingItemId, setSavingItemId] = useState(null);
   const [itemStatuses, setItemStatuses] = useState({});
+  // Tracks the last known server fulfillment status per item so background
+  // polls can refresh values without clobbering edits the seller hasn't saved.
+  const serverStatusRef = useRef({});
+
+  const loadOrders = async ({ silent = false } = {}) => {
+    try {
+      const res = await apiFetch('/api/seller/orders');
+      const json = await res.json();
+      if (json.success) {
+        const rows = json.data || [];
+        setOrders(rows);
+        const serverMap = {};
+        rows.forEach((order) => {
+          (order.items || []).forEach((item) => {
+            serverMap[item.id] = item.fulfillmentStatus || 'pending';
+          });
+        });
+        setItemStatuses((prev) => {
+          const next = { ...prev };
+          Object.entries(serverMap).forEach(([id, srv]) => {
+            const prevServer = serverStatusRef.current[id];
+            const localUnsaved = prev[id] !== undefined && prev[id] !== prevServer;
+            // Only overwrite the dropdown when the seller has no unsaved edit.
+            if (!localUnsaved) next[id] = srv;
+          });
+          return next;
+        });
+        serverStatusRef.current = serverMap;
+        if (error) setError('');
+      } else if (!silent) setError(json.error || 'Could not load orders');
+    } catch {
+      if (!silent) setError('Network error loading orders');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiFetch('/api/seller/orders');
-        const json = await res.json();
-        if (json.success) {
-          const rows = json.data || [];
-          setOrders(rows);
-          const statusMap = {};
-          rows.forEach((order) => {
-            (order.items || []).forEach((item) => {
-              statusMap[item.id] = item.fulfillmentStatus || 'pending';
-            });
-          });
-          setItemStatuses(statusMap);
-        } else setError(json.error || 'Could not load orders');
-      } catch {
-        setError('Network error loading orders');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    loadOrders();
+    const id = setInterval(() => loadOrders({ silent: true }), 15000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveItemStatus = async (itemId) => {
@@ -59,6 +78,8 @@ export default function SellerOrders() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Failed to update item status');
 
+      // Mark as the new server baseline so background polls don't treat it as unsaved.
+      serverStatusRef.current = { ...serverStatusRef.current, [itemId]: fulfillmentStatus };
       setOrders((prev) =>
         prev.map((order) => ({
           ...order,
