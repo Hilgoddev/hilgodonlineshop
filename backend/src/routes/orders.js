@@ -4,7 +4,7 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { sendEmail, orderConfirmationHtml, orderStatusHtml } = require('../services/email');
 const { getActiveFlashSaleMap } = require('../utils/pricing');
-const { withTimeout, makeCache } = require('../lib/resilience');
+const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 const mapOrder = (order, items = [], user = null) => ({
@@ -348,22 +348,20 @@ router.get('/all', verifyToken, async (req, res, next) => {
         const userIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
         const orderIds = (orders || []).map((o) => o.id);
 
-        // Fetch profiles + auth emails in parallel with order items.
-        // profiles gives us full_name/phone; auth.admin.listUsers gives real emails.
+        // Fetch profiles + auth emails (one batched listUsers call, cached 60s)
+        // in parallel with order items. getEmailMap() is far cheaper than N
+        // individual getUserById calls and won't threaten the 10s serverless limit.
         let profiles = [], authEmails = new Map();
         let items = [];
         await Promise.all([
             (async () => {
                 if (!userIds.length) return;
-                const { data } = await supabase.from('profiles').select('id, full_name, username, phone_number').in('id', userIds);
+                const [{ data }, emailMap] = await Promise.all([
+                    supabase.from('profiles').select('id, full_name, username, phone_number').in('id', userIds),
+                    getEmailMap(),
+                ]);
                 profiles = data || [];
-                // Fetch real emails from auth for each user (batched, best-effort)
-                await Promise.allSettled(userIds.map(async (uid) => {
-                    try {
-                        const { data: { user } } = await supabase.auth.admin.getUserById(uid);
-                        if (user?.email) authEmails.set(uid, user.email);
-                    } catch {}
-                }));
+                authEmails = emailMap;
             })(),
             (async () => {
                 if (!orderIds.length) return;
@@ -510,6 +508,11 @@ router.put('/:id', verifyToken, async (req, res, next) => {
             .select('*');
         if (error) throw error;
         if (!data?.length) return res.status(404).json({ success: false, error: 'Order not found' });
+
+        // Bust all page caches so the next admin fetch sees fresh data.
+        for (let p = 1; p <= 10; p++) {
+            for (const lim of [50, 100, 200]) ordersAllCache.delete(`orders-all:${p}:${lim}`);
+        }
 
         res.status(200).json({ success: true, data: mapOrder(data[0]) });
 

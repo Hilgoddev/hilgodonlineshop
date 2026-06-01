@@ -39,7 +39,7 @@ export default function AdminOrders() {
     }
   };
 
-  // Initial load + Supabase real-time: re-fetch whenever any order row changes.
+  // Initial load + Supabase real-time + 30s fallback poll.
   useEffect(() => {
     fetchOrders();
     const channel = supabase
@@ -48,7 +48,12 @@ export default function AdminOrders() {
         fetchOrders();
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    // Fallback: poll every 30s in case the real-time subscription is unavailable.
+    const poll = setInterval(fetchOrders, 30000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
   }, []);
 
   const handleStatusChange = (id, val) => setLocalStatuses(prev => ({ ...prev, [id]: val }));
