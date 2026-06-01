@@ -11,7 +11,8 @@ const { handlePaymentSuccess } = require('../services/paymentSuccess');
 // Amount is always sourced server-side to prevent tampering.
 router.post('/create-payment', verifyToken, async (req, res, next) => {
   try {
-    const apiKey = process.env.GREY_API_KEY || '';
+    const { cleanEnv } = require('../lib/env');
+    const apiKey = cleanEnv(process.env.GREY_API_KEY) || '';
     if (!apiKey || apiKey === 'your-grey-api-key') {
       return res.status(503).json({
         success: false,

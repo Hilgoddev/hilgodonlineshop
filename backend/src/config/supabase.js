@@ -1,8 +1,9 @@
 require('dotenv').config();
 const { createClient } = require('@supabase/supabase-js');
+const { cleanEnv } = require('../lib/env');
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = cleanEnv(process.env.SUPABASE_URL);
+const supabaseKey = cleanEnv(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 if (!supabaseUrl || !supabaseKey) {
   console.warn('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Ensure they are set in .env');

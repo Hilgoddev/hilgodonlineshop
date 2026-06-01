@@ -10,7 +10,8 @@ const { handlePaymentSuccess } = require('../services/paymentSuccess');
 // server-side from the order record to prevent tampering.
 router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
   try {
-    const stripeKey = process.env.STRIPE_SECRET_KEY || '';
+    const { cleanEnv } = require('../lib/env');
+    const stripeKey = cleanEnv(process.env.STRIPE_SECRET_KEY) || '';
     const isValidKey = (stripeKey.startsWith('sk_live_') || stripeKey.startsWith('sk_test_')) && stripeKey.length > 50;
     if (!isValidKey) {
       return res.status(503).json({ success: false, message: 'Payments via Stripe is on the way. For now please try other options available.' });
@@ -63,7 +64,8 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
 // Raw body is required — index.js registers express.raw() for this path before express.json().
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const { cleanEnv: _clean } = require('../lib/env');
+  const webhookSecret = _clean(process.env.STRIPE_WEBHOOK_SECRET);
 
   if (!webhookSecret) {
     console.error('[STRIPE] STRIPE_WEBHOOK_SECRET not configured');

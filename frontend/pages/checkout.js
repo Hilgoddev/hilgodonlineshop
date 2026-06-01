@@ -6,12 +6,14 @@ import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiFetch } from '../lib/apiClient';
 import { normalizePricing } from '../lib/pricing';
+import { cleanEnv } from '../lib/env';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripeEnabled = process.env.NEXT_PUBLIC_STRIPE_ENABLED === 'true';
-const stripePromise = stripeEnabled && process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+const stripeEnabled = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_ENABLED) === 'true';
+const stripePublishableKey = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const stripePromise = stripeEnabled && stripePublishableKey
+  ? loadStripe(stripePublishableKey)
   : null;
 
 const PAYMENT_METHODS = [

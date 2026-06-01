@@ -6,6 +6,7 @@ const paystack = require('../config/paystack');
 const { verifyToken } = require('./auth');
 const { paymentInitLimiter } = require('../middleware/rateLimit');
 const { handlePaymentSuccess } = require('../services/paymentSuccess');
+const { cleanEnv } = require('../lib/env');
 
 const initializePayment = async (req, res, next) => {
     const __t = Date.now();
@@ -121,7 +122,6 @@ router.post('/initiate', verifyToken, paymentInitLimiter, initializePayment);
 // Note: In index.js, we need to ensure this route uses express.raw({ type: 'application/json' }) 
 // to properly verify the Paystack signature.
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-    const { cleanEnv } = require('../lib/env');
     const secret = cleanEnv(process.env.PAYSTACK_SECRET_KEY) || '';
     const signature = req.headers['x-paystack-signature'];
     const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
@@ -220,10 +220,10 @@ router.get('/bank-details', (req, res) => {
   res.json({
     success: true,
     data: {
-      bankName: process.env.BANK_NAME || 'First Bank Nigeria',
-      accountName: process.env.BANK_ACCOUNT_NAME || 'Hilgod Online Store Ltd',
-      accountNumber: process.env.BANK_ACCOUNT_NUMBER || '0000000000',
-      sortCode: process.env.BANK_SORT_CODE || '011',
+      bankName: cleanEnv(process.env.BANK_NAME) || 'First Bank Nigeria',
+      accountName: cleanEnv(process.env.BANK_ACCOUNT_NAME) || 'Hilgod Online Store Ltd',
+      accountNumber: cleanEnv(process.env.BANK_ACCOUNT_NUMBER) || '0000000000',
+      sortCode: cleanEnv(process.env.BANK_SORT_CODE) || '011',
     },
   });
 });
