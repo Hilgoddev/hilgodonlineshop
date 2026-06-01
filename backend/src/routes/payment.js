@@ -121,7 +121,8 @@ router.post('/initiate', verifyToken, paymentInitLimiter, initializePayment);
 // Note: In index.js, we need to ensure this route uses express.raw({ type: 'application/json' }) 
 // to properly verify the Paystack signature.
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-    const secret = process.env.PAYSTACK_SECRET_KEY || '';
+    const { cleanEnv } = require('../lib/env');
+    const secret = cleanEnv(process.env.PAYSTACK_SECRET_KEY) || '';
     const signature = req.headers['x-paystack-signature'];
     const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
 

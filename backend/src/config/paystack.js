@@ -1,6 +1,7 @@
 require('dotenv').config();
+const { cleanEnv } = require('../lib/env');
 
-const paystackKey = process.env.PAYSTACK_SECRET_KEY;
+const paystackKey = cleanEnv(process.env.PAYSTACK_SECRET_KEY);
 
 let paystack;
 try {
