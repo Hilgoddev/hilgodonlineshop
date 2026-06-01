@@ -4,9 +4,15 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const requireAdmin = require('../middleware/requireAdmin');
 const { sendEmail, escapeHtml, sellerApprovedHtml } = require('../services/email');
+const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
+const statsCache = makeCache({ ttlMs: 30 * 1000 });
+const listCache = makeCache({ ttlMs: 30 * 1000 });
 
 router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
     try {
+        const cached = statsCache.get('stats');
+        if (cached && cached.fresh) return res.status(200).json(cached.value);
+
         const [productsRes, ordersRecentRes, ordersCountRes, customersCountRes, storesRes, sellerAppsRes, reviewsRes] =
             await Promise.all([
                 supabase.from('products').select('id, name, stock, status').eq('is_active', true),
@@ -61,15 +67,12 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             : { data: [], error: null };
         if (orderUsersError) throw orderUsersError;
 
-        // Fetch real emails for order users
-        const { data: authData } = orderUserIds.length
-            ? await supabase.auth.admin.listUsers({ perPage: 1000 })
-            : { data: { users: [] } };
-        const emailMap = new Map((authData?.users || []).map((u) => [u.id, u.email]));
+        // Fetch real emails for order users (cached/shared across admin routes)
+        const emailMap = orderUserIds.length ? await getEmailMap() : new Map();
 
         const orderUserMap = new Map((orderUsers || []).map((u) => [u.id, u]));
 
-        res.status(200).json({
+        const payload = {
             success: true,
             data: {
                 products: products.length,
@@ -103,9 +106,14 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                     pendingSellerAppsCount,
                 },
             },
-        });
+        };
+        statsCache.set('stats', payload);
+        return res.status(200).json(payload);
     } catch (err) {
-        next(err);
+        const cached = statsCache.get('stats');
+        if (cached) return res.status(200).json({ ...cached.value, stale: true });
+        console.error('admin /stats failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Stats temporarily unavailable' });
     }
 });
 
@@ -115,11 +123,19 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
         const parsedLimit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
         const offset      = (parsedPage - 1) * parsedLimit;
 
-        const { data: profiles, error, count } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact' })
-            .order('created_at', { ascending: false })
-            .range(offset, offset + parsedLimit - 1);
+        const cacheKey = `customers:${parsedPage}:${parsedLimit}`;
+        const hit = listCache.get(cacheKey);
+        if (hit && hit.fresh) return res.status(200).json(hit.value);
+
+        const { data: profiles, error, count } = await withTimeout(
+            (signal) => supabase
+                .from('profiles')
+                .select('*', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range(offset, offset + parsedLimit - 1)
+                .abortSignal(signal),
+            12 * 1000,
+        );
         if (error) throw error;
 
         const userIds = (profiles || []).map((p) => p.id);
@@ -127,9 +143,8 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
             ? await supabase.from('orders').select('id, user_id, total_amount').in('status', ['paid', 'shipped', 'delivered'])
             : { data: [] };
 
-        // Fetch real emails in one batch
-        const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-        const emailMap = new Map((authData?.users || []).map((u) => [u.id, u.email]));
+        // Fetch real emails in one batch (cached/shared across admin routes)
+        const emailMap = await getEmailMap();
 
         const stats = (orders || []).reduce((map, o) => {
             const entry = map.get(o.user_id) || { orderCount: 0, totalSpent: 0 };
@@ -157,9 +172,14 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
             };
         });
 
-        res.status(200).json({ success: true, data, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
+        const payload = { success: true, data, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } };
+        listCache.set(cacheKey, payload);
+        return res.status(200).json(payload);
     } catch (err) {
-        next(err);
+        const hit = listCache.get(`customers:${Math.max(1, Number(req.query.page) || 1)}:${Math.min(100, Math.max(1, Number(req.query.limit) || 50))}`);
+        if (hit) return res.status(200).json({ ...hit.value, stale: true });
+        console.error('admin /customers failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Customers temporarily unavailable' });
     }
 });
 
@@ -169,12 +189,20 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
         const parsedLimit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
         const offset      = (parsedPage - 1) * parsedLimit;
 
-        const { data: profiles, error, count } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact' })
-            .eq('role', 'seller')
-            .order('created_at', { ascending: false })
-            .range(offset, offset + parsedLimit - 1);
+        const cacheKey = `sellers:${parsedPage}:${parsedLimit}`;
+        const hit = listCache.get(cacheKey);
+        if (hit && hit.fresh) return res.status(200).json(hit.value);
+
+        const { data: profiles, error, count } = await withTimeout(
+            (signal) => supabase
+                .from('profiles')
+                .select('*', { count: 'exact' })
+                .eq('role', 'seller')
+                .order('created_at', { ascending: false })
+                .range(offset, offset + parsedLimit - 1)
+                .abortSignal(signal),
+            12 * 1000,
+        );
         if (error) throw error;
 
         const sellerIds = (profiles || []).map((p) => p.id);
@@ -190,9 +218,8 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
             if (!productsRes.error) products = productsRes.data || [];
         }
 
-        // Fetch real emails
-        const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-        const emailMap = new Map((authData?.users || []).map((u) => [u.id, u.email]));
+        // Fetch real emails (cached/shared across admin routes)
+        const emailMap = await getEmailMap();
 
         const storeMap = new Map((stores || []).map((s) => [
             s.owner_id,
@@ -218,9 +245,14 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
             };
         });
 
-        res.status(200).json({ success: true, data, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } });
+        const payload = { success: true, data, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } };
+        listCache.set(cacheKey, payload);
+        return res.status(200).json(payload);
     } catch (err) {
-        next(err);
+        const hit = listCache.get(`sellers:${Math.max(1, Number(req.query.page) || 1)}:${Math.min(100, Math.max(1, Number(req.query.limit) || 50))}`);
+        if (hit) return res.status(200).json({ ...hit.value, stale: true });
+        console.error('admin /sellers failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Sellers temporarily unavailable' });
     }
 });
 
@@ -306,12 +338,13 @@ router.get('/seller-applications', verifyToken, requireAdmin, async (req, res, n
             query = query.eq('status', status);
         }
 
-        const { data, error } = await query;
+        const { data, error } = await withTimeout((signal) => query.abortSignal(signal), 12 * 1000);
         if (error) throw error;
 
         res.status(200).json({ success: true, data: data || [], pagination: { total: (data || []).length } });
     } catch (err) {
-        next(err);
+        console.error('admin /seller-applications failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Applications temporarily unavailable' });
     }
 });
 
@@ -436,10 +469,13 @@ router.get('/riders', verifyToken, requireAdmin, async (req, res, next) => {
         const status = req.query.status || null;
         let query = supabase.from('rider_applications').select('*').order('applied_at', { ascending: false });
         if (status) query = query.eq('status', status);
-        const { data, error } = await query;
+        const { data, error } = await withTimeout((signal) => query.abortSignal(signal), 12 * 1000);
         if (error) throw error;
         res.status(200).json({ success: true, data: data || [] });
-    } catch (err) { next(err); }
+    } catch (err) {
+        console.error('admin /riders failed:', err?.message || err);
+        return res.status(503).json({ success: false, error: 'Riders temporarily unavailable' });
+    }
 });
 
 router.put('/riders/:id', verifyToken, requireAdmin, async (req, res, next) => {
