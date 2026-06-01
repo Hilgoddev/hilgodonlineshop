@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "verify:supabase": "node scripts/verify-supabase-setup.js",
     "seed:static-products": "node scripts/seed-products-from-static.js",
     "update:rates": "node scripts/update-exchange-rates.js"
@@ -15,6 +15,10 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
     "cors": "^2.8.6",
