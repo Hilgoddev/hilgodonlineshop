@@ -78,7 +78,21 @@ const initializePayment = async (req, res, next) => {
             
         res.status(200).json({ success: true, data: response.data });
     } catch (err) {
-        next(err);
+        // Paystack (via paystack-api / request-promise) throws a StatusCodeError
+        // with the gateway's JSON in err.error. Surface a clean, actionable
+        // message instead of a generic 500, and log enough to diagnose.
+        const gateway = err?.error || err?.response?.body || null;
+        const gatewayMsg = gateway?.message || err?.message;
+        const masked = (s) => (s ? String(s).replace(/^(.).*(@.*)$/, '$1***$2') : '(none)');
+        console.error('[PAYMENT] Paystack initialize failed:', {
+            status: err?.statusCode || err?.status,
+            gatewayMsg,
+            payerEmail: masked(typeof payerEmail !== 'undefined' ? payerEmail : null),
+        });
+        return res.status(502).json({
+            success: false,
+            message: gatewayMsg || 'Payment gateway error. Please try again or use another method.',
+        });
     }
 };
 
