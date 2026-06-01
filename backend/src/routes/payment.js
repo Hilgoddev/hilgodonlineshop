@@ -8,6 +8,8 @@ const { paymentInitLimiter } = require('../middleware/rateLimit');
 const { handlePaymentSuccess } = require('../services/paymentSuccess');
 
 const initializePayment = async (req, res, next) => {
+    const __t = Date.now();
+    const __lap = (label) => { console.log(`[PAYMENT_TIMING] ${label}: +${Date.now() - __t}ms`); };
     try {
         const order_id = req.body.order_id || req.body.orderId;
         const email = req.body.email;
@@ -24,7 +26,8 @@ const initializePayment = async (req, res, next) => {
             .eq('id', order_id)
             .eq('user_id', req.user.id)
             .single();
-            
+        __lap('order fetched');
+
         if (orderError || !order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
@@ -68,6 +71,7 @@ const initializePayment = async (req, res, next) => {
 
         // Initialize Paystack transaction
         const frontendUrl = (process.env.FRONTEND_URL || 'https://hilgod.vercel.app').replace(/\/$/, '');
+        __lap('before paystack.initialize');
         const response = await paystack.transaction.initialize({
             email: payerEmail,
             amount: amount * 100, // convert to subunits
@@ -78,13 +82,15 @@ const initializePayment = async (req, res, next) => {
                 user_id: req.user.id
             }
         });
-        
+        __lap('paystack.initialize done');
+
         // Save the payment reference to the order
         await supabase
             .from('orders')
             .update({ payment_reference: response.data.reference })
             .eq('id', order_id);
-            
+        __lap('order updated + responding');
+
         res.status(200).json({ success: true, data: response.data });
     } catch (err) {
         // Paystack (via paystack-api / request-promise) throws a StatusCodeError

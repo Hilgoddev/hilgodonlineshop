@@ -1,8 +1,62 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
 const { withTimeout, makeCache, singleFlight } = require('../lib/resilience');
+const { cleanEnv } = require('../lib/env');
 const meCache = makeCache({ ttlMs: 30 * 1000 });
+
+// Supabase signs user access tokens with the project's asymmetric keys (ES256/
+// RS256), exposed as a public JWKS. We fetch + cache those public keys and verify
+// tokens locally — microseconds, no network per request — which removes the slow/
+// flaky GoTrue getUser() call from EVERY authenticated request (it was pushing
+// checkout/payment past the serverless time limit). Only Supabase's private key
+// can sign a valid token, so verifying against the public key is fully secure.
+// Any failure falls back to the network validation path, so behaviour stays safe.
+const SUPABASE_URL = cleanEnv(process.env.SUPABASE_URL);
+const JWKS_URL = SUPABASE_URL ? `${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/.well-known/jwks.json` : null;
+const JWKS_TTL_MS = 10 * 60 * 1000;
+let jwksKeys = new Map();   // kid -> crypto.KeyObject (public)
+let jwksFetchedAt = 0;
+let jwksInflight = null;
+
+// Return the public key for a `kid`, (re)fetching the JWKS if needed. Keys can
+// rotate, so a miss triggers a refetch. Concurrent calls share one fetch.
+async function getSigningKey(kid) {
+    const fresh = Date.now() - jwksFetchedAt < JWKS_TTL_MS;
+    if (jwksKeys.has(kid) && fresh) return jwksKeys.get(kid);
+    if (!JWKS_URL) return null;
+
+    if (!jwksInflight) {
+        jwksInflight = (async () => {
+            const res = await withTimeout(() => fetch(JWKS_URL), 5000);
+            if (!res.ok) throw new Error(`JWKS fetch failed: ${res.status}`);
+            const { keys } = await res.json();
+            const map = new Map();
+            for (const jwk of keys || []) {
+                try { map.set(jwk.kid, crypto.createPublicKey({ key: jwk, format: 'jwk' })); } catch {}
+            }
+            jwksKeys = map;
+            jwksFetchedAt = Date.now();
+        })().finally(() => { jwksInflight = null; });
+    }
+    await jwksInflight;
+    return jwksKeys.get(kid) || null;
+}
+
+// Build a user object shaped like supabase.auth.getUser()'s, from a JWT payload.
+function userFromJwtPayload(p) {
+    return {
+        id: p.sub,
+        email: p.email || null,
+        phone: p.phone || null,
+        role: p.role || null,
+        aud: p.aud || null,
+        user_metadata: p.user_metadata || {},
+        app_metadata: p.app_metadata || {},
+    };
+}
 
 // Supabase's auth endpoint (GoTrue) is slow/flaky on the free tier (~6s per
 // call, occasional connection drops). verifyToken runs on EVERY authenticated
@@ -39,6 +93,30 @@ const verifyToken = async (req, res, next) => {
 
     if (!token) {
         return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    // Fast path: verify the token locally against the public JWKS (no network
+    // per request once keys are cached). Any miss/failure falls through to the
+    // network validation path below, so we never wrongly reject a valid user.
+    if (JWKS_URL) {
+        try {
+            const decoded = jwt.decode(token, { complete: true });
+            const kid = decoded?.header?.kid;
+            const alg = decoded?.header?.alg;
+            if (kid && (alg === 'ES256' || alg === 'RS256')) {
+                const key = await getSigningKey(kid);
+                if (key) {
+                    const payload = jwt.verify(token, key, { algorithms: ['ES256', 'RS256'] });
+                    req.user = userFromJwtPayload(payload);
+                    return next();
+                }
+            }
+        } catch (e) {
+            if (e.name === 'TokenExpiredError') {
+                return res.status(401).json({ success: false, message: 'Token expired' });
+            }
+            // Bad signature / fetch error → fall through to network validation.
+        }
     }
 
     const cached = tokenCache.get(token);

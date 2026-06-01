@@ -160,10 +160,29 @@ router.post('/', verifyToken, async (req, res, next) => {
         }
 
         const productIds = [...productQuantityMap.keys()];
-        const { data: products, error: productsErr } = await supabase
-            .from('products')
-            .select('id, name, images, price, stock, is_active, status, seller_id')
-            .in('id', productIds);
+
+        // Run the two read queries in parallel and bound them with a hard
+        // timeout. On the free-tier DB these can be slow; doing them serially
+        // (plus the inserts below) can blow past the serverless time limit and
+        // surface as an opaque platform 500. Failing fast with JSON lets the
+        // client retry cleanly instead of crashing on a non-JSON error body.
+        let products, productsErr, flashSaleMap;
+        try {
+            ([{ data: products, error: productsErr }, flashSaleMap] = await Promise.all([
+                withTimeout(
+                    (signal) => supabase
+                        .from('products')
+                        .select('id, name, images, price, stock, is_active, status, seller_id')
+                        .in('id', productIds)
+                        .abortSignal(signal),
+                    8 * 1000,
+                ),
+                getActiveFlashSaleMap(productIds),
+            ]));
+        } catch (e) {
+            console.error('[ORDERS] product/flash-sale lookup failed:', e?.message || e);
+            return res.status(503).json({ success: false, error: 'Order service is busy. Please try again.' });
+        }
         if (productsErr) throw productsErr;
 
         if (!products || products.length !== productIds.length) {
@@ -171,7 +190,6 @@ router.post('/', verifyToken, async (req, res, next) => {
         }
 
         const productMap = new Map((products || []).map((p) => [p.id, p]));
-        const flashSaleMap = await getActiveFlashSaleMap(productIds);
 
         // Recompute totals from DB and validate stock.
         let total_amount = 0;
@@ -236,18 +254,28 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         // Create order with server-computed total (products + delivery fee).
         const initialStatus = paymentMethod === 'pod' ? 'processing' : 'pending';
-        const { data: orderRows, error: orderErr } = await supabase
-            .from('orders')
-            .insert([
-                {
-                    user_id: req.user.id,
-                    total_amount,
-                    currency: 'NGN',
-                    status: initialStatus,
-                    shipping_address: shippingAddress,
-                },
-            ])
-            .select('*');
+        let orderRows, orderErr;
+        try {
+            ({ data: orderRows, error: orderErr } = await withTimeout(
+                (signal) => supabase
+                    .from('orders')
+                    .insert([
+                        {
+                            user_id: req.user.id,
+                            total_amount,
+                            currency: 'NGN',
+                            status: initialStatus,
+                            shipping_address: shippingAddress,
+                        },
+                    ])
+                    .select('*')
+                    .abortSignal(signal),
+                8 * 1000,
+            ));
+        } catch (e) {
+            console.error('[ORDERS] order insert failed:', e?.message || e);
+            return res.status(503).json({ success: false, error: 'Order service is busy. Please try again.' });
+        }
         if (orderErr) throw orderErr;
 
         const order = orderRows[0];
