@@ -178,7 +178,8 @@ export default function Checkout() {
       const orderId = orderResult.data._id;
       setPlacedOrderId(orderId);
       setOrderTotals(snapshot);
-      clearCart();
+      // NOTE: clearCart() is called only on each payment's SUCCESS path below,
+      // so if payment fails the user still has their cart and can retry.
 
       if (selectedPayment === 'paystack') {
         const payRes = await apiFetch('/api/payment/initiate', {
@@ -187,9 +188,10 @@ export default function Checkout() {
         });
         const payResult = await payRes.json();
         if (payResult.success) {
+          clearCart(); // clear only on successful redirect to Paystack
           window.location.href = payResult.data.authorization_url;
         } else {
-          showToast('Payment initialization failed. Please try again.', 'error');
+          showToast('Payment initialization failed. Your order is saved — please retry or choose a different payment method.', 'error');
           setSubmitting(false);
         }
 
@@ -200,6 +202,7 @@ export default function Checkout() {
         });
         const piResult = await piRes.json();
         if (piResult.success) {
+          clearCart(); // clear when entering Stripe payment flow
           setStripeClientSecret(piResult.clientSecret);
           setView('stripe');
         } else {
@@ -214,10 +217,12 @@ export default function Checkout() {
         const bdRes = await apiFetch('/api/payment/bank-details');
         const bdResult = await bdRes.json();
         if (bdResult.success) setBankDetails(bdResult.data);
+        clearCart(); // order placed, awaiting bank transfer confirmation
         setView('bank_transfer');
 
       } else {
-        // Pay on delivery
+        // Pay on delivery — order confirmed
+        clearCart();
         setView('success');
       }
     } catch (err) {

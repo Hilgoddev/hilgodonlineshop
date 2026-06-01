@@ -45,7 +45,14 @@ const initializePayment = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'Amount mismatch detected' });
         }
 
-        const payerEmail = email || req.user?.email;
+        // Sanitize: strip BOM/zero-width chars and whitespace from whichever
+        // email source we use. A single invisible char causes Paystack 400.
+        const sanitize = (s) => (s || '').replace(/[﻿​-‍⁠]/g, '').trim();
+        const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+
+        const payerEmail = [sanitize(email), sanitize(req.user?.email)]
+            .find(isValidEmail);
+
         if (!payerEmail) {
             return res.status(400).json({ success: false, message: 'A valid payer email is required' });
         }
