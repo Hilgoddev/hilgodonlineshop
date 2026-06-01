@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -16,6 +16,11 @@ const SORT_MAP = {
   'default':    '',
 };
 
+// Stable string for a set of list params, used to skip a redundant client
+// fetch when the server already returned that exact page during SSR.
+const makeParamsKey = (page, cats, subs, sort) =>
+  [page, cats[0] || '', subs.length === 1 ? subs[0] : '', SORT_MAP[sort] || ''].join('|');
+
 export default function ProductsPage({ initialProducts = [], initialTotal = 0, initialPage = 1 }) {
   const router = useRouter();
   const [products, setProducts] = useState(initialProducts || []);
@@ -30,6 +35,10 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
   const [sortBy, setSortBy] = useState('default');
   const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(initialPage || 1);
+
+  // SSR already fetched this exact page — seed the ref so the first client
+  // render reuses it instead of firing a duplicate network request.
+  const lastFetchedKey = useRef(makeParamsKey(initialPage || 1, initCategory, initSubs, 'default'));
 
   // Sync category / subcategory from URL (navbar links change the URL)
   useEffect(() => {
@@ -51,6 +60,12 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0, i
   // Fetch the current page from the server whenever filters / sort / page change.
   useEffect(() => {
     if (!router.isReady) return;
+
+    // Skip the fetch when the current params match what SSR already delivered.
+    const key = makeParamsKey(currentPage, selectedCategories, selectedSubcategories, sortBy);
+    if (key === lastFetchedKey.current) return;
+    lastFetchedKey.current = key;
+
     let cancelled = false;
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(currentPage) });
