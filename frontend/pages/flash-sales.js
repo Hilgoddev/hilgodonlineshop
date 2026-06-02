@@ -3,6 +3,7 @@ import Layout from '@/components/Layout';
 import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import { withNormalizedPricing, normalizePricing } from '@/lib/pricing';
+import { resolveServerApiBase } from '@/lib/env';
 
 function CountdownBadge({ expiresAt }) {
   const [cd, setCd] = useState({ h: 0, m: 0, s: 0 });
@@ -190,13 +191,13 @@ export default function FlashSales({ flashSales = [] }) {
   );
 }
 
-export async function getServerSideProps() {
+export async function getServerSideProps({ req }) {
   try {
-    const baseUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api';
-    const res = await fetch(`${baseUrl}/flash-sales`);
+    const apiBase = resolveServerApiBase(req);
+    const res = await fetch(`${apiBase}/flash-sales`, { cache: 'no-store' });
     const data = await res.json();
     return {
-      props: { flashSales: data.success ? data.data : [] },
+      props: { flashSales: data.success ? (data.data || []) : [] },
     };
   } catch {
     return { props: { flashSales: [] } };
