@@ -38,9 +38,15 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid order amount' });
     }
 
+    // Currency is configurable — Stripe accounts outside Nigeria must use a
+    // supported currency (e.g. usd). Set STRIPE_CURRENCY=ngn if your Stripe
+    // account has NGN enabled, otherwise leave it as 'usd' (default).
+    const { cleanEnv: _ce } = require('../lib/env');
+    const stripeCurrency = (_ce(process.env.STRIPE_CURRENCY) || 'usd').toLowerCase();
+
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // NGN kobo
-      currency: 'ngn',
+      amount: Math.round(amount * 100),
+      currency: stripeCurrency,
       automatic_payment_methods: { enabled: true },
       metadata: { order_id, user_id: req.user.id },
     });
@@ -50,12 +56,17 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       .update({ payment_reference: paymentIntent.id })
       .eq('id', order_id);
 
-    res.json({ success: true, clientSecret: paymentIntent.client_secret });
+    res.json({ success: true, clientSecret: paymentIntent.client_secret, currency: stripeCurrency });
   } catch (err) {
-    if (err?.type === 'StripeAuthenticationError') {
-      return res.status(503).json({ success: false, message: 'Payments via Stripe is on the way. For now please try other options available.' });
+    const type = err?.type || '';
+    if (type === 'StripeAuthenticationError') {
+      return res.status(503).json({ success: false, message: 'Stripe key is invalid. Please check your Stripe configuration.' });
     }
-    next(err);
+    if (type === 'StripeInvalidRequestError') {
+      return res.status(400).json({ success: false, message: err.message || 'Stripe configuration error. Please try Paystack instead.' });
+    }
+    console.error('[STRIPE] create-payment-intent error:', err?.message);
+    return res.status(502).json({ success: false, message: 'Stripe payment setup failed. Please use Paystack instead.' });
   }
 });
 
