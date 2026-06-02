@@ -337,4 +337,92 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
   }
 });
 
+// ── Seller Payouts ────────────────────────────────────────────────────────────
+
+// GET /api/seller/earnings — available balance (total sales minus total withdrawn/approved)
+router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
+  try {
+    const { data: products } = await supabase
+      .from('products').select('id').eq('seller_id', req.user.id);
+    const productIds = (products || []).map(p => p.id);
+
+    let grossEarnings = 0;
+    if (productIds.length) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('quantity, unit_price, order:orders(status)')
+        .in('product_id', productIds);
+      grossEarnings = (items || [])
+        .filter(i => ['paid','shipped','delivered'].includes(i.order?.status))
+        .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
+    }
+
+    const { data: payouts } = await supabase
+      .from('seller_payouts')
+      .select('amount, status')
+      .eq('seller_id', req.user.id)
+      .in('status', ['approved', 'paid']);
+    const withdrawn = (payouts || []).reduce((s, p) => s + Number(p.amount), 0);
+
+    const { data: allPayouts } = await supabase
+      .from('seller_payouts')
+      .select('id, amount, status, payment_method, payment_details, requested_at, processed_at, admin_notes')
+      .eq('seller_id', req.user.id)
+      .order('requested_at', { ascending: false });
+
+    res.json({
+      success: true,
+      data: {
+        grossEarnings,
+        withdrawn,
+        available: Math.max(0, grossEarnings - withdrawn),
+        payouts: allPayouts || [],
+      },
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/seller/payouts/request — seller requests a withdrawal
+router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
+  try {
+    const { amount, payment_method = 'bank_transfer', payment_details } = req.body;
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) {
+      return res.status(400).json({ success: false, error: 'A valid amount is required' });
+    }
+
+    // Verify sufficient available balance
+    const { data: products } = await supabase
+      .from('products').select('id').eq('seller_id', req.user.id);
+    const productIds = (products || []).map(p => p.id);
+    let grossEarnings = 0;
+    if (productIds.length) {
+      const { data: items } = await supabase
+        .from('order_items')
+        .select('quantity, unit_price, order:orders(status)')
+        .in('product_id', productIds);
+      grossEarnings = (items || [])
+        .filter(i => ['paid','shipped','delivered'].includes(i.order?.status))
+        .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
+    }
+    const { data: prevPayouts } = await supabase
+      .from('seller_payouts').select('amount')
+      .eq('seller_id', req.user.id).in('status', ['approved','paid']);
+    const withdrawn = (prevPayouts || []).reduce((s, p) => s + Number(p.amount), 0);
+    const available = Math.max(0, grossEarnings - withdrawn);
+
+    if (amt > available) {
+      return res.status(400).json({ success: false, error: `Requested amount exceeds available balance (₦${available.toLocaleString()})` });
+    }
+
+    const { data, error } = await supabase
+      .from('seller_payouts')
+      .insert({ seller_id: req.user.id, amount: amt, payment_method, payment_details: payment_details || null })
+      .select().single();
+    if (error) throw error;
+
+    res.status(201).json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

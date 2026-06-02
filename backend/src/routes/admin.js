@@ -55,8 +55,8 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             supabase.from('stores').select('status'),
             // Seller applications (for pending approvals) — may not exist
             supabase.from('seller_applications').select('status'),
-            // Product reviews
-            supabase.from('product_reviews').select('rating'),
+            // Product reviews — canonical table is `reviews` (product_reviews was a duplicate)
+            supabase.from('reviews').select('rating'),
         ]);
 
         if (productsRes.error)      throw productsRes.error;
@@ -600,6 +600,61 @@ router.delete('/riders/:id', verifyToken, requireAdmin, async (req, res, next) =
         if (error) throw error;
         res.status(200).json({ success: true, message: 'Application deleted' });
     } catch (err) { next(err); }
+});
+
+// ── Seller Payout Management ──────────────────────────────────────────────────
+
+// GET /api/admin/payouts — list all payout requests
+router.get('/payouts', verifyToken, requireAdmin, async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    let query = supabase
+      .from('seller_payouts')
+      .select('id, seller_id, amount, status, payment_method, payment_details, admin_notes, requested_at, processed_at')
+      .order('requested_at', { ascending: false });
+    if (status && ['pending','approved','paid','rejected'].includes(status)) {
+      query = query.eq('status', status);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Attach seller emails
+    const emailMap = await getEmailMap();
+    const sellerIds = [...new Set((data || []).map(p => p.seller_id))];
+    const { data: profiles } = sellerIds.length
+      ? await supabase.from('profiles').select('id, full_name, username').in('id', sellerIds)
+      : { data: [] };
+    const profileMap = new Map((profiles || []).map(p => [p.id, p]));
+
+    const enriched = (data || []).map(p => ({
+      ...p,
+      seller: {
+        id: p.seller_id,
+        name: profileMap.get(p.seller_id)?.full_name || profileMap.get(p.seller_id)?.username || 'Seller',
+        email: emailMap.get(p.seller_id) || '',
+      },
+    }));
+
+    res.json({ success: true, data: enriched });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/admin/payouts/:id — approve, mark paid, or reject a payout request
+router.put('/payouts/:id', verifyToken, requireAdmin, async (req, res, next) => {
+  try {
+    const { status, admin_notes } = req.body;
+    if (!['approved','paid','rejected'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'status must be approved, paid, or rejected' });
+    }
+    const { data, error } = await supabase
+      .from('seller_payouts')
+      .update({ status, admin_notes: admin_notes || null, processed_at: new Date().toISOString(), processed_by: req.user.id })
+      .eq('id', req.params.id)
+      .select().single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Payout not found' });
+    res.json({ success: true, data });
+  } catch (err) { next(err); }
 });
 
 module.exports = router;
