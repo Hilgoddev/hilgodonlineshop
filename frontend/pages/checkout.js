@@ -10,9 +10,12 @@ import { cleanEnv } from '../lib/env';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-const stripeEnabled = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_ENABLED) === 'true';
 const stripePublishableKey = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
-const stripePromise = stripeEnabled && stripePublishableKey
+// Enabled if the flag is 'true' OR if a publishable key is present (fail-open so
+// a misconfigured NEXT_PUBLIC_STRIPE_ENABLED doesn't silently hide Stripe).
+const stripeEnabled = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_ENABLED)?.toLowerCase() === 'true'
+  || (!!stripePublishableKey && stripePublishableKey.startsWith('pk_'));
+const stripePromise = stripePublishableKey?.startsWith('pk_')
   ? loadStripe(stripePublishableKey)
   : null;
 
@@ -30,10 +33,12 @@ function StripePaymentForm({ amount, onSuccess }) {
   const { formatPrice } = useCurrency();
   const [stripeError, setStripeError] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [formComplete, setFormComplete] = useState(false); // true when all fields valid
+  const [formReady, setFormReady] = useState(false);       // true when PaymentElement mounted
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe || !elements || !formComplete) return;
     setProcessing(true);
     setStripeError('');
 
@@ -51,13 +56,29 @@ function StripePaymentForm({ amount, onSuccess }) {
     }
   };
 
+  const canPay = stripe && elements && formComplete && !processing;
+
   return (
     <form onSubmit={handleSubmit}>
       <div style={{
         border: '1px solid var(--gray-4)', borderRadius: 'var(--radius)',
-        padding: 'var(--space-4)', marginBottom: 'var(--space-4)', background: '#fff'
+        padding: 'var(--space-4)', marginBottom: 'var(--space-4)', background: '#fff',
+        minHeight: '160px',
       }}>
-        <PaymentElement />
+        {!formReady && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '120px', color: 'var(--gray-2)', fontSize: '.9rem', gap: '8px' }}>
+            <i className="fas fa-spinner fa-spin"></i> Loading payment form…
+          </div>
+        )}
+        <PaymentElement
+          onReady={() => setFormReady(true)}
+          onChange={(e) => {
+            setFormComplete(e.complete);
+            if (e.error) setStripeError(e.error.message);
+            else setStripeError('');
+          }}
+          options={{ layout: 'tabs' }}
+        />
       </div>
       {stripeError && (
         <div style={{
@@ -67,13 +88,20 @@ function StripePaymentForm({ amount, onSuccess }) {
           <i className="fas fa-circle-exclamation"></i> {stripeError}
         </div>
       )}
+      {!formComplete && formReady && !stripeError && (
+        <p style={{ fontSize: '.78rem', color: 'var(--gray-1)', marginBottom: 'var(--space-3)', textAlign: 'center' }}>
+          <i className="fas fa-info-circle" style={{ marginRight: '4px' }}></i>
+          Please complete all card details above to enable payment.
+        </p>
+      )}
       <button
         type="submit"
         className="btn btn-primary btn-lg btn-full"
-        disabled={!stripe || processing}
+        disabled={!canPay}
+        style={!canPay ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
       >
         {processing
-          ? <><i className="fas fa-spinner fa-spin"></i> Processing...</>
+          ? <><i className="fas fa-spinner fa-spin"></i> Processing…</>
           : <><i className="fas fa-lock"></i> Pay {formatPrice(amount, 'NGN', false)}</>
         }
       </button>
@@ -320,7 +348,11 @@ export default function Checkout() {
               stripe={stripePromise}
               options={{
                 clientSecret: stripeClientSecret,
-                appearance: { theme: 'stripe' },
+                appearance: {
+                  theme: 'stripe',
+                  variables: { colorPrimary: '#E31C1C', borderRadius: '8px' },
+                },
+                loader: 'eager',
               }}
             >
               <StripePaymentForm
