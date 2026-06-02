@@ -22,8 +22,8 @@ const SORT_MAP = {
 
 // Stable string for a filter/sort combo. When it changes we throw away the
 // buffer and fetch a fresh first batch; when it matches SSR we skip the refetch.
-const makeFilterKey = (cats, subs, sort) =>
-  [cats[0] || '', subs.length === 1 ? subs[0] : '', SORT_MAP[sort] || ''].join('|');
+const makeFilterKey = (cats, subs, sort, inStock, onSale) =>
+  [cats[0] || '', subs.length === 1 ? subs[0] : '', SORT_MAP[sort] || '', inStock ? '1' : '', onSale ? '1' : ''].join('|');
 
 export default function ProductsPage({ initialProducts = [], initialTotal = 0 }) {
   const router = useRouter();
@@ -41,12 +41,12 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   const [selectedCategories, setSelectedCategories] = useState(initCategory);
   const [selectedSubcategories, setSelectedSubcategories] = useState(initSubs);
   const [sortBy, setSortBy] = useState('default');
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [onSaleOnly, setOnSaleOnly] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // The filter/sort combo whose results are currently buffered. Seeded from
-  // SSR so the first client render reuses the server payload (no refetch).
-  const filterKey = useRef(makeFilterKey(initCategory, initSubs, 'default'));
+  const filterKey = useRef(makeFilterKey(initCategory, initSubs, 'default', false, false));
 
   const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
   const buildParams = (limit, page) => {
@@ -55,6 +55,8 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     if (selectedSubcategories.length === 1) params.set('subcategory', selectedSubcategories[0]);
     const sort = SORT_MAP[sortBy];
     if (sort) params.set('sort', sort);
+    if (inStockOnly) params.set('in_stock', 'true');
+    if (onSaleOnly)  params.set('on_sale', 'true');
     return params;
   };
 
@@ -78,7 +80,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   // Filter/sort changed → fetch a fresh first batch and replace the buffer.
   useEffect(() => {
     if (!router.isReady) return;
-    const key = makeFilterKey(selectedCategories, selectedSubcategories, sortBy);
+    const key = makeFilterKey(selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly);
     if (key === filterKey.current) return; // unchanged (incl. the initial SSR payload)
     filterKey.current = key;
 
@@ -94,7 +96,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [router.isReady, selectedCategories, selectedSubcategories, sortBy]);
+  }, [router.isReady, selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly]);
 
   // Lazy-load deeper batches as the user pages past what's buffered.
   useEffect(() => {
@@ -258,7 +260,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
         <aside className="filters-sidebar">
           <div className="filter-header">
             <h3><i className="fas fa-sliders"></i> Filters</h3>
-            <span className="filter-clear" onClick={() => { setSelectedCategories([]); setSelectedSubcategories([]); router.push('/products'); }}>
+            <span className="filter-clear" onClick={() => { setSelectedCategories([]); setSelectedSubcategories([]); setInStockOnly(false); setOnSaleOnly(false); setSortBy('default'); router.push('/products'); }}>
               Clear All
             </span>
           </div>
@@ -322,11 +324,21 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
             <div className="filter-group-title">Availability <i className="fas fa-chevron-down"></i></div>
             <div className="filter-group-body">
               <label className="filter-check">
-                <input type="checkbox" /><span className="checkmark"></span>
-                <span className="filter-label">In Stock</span>
+                <input
+                  type="checkbox"
+                  checked={inStockOnly}
+                  onChange={e => { setInStockOnly(e.target.checked); setCurrentPage(1); }}
+                />
+                <span className="checkmark"></span>
+                <span className="filter-label">In Stock Only</span>
               </label>
               <label className="filter-check">
-                <input type="checkbox" /><span className="checkmark"></span>
+                <input
+                  type="checkbox"
+                  checked={onSaleOnly}
+                  onChange={e => { setOnSaleOnly(e.target.checked); setCurrentPage(1); }}
+                />
+                <span className="checkmark"></span>
                 <span className="filter-label">On Sale</span>
               </label>
             </div>

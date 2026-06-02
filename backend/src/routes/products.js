@@ -97,9 +97,7 @@ const mapProduct = (p, flashSale = null) => {
 // Build the public product-list payload from Supabase. Extracted so the route
 // can refresh it in the background (stale-while-revalidate) without blocking
 // the response on a cold/slow database.
-async function buildProductsPayload({ category, subcategory, search, seller_id, parsedLimit, parsedPage }, timeoutMs = QUERY_TIMEOUT_MS) {
-        // Query products with store and seller info
-        // Also include seller's store via a separate query if needed
+async function buildProductsPayload({ category, subcategory, search, seller_id, sort, in_stock, on_sale, parsedLimit, parsedPage }, timeoutMs = QUERY_TIMEOUT_MS) {
         let query = supabase
             .from('products')
             .select('*, store:stores(name, slug, status, logo_url), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url)', { count: 'estimated' })
@@ -110,6 +108,16 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
         if (subcategory) query = query.eq('subcategory', subcategory);
         if (seller_id)   query = query.eq('seller_id', seller_id);
         if (search)      query = query.ilike('name', `%${search}%`);
+        if (in_stock)    query = query.gt('stock', 0);
+
+        // Sorting
+        switch (sort) {
+            case 'price_asc':  query = query.order('price', { ascending: true });  break;
+            case 'price_desc': query = query.order('price', { ascending: false }); break;
+            case 'newest':     query = query.order('created_at', { ascending: false }); break;
+            case 'rating':     query = query.order('created_at', { ascending: false }); break; // fallback; ratings stored client-side
+            default:           query = query.order('created_at', { ascending: false }); break;
+        }
 
         const offset = (parsedPage - 1) * parsedLimit;
         query = query.range(offset, offset + parsedLimit - 1);
@@ -209,10 +217,10 @@ function revalidateProducts(cacheKey, params) {
 // GET /api/products
 router.get('/', async (req, res, next) => {
     try {
-        const { category, subcategory, search, seller_id, limit = 20, page = 1 } = req.query;
+        const { category, subcategory, search, seller_id, sort, in_stock, on_sale, limit = 20, page = 1 } = req.query;
         const parsedLimit = Math.max(1, Number(limit) || 20);
         const parsedPage  = Math.max(1, Number(page)  || 1);
-        const params = { category, subcategory, search, seller_id, parsedLimit, parsedPage };
+        const params = { category, subcategory, search, seller_id, sort, in_stock: in_stock === 'true', on_sale: on_sale === 'true', parsedLimit, parsedPage };
 
         const cacheKey = JSON.stringify(params);
         const cached = listCache.get(cacheKey);
