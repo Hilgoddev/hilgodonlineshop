@@ -13,89 +13,152 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         const cached = statsCache.get('stats');
         if (cached && cached.fresh) return res.status(200).json(cached.value);
 
-        const [productsRes, ordersRecentRes, ordersCountRes, customersCountRes, storesRes, sellerAppsRes, reviewsRes] =
-            await Promise.all([
-                supabase.from('products').select('id, name, stock, status').eq('is_active', true),
-                supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(10),
-                supabase.from('orders').select('id', { count: 'exact', head: true }),
-                supabase.from('profiles').select('id', { count: 'exact', head: true }),
-                supabase.from('stores').select('status'),
-                supabase.from('seller_applications').select('status'),
-                supabase.from('product_reviews').select('rating'),
-            ]);
+        // Six months ago for trend queries
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const sixMonthsAgoISO = sixMonthsAgo.toISOString();
 
-        if (productsRes.error) throw productsRes.error;
-        if (ordersRecentRes.error) throw ordersRecentRes.error;
-        if (ordersCountRes.error) throw ordersCountRes.error;
+        const [
+            productsRes,
+            ordersRecentRes,
+            ordersCountRes,
+            allOrderStatusRes,
+            revenueRes,
+            trendRes,
+            customersCountRes,
+            sellersCountRes,
+            storesRes,
+            sellerAppsRes,
+            reviewsRes,
+        ] = await Promise.all([
+            // Products (active only, for low-stock + pending approvals)
+            supabase.from('products').select('id, name, stock, status').eq('is_active', true),
+            // Last 10 orders for the recent-orders table
+            supabase.from('orders').select('id, status, total_amount, created_at, user_id')
+                .order('created_at', { ascending: false }).limit(10),
+            // Total order count
+            supabase.from('orders').select('id', { count: 'exact', head: true }),
+            // ALL orders grouped by status (just status column) for the breakdown chart
+            supabase.from('orders').select('status'),
+            // Total revenue: all paid/delivered orders ever
+            supabase.from('orders').select('total_amount')
+                .in('status', ['paid', 'delivered']),
+            // Monthly revenue trend: last 6 months
+            supabase.from('orders').select('total_amount, created_at')
+                .in('status', ['paid', 'delivered'])
+                .gte('created_at', sixMonthsAgoISO),
+            // Customer count
+            supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
+            // Sellers count
+            supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'seller'),
+            // Stores (for pending approvals)
+            supabase.from('stores').select('status'),
+            // Seller applications (for pending approvals) — may not exist
+            supabase.from('seller_applications').select('status'),
+            // Product reviews
+            supabase.from('product_reviews').select('rating'),
+        ]);
+
+        if (productsRes.error)      throw productsRes.error;
+        if (ordersRecentRes.error)  throw ordersRecentRes.error;
+        if (ordersCountRes.error)   throw ordersCountRes.error;
         if (customersCountRes.error) throw customersCountRes.error;
-        if (storesRes.error) throw storesRes.error;
-        if (sellerAppsRes.error) throw sellerAppsRes.error;
+        if (storesRes.error)        throw storesRes.error;
 
-        const products    = productsRes.data || [];
-        const orders      = ordersRecentRes.data || [];
-        const orderCount  = typeof ordersCountRes.count === 'number' ? ordersCountRes.count : orders.length;
+        const products      = productsRes.data || [];
+        const recentOrders  = ordersRecentRes.data || [];
+        const orderCount    = typeof ordersCountRes.count === 'number' ? ordersCountRes.count : 0;
         const customerCount = typeof customersCountRes.count === 'number' ? customersCountRes.count : 0;
-        const stores      = storesRes.data || [];
-        const sellerApps  = sellerAppsRes.data || [];
-        const reviews     = reviewsRes.error ? [] : (reviewsRes.data || []);
+        const sellerCount   = typeof sellersCountRes.count === 'number' ? sellersCountRes.count : 0;
+        const stores        = storesRes.data || [];
+        const sellerApps    = sellerAppsRes.error ? [] : (sellerAppsRes.data || []);
+        const reviews       = reviewsRes.error  ? [] : (reviewsRes.data  || []);
+        const allOrders     = allOrderStatusRes.error ? [] : (allOrderStatusRes.data || []);
+        const revenueOrders = revenueRes.error   ? [] : (revenueRes.data   || []);
+        const trendOrders   = trendRes.error     ? [] : (trendRes.data     || []);
 
+        // ── Totals ───────────────────────────────────────────────────────────
+        const totalRevenue = revenueOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+
+        // ── Order status breakdown (ALL orders) ──────────────────────────────
+        const ordersByStatus = allOrders.reduce((acc, o) => {
+            acc[o.status] = (acc[o.status] || 0) + 1;
+            return acc;
+        }, {});
+
+        // ── Monthly revenue trend (last 6 months) ────────────────────────────
+        const monthlyMap = {};
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            monthlyMap[key] = { month: key, revenue: 0, orders: 0 };
+        }
+        trendOrders.forEach((o) => {
+            const d   = new Date(o.created_at);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (monthlyMap[key]) {
+                monthlyMap[key].revenue += Number(o.total_amount || 0);
+                monthlyMap[key].orders  += 1;
+            }
+        });
+        const monthlyTrend = Object.values(monthlyMap);
+
+        // ── Low stock ────────────────────────────────────────────────────────
         const lowStockItems = products
             .filter((p) => Number(p.stock || 0) < 10)
-            .slice(0, 5)
-            .map((p) => ({ ...p, _id: p.id, id: p.id }));
+            .sort((a, b) => Number(a.stock) - Number(b.stock))
+            .slice(0, 8)
+            .map((p) => ({ id: p.id, name: p.name, stock: p.stock }));
 
-        const pendingApprovals =
-            products.filter((p) => p.status === 'pending').length +
-            stores.filter((s) => s.status === 'pending').length +
-            sellerApps.filter((a) => a.status === 'pending').length;
-        const pendingProductsCount    = products.filter((p) => p.status === 'pending').length;
-        const pendingStoresCount      = stores.filter((s) => s.status === 'pending').length;
-        const pendingSellerAppsCount  = sellerApps.filter((a) => a.status === 'pending').length;
-        const totalReviews    = reviews.length;
-        const averageRating   = totalReviews
-            ? Number((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalReviews).toFixed(2))
+        // ── Pending approvals ────────────────────────────────────────────────
+        const pendingProductsCount   = products.filter((p) => p.status === 'pending').length;
+        const pendingStoresCount     = stores.filter((s) => s.status === 'pending').length;
+        const pendingSellerAppsCount = sellerApps.filter((a) => a.status === 'pending').length;
+        const pendingApprovals       = pendingProductsCount + pendingStoresCount + pendingSellerAppsCount;
+
+        // ── Reviews ──────────────────────────────────────────────────────────
+        const totalReviews  = reviews.length;
+        const averageRating = totalReviews
+            ? Number((reviews.reduce((s, r) => s + Number(r.rating || 0), 0) / totalReviews).toFixed(2))
             : 0;
 
-        const totalRevenue = (orders || []).reduce(
-            (sum, order) => sum + (['paid', 'delivered'].includes(order.status) ? Number(order.total_amount || 0) : 0),
-            0,
-        );
-
-        const orderUserIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
-        const { data: orderUsers, error: orderUsersError } = orderUserIds.length
-            ? await supabase.from('profiles').select('id, full_name, username').in('id', orderUserIds)
-            : { data: [], error: null };
-        if (orderUsersError) throw orderUsersError;
-
-        // Fetch real emails for order users (cached/shared across admin routes)
-        const emailMap = orderUserIds.length ? await getEmailMap() : new Map();
-
+        // ── Recent orders (for table) ─────────────────────────────────────────
+        const orderUserIds = [...new Set(recentOrders.map((o) => o.user_id).filter(Boolean))];
+        const [{ data: orderUsers }, emailMap] = await Promise.all([
+            orderUserIds.length
+                ? supabase.from('profiles').select('id, full_name, username').in('id', orderUserIds)
+                : Promise.resolve({ data: [] }),
+            getEmailMap(),
+        ]);
         const orderUserMap = new Map((orderUsers || []).map((u) => [u.id, u]));
 
         const payload = {
             success: true,
             data: {
-                products: products.length,
-                orders: orderCount,
+                products:  products.length,
+                orders:    orderCount,
                 customers: customerCount,
-                revenue: totalRevenue,
-                recentOrders: orders.map((o) => ({
-                    _id: o.id,
-                    id: o.id,
-                    status: o.status,
-                    paymentStatus: o.status === 'paid' ? 'paid' : 'pending',
-                    totalAmount: Number(o.total_amount || 0),
-                    createdAt: o.created_at,
-                    user: (() => {
-                        const raw   = orderUserMap.get(o.user_id);
-                        const parts = String(raw?.full_name || '').trim().split(' ').filter(Boolean);
-                        return {
+                sellers:   sellerCount,
+                revenue:   totalRevenue,
+                ordersByStatus,
+                monthlyTrend,
+                recentOrders: recentOrders.map((o) => {
+                    const raw   = orderUserMap.get(o.user_id);
+                    const parts = String(raw?.full_name || '').trim().split(' ').filter(Boolean);
+                    return {
+                        _id:         o.id,
+                        id:          o.id,
+                        status:      o.status,
+                        totalAmount: Number(o.total_amount || 0),
+                        createdAt:   o.created_at,
+                        user: {
                             firstName: parts[0] || raw?.username || 'User',
                             lastName:  parts.slice(1).join(' ') || '',
                             email:     emailMap.get(o.user_id) || raw?.username || '',
-                        };
-                    })(),
-                })),
+                        },
+                    };
+                }),
                 lowStock: lowStockItems,
                 pendingApprovals,
                 analytics: {
