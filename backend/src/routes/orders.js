@@ -2,7 +2,9 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
-const { sendEmail, orderConfirmationHtml, orderStatusHtml } = require('../services/email');
+const { sendEmail, orderConfirmationHtml, orderStatusHtml, escapeHtml } = require('../services/email');
+const { cleanEnv } = require('../lib/env');
+const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
@@ -536,6 +538,49 @@ router.put('/:id', verifyToken, async (req, res, next) => {
                 })
                 .catch(() => {});
         }
+    } catch (err) {
+        next(err);
+    }
+});
+
+// POST /api/orders/:id/notify — admin sends a manual email to the customer
+router.post('/:id/notify', verifyToken, async (req, res, next) => {
+    try {
+        const { data: me } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
+        if (!me || me.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
+
+        const { subject, message } = req.body;
+        if (!subject || !message) return res.status(400).json({ success: false, error: 'subject and message are required' });
+        if (subject.length > 200) return res.status(400).json({ success: false, error: 'Subject too long' });
+        if (message.length > 2000) return res.status(400).json({ success: false, error: 'Message too long (max 2000 chars)' });
+
+        const { data: order, error: orderErr } = await supabase
+            .from('orders').select('id, user_id, status').eq('id', req.params.id).single();
+        if (orderErr || !order) return res.status(404).json({ success: false, error: 'Order not found' });
+
+        const { data: { user } } = await supabase.auth.admin.getUserById(order.user_id);
+        if (!user?.email) return res.status(400).json({ success: false, error: 'Customer email not found' });
+
+        const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
+        const html = `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+            <h2 style="color:#E31C1C">Order Update</h2>
+            <p style="color:#666;font-size:.9rem">Order <strong>#${String(order.id).slice(0,8).toUpperCase()}</strong></p>
+            <div style="padding:18px 20px;background:#f8fafc;border-left:4px solid #E31C1C;border-radius:0 8px 8px 0;margin:16px 0;line-height:1.8;font-size:.95rem">
+                ${safeMessage}
+            </div>
+            <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
+        </div>`;
+
+        await sendEmail({
+            to: user.email,
+            subject,
+            html,
+            emailType: 'order_status',
+            orderId: order.id,
+            userId: order.user_id,
+        });
+
+        res.json({ success: true, message: 'Email sent to ' + user.email });
     } catch (err) {
         next(err);
     }

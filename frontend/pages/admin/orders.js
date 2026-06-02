@@ -7,6 +7,16 @@ import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '../../lib/supabaseClient';
 
+// Quick-fill templates shown in the email compose modal
+const EMAIL_TEMPLATES = [
+  { label: '✅ Approved',    subject: 'Your order has been approved',     body: 'Great news! Your order has been approved and is now being prepared for dispatch. We\'ll notify you once it\'s on its way.' },
+  { label: '🔄 Processing',  subject: 'Your order is being processed',    body: 'Your order is currently being processed and packed by our team. We\'ll update you as soon as it ships.' },
+  { label: '🚚 Shipped',     subject: 'Your order is on its way!',        body: 'Exciting news — your order has been shipped and is on its way to you! Please allow a few days for delivery.' },
+  { label: '🛵 Out for Delivery', subject: 'Your order is out for delivery', body: 'Your order is out for delivery today and should reach you very soon. Please ensure someone is available to receive it.' },
+  { label: '📦 Delivered',   subject: 'Your order has been delivered',    body: 'Your order has been delivered. We hope you love your purchase! If you have any issues, please don\'t hesitate to contact our support team.' },
+  { label: '❌ Cancelled',   subject: 'Your order has been cancelled',    body: 'We\'re sorry to inform you that your order has been cancelled. If you believe this is a mistake or need assistance, please contact our support team.' },
+];
+
 export default function AdminOrders() {
   const { formatPrice } = useCurrency();
   const [orders, setOrders] = useState([]);
@@ -17,6 +27,9 @@ export default function AdminOrders() {
   const [localStatuses, setLocalStatuses] = useState({});
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [emailModal, setEmailModal] = useState(null); // { order } | null
+  const [emailForm, setEmailForm] = useState({ subject: '', body: '' });
+  const [emailSending, setEmailSending] = useState(false);
 
   const fetchOrders = async () => {
     try {
@@ -67,6 +80,36 @@ export default function AdminOrders() {
       else { setMessage({ type: 'error', text: data.error || 'Failed to update' }); }
     } catch (err) { setMessage({ type: 'error', text: 'Network error' }); }
     finally { setUpdatingId(null); setTimeout(() => setMessage({ type: '', text: '' }), 3000); }
+  };
+
+  const openEmailModal = (order) => {
+    // Pre-fill subject based on current order status
+    const tpl = EMAIL_TEMPLATES.find(t => t.label.toLowerCase().includes((order.status || '').toLowerCase()));
+    setEmailForm({ subject: tpl?.subject || `Update on your order #${order._id.slice(-8).toUpperCase()}`, body: tpl?.body || '' });
+    setEmailModal({ order });
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailForm.subject.trim() || !emailForm.body.trim()) return;
+    setEmailSending(true);
+    try {
+      const res = await apiFetch(`/api/orders/${emailModal.order._id}/notify`, {
+        method: 'POST',
+        body: JSON.stringify({ subject: emailForm.subject, message: emailForm.body }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: `Email sent to customer!` });
+        setEmailModal(null);
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to send email' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Network error sending email' });
+    } finally {
+      setEmailSending(false);
+      setTimeout(() => setMessage({ type: '', text: '' }), 4000);
+    }
   };
 
   const filteredOrders = orders.filter(order => {
@@ -165,9 +208,19 @@ export default function AdminOrders() {
                           </td>
                           <td style={{ padding: '14px 16px', fontSize: '.82rem', color: 'var(--gray-1)', verticalAlign: 'top' }}>{formatDate(order.createdAt)}</td>
                           <td style={{ padding: '14px 16px', textAlign: 'right', verticalAlign: 'top' }}>
-                            <button className="btn btn-sm btn-outline" onClick={() => setSelectedOrder(order)} style={{ fontSize: '.8rem' }}>
-                              View
-                            </button>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                              <button className="btn btn-sm btn-outline" onClick={() => setSelectedOrder(order)} style={{ fontSize: '.8rem' }}>
+                                View
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                title="Send email to customer"
+                                onClick={() => openEmailModal(order)}
+                                style={{ fontSize: '.8rem', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', padding: '4px 10px' }}
+                              >
+                                <i className="fas fa-envelope"></i>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       </React.Fragment>
@@ -184,6 +237,108 @@ export default function AdminOrders() {
           isOpen={!!selectedOrder}
           onClose={() => setSelectedOrder(null)}
         />
+
+        {/* Email Compose Modal */}
+        {emailModal && (
+          <div
+            onClick={() => !emailSending && setEmailModal(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '560px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.25)' }}
+            >
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px', borderBottom: '1px solid var(--gray-4)', position: 'sticky', top: 0, background: '#fff', borderRadius: '16px 16px 0 0', zIndex: 1 }}>
+                <div>
+                  <h3 style={{ fontWeight: 800, fontSize: '1.05rem', margin: 0 }}>
+                    <i className="fas fa-envelope" style={{ color: 'var(--primary)', marginRight: 8 }}></i>
+                    Send Email to Customer
+                  </h3>
+                  <div style={{ fontSize: '.78rem', color: 'var(--gray-1)', marginTop: 3 }}>
+                    Order #{emailModal.order._id.slice(-8).toUpperCase()} · {emailModal.order.user?.email || 'customer'}
+                  </div>
+                </div>
+                <button onClick={() => setEmailModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--gray-1)', padding: '4px 8px' }} disabled={emailSending}>
+                  <i className="fas fa-xmark"></i>
+                </button>
+              </div>
+
+              <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* Quick templates */}
+                <div>
+                  <div style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gray-1)', letterSpacing: '.5px', marginBottom: '8px' }}>Quick Templates</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {EMAIL_TEMPLATES.map(tpl => (
+                      <button
+                        key={tpl.label}
+                        type="button"
+                        onClick={() => setEmailForm({ subject: tpl.subject, body: tpl.body })}
+                        style={{
+                          padding: '5px 12px', borderRadius: '999px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', border: '1px solid var(--gray-3)',
+                          background: emailForm.subject === tpl.subject ? 'var(--primary)' : 'var(--gray-6)',
+                          color: emailForm.subject === tpl.subject ? '#fff' : 'var(--dark)',
+                          transition: 'all .15s',
+                        }}
+                      >
+                        {tpl.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setEmailForm({ subject: '', body: '' })}
+                      style={{ padding: '5px 12px', borderRadius: '999px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer', border: '1px solid var(--gray-3)', background: 'var(--gray-6)', color: 'var(--dark)' }}
+                    >
+                      ✏️ Custom
+                    </button>
+                  </div>
+                </div>
+
+                {/* Subject */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '.82rem', fontWeight: 700, marginBottom: '6px' }}>Subject</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={emailForm.subject}
+                    onChange={e => setEmailForm(f => ({ ...f, subject: e.target.value }))}
+                    placeholder="Email subject..."
+                    maxLength={200}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+
+                {/* Message body */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '.82rem', fontWeight: 700, marginBottom: '6px' }}>Message</label>
+                  <textarea
+                    className="form-textarea"
+                    value={emailForm.body}
+                    onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))}
+                    placeholder="Type your message to the customer..."
+                    maxLength={2000}
+                    style={{ width: '100%', minHeight: '140px', resize: 'vertical' }}
+                  />
+                  <div style={{ fontSize: '.72rem', color: 'var(--gray-1)', textAlign: 'right', marginTop: '4px' }}>{emailForm.body.length}/2000</div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '4px' }}>
+                  <button className="btn btn-outline" onClick={() => setEmailModal(null)} disabled={emailSending}>Cancel</button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSendEmail}
+                    disabled={emailSending || !emailForm.subject.trim() || !emailForm.body.trim()}
+                  >
+                    {emailSending
+                      ? <><i className="fas fa-spinner fa-spin"></i> Sending...</>
+                      : <><i className="fas fa-paper-plane"></i> Send Email</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
     </>
   );
 }
