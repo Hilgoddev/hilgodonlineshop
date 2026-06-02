@@ -160,9 +160,15 @@ export default function Checkout() {
       .catch(() => setGeoData([]));
   }, []);
 
-  const countries = geoData ? geoData.map(c => c.name) : [];
+  // Deduplicate countries — countriesnow.space returns duplicate entries
+  // (e.g. "Congo" appears twice). Use Map keyed by name to keep first occurrence.
+  const countries = geoData
+    ? [...new Map(geoData.map(c => [c.name, c])).values()].map(c => c.name)
+    : [];
   const currentCountryData = geoData?.find(c => c.name === formData.country);
-  const states = currentCountryData ? currentCountryData.states.map(s => s.name) : [];
+  const states = currentCountryData
+    ? [...new Set(currentCountryData.states?.map(s => s.name) || [])]
+    : [];
 
   // Saved when order is placed so views after cart-clear still have correct values
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
@@ -543,7 +549,7 @@ export default function Checkout() {
                 <label className="form-label">Country</label>
                 <select className="form-select form-input" name="country" value={formData.country} onChange={handleInputChange} disabled={!geoData}>
                   {!geoData && <option value="Nigeria">Loading countries...</option>}
-                  {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                  {countries.map((c, i) => <option key={`${c}-${i}`} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-row">
@@ -556,7 +562,7 @@ export default function Checkout() {
                   {states.length > 0 ? (
                     <select className="form-select form-input" name="state" value={formData.state} onChange={handleInputChange} required>
                       <option value="">Select state</option>
-                      {states.map(s => <option key={s} value={s}>{s}</option>)}
+                      {states.map((s, i) => <option key={`${s}-${i}`} value={s}>{s}</option>)}
                     </select>
                   ) : (
                     <input className="form-input" type="text" placeholder="State / Province" name="state" value={formData.state} onChange={handleInputChange} required />
