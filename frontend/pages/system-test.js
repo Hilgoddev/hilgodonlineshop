@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSession } from '../contexts/AuthContext';
+import AdminGuard from '@/components/AdminGuard';
 
 export default function SystemTest() {
   const { data: session, status } = useSession();
@@ -224,3 +225,7 @@ export default function SystemTest() {
     </div>
   );
 }
+
+SystemTest.getLayout = function getLayout(page) {
+  return <AdminGuard>{page}</AdminGuard>;
+};

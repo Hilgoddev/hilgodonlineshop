@@ -50,7 +50,8 @@ router.post('/', verifyToken, async (req, res, next) => {
         const safeEmail     = escapeHtml(email);
         const safeReason    = escapeHtml(reason);
         const safeDetails   = details ? escapeHtml(details) : null;
-        const frontendUrl   = process.env.FRONTEND_URL || 'https://hilgod.com';
+        const { cleanEnv: _clean } = require('../lib/env');
+        const frontendUrl   = _clean(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 
         // Notify admin
         if (process.env.ADMIN_EMAIL) {

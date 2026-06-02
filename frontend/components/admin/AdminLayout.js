@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/stores', label: 'Stores', icon: 'fa-store' },
   { href: '/admin/riders', label: 'Riders', icon: 'fa-motorcycle' },
   { href: '/admin/flash-sales', label: 'Flash Sales', icon: 'fa-bolt' },
+  { href: '/admin/payouts', label: 'Payouts', icon: 'fa-money-bill-transfer' },
 ];
 
 export default function AdminLayout({ children, title, description }) {

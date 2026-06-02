@@ -143,6 +143,9 @@ const SellerQuickLinks = () => (
       <Link href="/seller/orders" className="btn btn-outline btn-sm">
         <i className="fas fa-shopping-bag"></i> Customer Orders
       </Link>
+      <Link href="/seller/payouts" className="btn btn-outline btn-sm">
+        <i className="fas fa-wallet"></i> My Earnings
+      </Link>
     </div>
   </div>
 );

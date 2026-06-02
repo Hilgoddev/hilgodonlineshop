@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
+import { apiFetch } from '@/lib/apiClient';
 
 export default function ReturnRequest() {
   const [form, setForm] = useState({ orderId: '', email: '', reason: '', details: '' });
@@ -13,9 +14,8 @@ export default function ReturnRequest() {
     setSubmitting(true);
     setErrorMsg('');
     try {
-      const res = await fetch('/api/returns', {
+      const res = await apiFetch('/api/returns', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
       const json = await res.json();
