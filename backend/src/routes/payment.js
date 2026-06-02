@@ -233,6 +233,59 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     }
 });
 
+// GET /api/payment/verify/:reference
+// Verifies a Paystack transaction by reference and syncs order status.
+// Called by the checkout page after Paystack redirects back to confirm
+// the payment actually succeeded (prevents spoofed callback URLs).
+router.get('/verify/:reference', verifyToken, async (req, res) => {
+    const { reference } = req.params;
+    if (!reference) return res.status(400).json({ success: false, message: 'reference is required' });
+
+    try {
+        const result = await withTimeout(
+            () => paystack.transaction.verify(reference),
+            8000,
+        );
+        const txn = result?.data;
+        if (!txn) return res.status(502).json({ success: false, message: 'Invalid response from payment gateway' });
+
+        const status = txn.status; // 'success' | 'failed' | 'abandoned'
+        const orderId = txn.metadata?.order_id || null;
+
+        // Sync order if we have a reference and it succeeded
+        if (status === 'success' && orderId) {
+            const { data: order } = await supabase
+                .from('orders')
+                .select('id, user_id, status')
+                .eq('id', orderId)
+                .maybeSingle();
+
+            // Only update if not already past 'paid'
+            if (order && !['paid', 'processing', 'shipped', 'delivered'].includes(order.status)) {
+                await supabase.from('orders').update({ status: 'paid', payment_reference: reference }).eq('id', orderId);
+                const { handlePaymentSuccess } = require('../services/paymentSuccess');
+                handlePaymentSuccess(orderId, order.user_id).catch(() => {});
+            }
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                status,
+                reference: txn.reference,
+                amount: Number(txn.amount || 0) / 100,
+                currency: txn.currency,
+                paidAt: txn.paid_at,
+                orderId,
+            },
+        });
+    } catch (err) {
+        const msg = err?.error?.message || err?.message || 'Verification failed';
+        console.error('[PAYMENT] verify failed:', msg);
+        return res.status(502).json({ success: false, message: msg });
+    }
+});
+
 // GET /api/payment/bank-details
 // Returns bank account info from env vars. Client sets these when they onboard.
 router.get('/bank-details', (req, res) => {

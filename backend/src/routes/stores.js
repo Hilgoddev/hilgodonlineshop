@@ -9,17 +9,12 @@ const storesFlight = singleFlight();
 // Middleware to verify admin role
 const requireAdmin = async (req, res, next) => {
     try {
-        console.log('[stores.js requireAdmin] Checking admin status for user:', req.user?.id);
         const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
-        console.log('[stores.js requireAdmin] Profile query result:', { data: profile, error });
         if (error || !profile || profile.role !== 'admin') {
-            console.log('[stores.js requireAdmin] Admin check failed:', { error, profile });
             return res.status(403).json({ success: false, error: 'Admin access required' });
         }
-        console.log('[stores.js requireAdmin] Admin check passed');
         next();
     } catch (err) {
-        console.error('[stores.js requireAdmin] Error:', err);
         next(err);
     }
 };

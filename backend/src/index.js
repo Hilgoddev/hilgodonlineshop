@@ -182,6 +182,64 @@ app.post('/api/delivery/apply', deliveryLimiter, async (req, res) => {
   res.status(200).json({ success: true, message: 'Application received. We will contact you shortly.' });
 });
 
+// POST /api/careers/apply — saves application to DB and emails admin
+app.post('/api/careers/apply', async (req, res) => {
+    const { fullName, email, phone, role, coverNote, cvLink } = req.body;
+    if (!fullName || !email || !role) {
+        return res.status(400).json({ success: false, error: 'Name, email and role are required' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ success: false, error: 'Invalid email address' });
+    }
+
+    const { error: dbErr } = await supabase.from('career_applications').insert({
+        full_name: fullName,
+        email,
+        phone: phone || null,
+        role_applied: role,
+        cover_note: coverNote || null,
+        cv_link: cvLink || null,
+        status: 'new',
+        applied_at: new Date().toISOString(),
+    }).catch(() => ({ error: null })); // table may not exist yet — don't crash
+
+    const safeName  = escapeHtml(fullName);
+    const safeEmail = escapeHtml(email);
+    const safeRole  = escapeHtml(role);
+    const safeNote  = coverNote ? escapeHtml(coverNote) : null;
+    const safeCV    = cvLink ? escapeHtml(cvLink) : null;
+    const safePhone = phone ? escapeHtml(phone) : null;
+
+    sendEmail({
+        to: process.env.ADMIN_EMAIL || 'hilgodonline@gmail.com',
+        subject: `New Career Application — ${safeRole} (${safeName})`,
+        html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+            <h2 style="color:#E31C1C">New Career Application</h2>
+            <p><strong>Role:</strong> ${safeRole}</p>
+            <p><strong>Name:</strong> ${safeName}</p>
+            <p><strong>Email:</strong> <a href="mailto:${safeEmail}">${safeEmail}</a></p>
+            ${safePhone ? `<p><strong>Phone:</strong> ${safePhone}</p>` : ''}
+            ${safeNote ? `<p><strong>Cover Note:</strong></p><blockquote style="border-left:4px solid #E31C1C;margin:0;padding:8px 16px;background:#f8f8f8">${safeNote}</blockquote>` : ''}
+            ${safeCV ? `<p><strong>CV / Portfolio:</strong> <a href="${safeCV}">${safeCV}</a></p>` : ''}
+        </div>`,
+        emailType: 'admin_alert',
+    }).catch(() => {});
+
+    sendEmail({
+        to: email,
+        subject: `Application Received — ${safeRole} at Hilgod`,
+        html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+            <h2 style="color:#E31C1C">Thank you, ${safeName}!</h2>
+            <p>We've received your application for the <strong>${safeRole}</strong> position.</p>
+            <p>Our team reviews every application personally. If your profile is a match we'll reach out within <strong>5 business days</strong>.</p>
+            <p style="color:#666;font-size:.88rem">Questions? Reply to this email or contact us at <a href="mailto:hilgodonline@gmail.com" style="color:#E31C1C">hilgodonline@gmail.com</a></p>
+        </div>`,
+        emailType: 'general',
+    }).catch(() => {});
+
+    res.status(200).json({ success: true, message: 'Application submitted. We will be in touch soon!' });
+});
+
 // Error Handling Middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
