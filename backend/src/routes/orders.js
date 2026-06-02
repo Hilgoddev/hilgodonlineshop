@@ -544,6 +544,8 @@ router.put('/:id', verifyToken, async (req, res, next) => {
 });
 
 // POST /api/orders/:id/notify — admin sends a manual email to the customer
+// Fetches full order details (items, total, address) and embeds them
+// in a rich email alongside the admin's custom message.
 router.post('/:id/notify', verifyToken, async (req, res, next) => {
     try {
         const { data: me } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
@@ -554,21 +556,94 @@ router.post('/:id/notify', verifyToken, async (req, res, next) => {
         if (subject.length > 200) return res.status(400).json({ success: false, error: 'Subject too long' });
         if (message.length > 2000) return res.status(400).json({ success: false, error: 'Message too long (max 2000 chars)' });
 
-        const { data: order, error: orderErr } = await supabase
-            .from('orders').select('id, user_id, status').eq('id', req.params.id).single();
+        // Fetch full order + items + products in parallel
+        const [{ data: order, error: orderErr }, { data: items }] = await Promise.all([
+            supabase.from('orders')
+                .select('id, user_id, status, total_amount, currency, shipping_address, created_at')
+                .eq('id', req.params.id).single(),
+            supabase.from('order_items')
+                .select('quantity, unit_price, product:products(name, images)')
+                .eq('order_id', req.params.id),
+        ]);
         if (orderErr || !order) return res.status(404).json({ success: false, error: 'Order not found' });
 
         const { data: { user } } = await supabase.auth.admin.getUserById(order.user_id);
         if (!user?.email) return res.status(400).json({ success: false, error: 'Customer email not found' });
 
+        const customerName = escapeHtml(
+            user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0]
+        );
+        const orderId  = String(order.id).slice(0, 8).toUpperCase();
+        const total    = Number(order.total_amount || 0).toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+        const placed   = new Date(order.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
+        const addr     = order.shipping_address || {};
+        const addrLine = [addr.street, addr.city, addr.state, addr.country].filter(Boolean).join(', ');
+
+        // Status badge colour
+        const statusColors = { paid: '#0369a1', processing: '#1e40af', shipped: '#6d28d9', delivered: '#15803d', cancelled: '#b91c1c' };
+        const statusBg     = { paid: '#e0f2fe', processing: '#dbeafe', shipped: '#ede9fe', delivered: '#dcfce7', cancelled: '#fee2e2' };
+        const sc = statusColors[order.status] || '#92400e';
+        const sb = statusBg[order.status]    || '#fef3c7';
+
+        // Items table rows
+        const itemRows = (items || []).map(it => {
+            const name  = escapeHtml(it.product?.name || 'Product');
+            const img   = it.product?.images?.[0] || '';
+            const price = Number(it.unit_price || 0).toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+            const line  = Number(it.unit_price || 0) * Number(it.quantity || 1);
+            const lineF = line.toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+            const imgTag = img ? `<img src="${escapeHtml(img)}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px">` : '';
+            return `<tr>
+              <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle">${imgTag}${name}</td>
+              <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b">${it.quantity}</td>
+              <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#64748b">${price}</td>
+              <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">${lineF}</td>
+            </tr>`;
+        }).join('');
+
         const safeMessage = escapeHtml(message).replace(/\n/g, '<br>');
-        const html = `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
-            <h2 style="color:#E31C1C">Order Update</h2>
-            <p style="color:#666;font-size:.9rem">Order <strong>#${String(order.id).slice(0,8).toUpperCase()}</strong></p>
-            <div style="padding:18px 20px;background:#f8fafc;border-left:4px solid #E31C1C;border-radius:0 8px 8px 0;margin:16px 0;line-height:1.8;font-size:.95rem">
-                ${safeMessage}
+
+        const html = `<div style="font-family:sans-serif;max-width:580px;margin:0 auto;color:#1e293b">
+
+          <!-- Greeting + message -->
+          <h2 style="color:#E31C1C;margin-bottom:4px">Hi ${customerName},</h2>
+          <div style="padding:16px 20px;background:#f8fafc;border-left:4px solid #E31C1C;border-radius:0 8px 8px 0;margin:14px 0 20px;line-height:1.8;font-size:.96rem">
+            ${safeMessage}
+          </div>
+
+          <!-- Order meta -->
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:20px">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+              <span style="font-weight:800;font-size:1rem">Order #${orderId}</span>
+              <span style="padding:4px 14px;border-radius:999px;font-size:.78rem;font-weight:700;background:${sb};color:${sc};text-transform:capitalize">${order.status || 'pending'}</span>
             </div>
-            <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
+            <div style="font-size:.82rem;color:#64748b">Placed on ${placed}</div>
+          </div>
+
+          <!-- Items table -->
+          ${itemRows ? `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:.88rem">
+            <thead>
+              <tr style="background:#f1f5f9;color:#64748b;font-size:.75rem;text-transform:uppercase;letter-spacing:.4px">
+                <th style="padding:8px;text-align:left;font-weight:700">Product</th>
+                <th style="padding:8px;text-align:center;font-weight:700">Qty</th>
+                <th style="padding:8px;text-align:right;font-weight:700">Unit</th>
+                <th style="padding:8px;text-align:right;font-weight:700">Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          <div style="text-align:right;padding:10px 8px;font-size:1rem;font-weight:800;color:#E31C1C;border-top:2px solid #e2e8f0;margin-bottom:20px">
+            Order Total: ${total}
+          </div>` : ''}
+
+          <!-- Delivery address -->
+          ${addrLine ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;margin-bottom:20px;font-size:.88rem">
+            <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.5px;margin-bottom:6px">📍 Delivery Address</div>
+            <div style="font-weight:600">${escapeHtml(addrLine)}</div>
+            ${addr.phone ? `<div style="color:#64748b;margin-top:3px">📞 ${escapeHtml(addr.phone)}</div>` : ''}
+          </div>` : ''}
+
+          <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;padding:12px 28px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;font-size:.95rem">View My Orders</a>
         </div>`;
 
         await sendEmail({
@@ -580,7 +655,7 @@ router.post('/:id/notify', verifyToken, async (req, res, next) => {
             userId: order.user_id,
         });
 
-        res.json({ success: true, message: 'Email sent to ' + user.email });
+        res.json({ success: true, message: `Email sent to ${user.email}` });
     } catch (err) {
         next(err);
     }
