@@ -25,8 +25,10 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             allOrderStatusRes,
             revenueRes,
             trendRes,
+            totalUsersRes,
             customersCountRes,
             sellersCountRes,
+            adminsCountRes,
             storesRes,
             sellerAppsRes,
             reviewsRes,
@@ -38,24 +40,27 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                 .order('created_at', { ascending: false }).limit(10),
             // Total order count
             supabase.from('orders').select('id', { count: 'exact', head: true }),
-            // ALL orders grouped by status (just status column) for the breakdown chart
+            // ALL orders by status for breakdown chart
             supabase.from('orders').select('status'),
             // Total revenue: all paid/delivered orders ever
-            supabase.from('orders').select('total_amount')
-                .in('status', ['paid', 'delivered']),
+            supabase.from('orders').select('total_amount').in('status', ['paid', 'delivered']),
             // Monthly revenue trend: last 6 months
             supabase.from('orders').select('total_amount, created_at')
                 .in('status', ['paid', 'delivered'])
                 .gte('created_at', sixMonthsAgoISO),
-            // Customer count
+            // ALL registered users (profiles) — covers every role including unsynced
+            supabase.from('profiles').select('id', { count: 'exact', head: true }),
+            // Customers only
             supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer'),
-            // Sellers count
+            // Sellers
             supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'seller'),
-            // Stores (for pending approvals)
+            // Admins
+            supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin'),
+            // Stores (all statuses for approved/pending split)
             supabase.from('stores').select('status'),
-            // Seller applications (for pending approvals) — may not exist
+            // Seller applications
             supabase.from('seller_applications').select('status'),
-            // Product reviews — canonical table is `reviews` (product_reviews was a duplicate)
+            // Product reviews
             supabase.from('reviews').select('rating'),
         ]);
 
@@ -68,9 +73,13 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         const products      = productsRes.data || [];
         const recentOrders  = ordersRecentRes.data || [];
         const orderCount    = typeof ordersCountRes.count === 'number' ? ordersCountRes.count : 0;
+        const totalUsers    = typeof totalUsersRes.count === 'number' ? totalUsersRes.count : 0;
         const customerCount = typeof customersCountRes.count === 'number' ? customersCountRes.count : 0;
         const sellerCount   = typeof sellersCountRes.count === 'number' ? sellersCountRes.count : 0;
+        const adminCount    = typeof adminsCountRes.count === 'number' ? adminsCountRes.count : 0;
         const stores        = storesRes.data || [];
+        const storesApproved = stores.filter(s => s.status === 'approved').length;
+        const storesPending  = stores.filter(s => s.status === 'pending').length;
         const sellerApps    = sellerAppsRes.error ? [] : (sellerAppsRes.data || []);
         const reviews       = reviewsRes.error  ? [] : (reviewsRes.data  || []);
         const allOrders     = allOrderStatusRes.error ? [] : (allOrderStatusRes.data || []);
@@ -136,11 +145,15 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         const payload = {
             success: true,
             data: {
-                products:  products.length,
-                orders:    orderCount,
-                customers: customerCount,
-                sellers:   sellerCount,
-                revenue:   totalRevenue,
+                products:        products.length,
+                orders:          orderCount,
+                totalUsers,
+                customers:       customerCount,
+                sellers:         sellerCount,
+                admins:          adminCount,
+                storesApproved,
+                storesPending,
+                revenue:         totalRevenue,
                 ordersByStatus,
                 monthlyTrend,
                 recentOrders: recentOrders.map((o) => {

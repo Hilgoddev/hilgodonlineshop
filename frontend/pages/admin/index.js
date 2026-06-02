@@ -10,20 +10,11 @@ export default function AdminDashboard() {
   const { formatPrice } = useCurrency();
   const { data: session } = useSession();
   const [stats, setStats] = useState({
-    products: 0,
-    orders: 0,
-    customers: 0,
-    revenue: 0,
-    recentOrders: [],
-    lowStock: [],
-    pendingApprovals: 0,
-    analytics: {
-      totalReviews: 0,
-      averageRating: 0,
-      pendingProductsCount: 0,
-      pendingStoresCount: 0,
-      pendingSellerAppsCount: 0,
-    },
+    products: 0, orders: 0, revenue: 0,
+    totalUsers: 0, customers: 0, sellers: 0, admins: 0,
+    storesApproved: 0, storesPending: 0,
+    recentOrders: [], lowStock: [], pendingApprovals: 0,
+    analytics: { totalReviews: 0, averageRating: 0, pendingProductsCount: 0, pendingStoresCount: 0, pendingSellerAppsCount: 0 },
     loading: true,
   });
   const [loadError, setLoadError] = useState('');
@@ -43,19 +34,21 @@ export default function AdminDashboard() {
       }
       const dashboard = json?.data || {};
       setStats({
-        products: dashboard.products || 0,
-        orders: dashboard.orders || 0,
-        customers: dashboard.customers || 0,
-        revenue: dashboard.revenue || 0,
-        recentOrders: dashboard.recentOrders || [],
-        lowStock: dashboard.lowStock || [],
+        products:        dashboard.products        || 0,
+        orders:          dashboard.orders          || 0,
+        totalUsers:      dashboard.totalUsers      || 0,
+        customers:       dashboard.customers       || 0,
+        sellers:         dashboard.sellers         || 0,
+        admins:          dashboard.admins          || 0,
+        storesApproved:  dashboard.storesApproved  || 0,
+        storesPending:   dashboard.storesPending   || 0,
+        revenue:         dashboard.revenue         || 0,
+        recentOrders:    dashboard.recentOrders    || [],
+        lowStock:        dashboard.lowStock        || [],
         pendingApprovals: dashboard.pendingApprovals || 0,
         analytics: dashboard.analytics || {
-          totalReviews: 0,
-          averageRating: 0,
-          pendingProductsCount: 0,
-          pendingStoresCount: 0,
-          pendingSellerAppsCount: 0,
+          totalReviews: 0, averageRating: 0,
+          pendingProductsCount: 0, pendingStoresCount: 0, pendingSellerAppsCount: 0,
         },
         loading: false,
       });
@@ -142,47 +135,42 @@ export default function AdminDashboard() {
         </div>
       ) : null}
 
-      <div
-        className="admin-stat-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px',
-        }}
-      >
+      {/* ── Row 1: Revenue + Orders + Products ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '16px' }}>
         {[
-          { icon: 'fa-box', label: 'Products', value: stats.products, bg: '#e0f2fe', clr: '#0369a1' },
-          { icon: 'fa-shopping-bag', label: 'Orders', value: stats.orders, bg: '#dcfce7', clr: '#15803d' },
-          { icon: 'fa-users', label: 'Customers', value: stats.customers, bg: '#fef3c7', clr: '#b45309' },
-          { icon: 'fa-naira-sign', label: 'Revenue', title: 'Paid / shipped / delivered orders only', value: formatPrice(stats.revenue, 'NGN', false), bg: '#ede9fe', clr: '#6d28d9' },
-          { icon: 'fa-clipboard-check', label: 'Pending', value: stats.pendingApprovals, bg: '#fee2e2', clr: '#b91c1c' },
-        ].map((card, i) => (
-          <div key={i} className="card" style={{ padding: '18px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                background: card.bg,
-                color: card.clr,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '1.2rem',
-                flexShrink: 0,
-              }}
-            >
-              <i className={`fas ${card.icon}`} />
-            </div>
-            <div>
-              <p title={card.title || ''} style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 600, margin: '0 0 4px' }}>{card.label}</p>
-              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, margin: 0 }}>
-                {stats.loading ? <i className="fas fa-spinner fa-spin" style={{ fontSize: '1rem' }} /> : card.value}
-              </h3>
-            </div>
-          </div>
-        ))}
+          { icon: 'fa-naira-sign', label: 'Total Revenue', title: 'Paid & delivered orders only', value: formatPrice(stats.revenue, 'NGN', false), bg: '#dcfce7', clr: '#15803d' },
+          { icon: 'fa-shopping-bag', label: 'Total Orders', value: (stats.orders || 0).toLocaleString(), bg: '#e0f2fe', clr: '#0369a1' },
+          { icon: 'fa-box', label: 'Products Listed', value: (stats.products || 0).toLocaleString(), bg: '#ede9fe', clr: '#6d28d9' },
+          { icon: 'fa-clipboard-check', label: 'Pending Approvals', value: stats.pendingApprovals || 0, bg: '#fee2e2', clr: '#b91c1c' },
+        ].map((c, i) => <StatCard key={i} {...c} loading={stats.loading} />)}
+      </div>
+
+      {/* ── Row 2: User breakdown ── */}
+      <div style={{ marginBottom: '8px' }}>
+        <p style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '.5px', margin: '0 0 10px' }}>
+          <i className="fas fa-users" style={{ marginRight: '6px' }} />User Breakdown
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+          {[
+            { icon: 'fa-users', label: 'Total Registered', value: (stats.totalUsers || 0).toLocaleString(), bg: '#f1f5f9', clr: '#334155', href: '/admin/customers' },
+            { icon: 'fa-user', label: 'Customers', value: (stats.customers || 0).toLocaleString(), bg: '#fef3c7', clr: '#b45309', href: '/admin/customers' },
+            { icon: 'fa-shop', label: 'Sellers', value: (stats.sellers || 0).toLocaleString(), bg: '#e0f2fe', clr: '#0369a1', href: '/admin/sellers' },
+            { icon: 'fa-shield-halved', label: 'Admins', value: (stats.admins || 0).toLocaleString(), bg: '#fce7f3', clr: '#9d174d', href: null },
+          ].map((c, i) => <StatCard key={i} {...c} loading={stats.loading} small />)}
+        </div>
+      </div>
+
+      {/* ── Row 3: Store breakdown ── */}
+      <div style={{ marginBottom: '24px' }}>
+        <p style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '.5px', margin: '0 0 10px' }}>
+          <i className="fas fa-store" style={{ marginRight: '6px' }} />Store Breakdown
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+          {[
+            { icon: 'fa-store', label: 'Approved Stores', value: (stats.storesApproved || 0).toLocaleString(), bg: '#dcfce7', clr: '#15803d', href: '/admin/stores' },
+            { icon: 'fa-hourglass-half', label: 'Pending Stores', value: (stats.storesPending || 0).toLocaleString(), bg: '#fef3c7', clr: '#b45309', href: '/admin/stores' },
+          ].map((c, i) => <StatCard key={i} {...c} loading={stats.loading} small />)}
+        </div>
       </div>
 
       <div className="admin-dash-grid">
@@ -349,6 +337,23 @@ export default function AdminDashboard() {
       `}</style>
     </>
   );
+}
+
+function StatCard({ icon, label, value, bg, clr, title, href, loading, small }) {
+  const inner = (
+    <div className="card" style={{ padding: small ? '14px 16px' : '18px', display: 'flex', alignItems: 'center', gap: '12px', cursor: href ? 'pointer' : 'default', transition: 'box-shadow .15s' }}>
+      <div style={{ width: small ? '38px' : '46px', height: small ? '38px' : '46px', borderRadius: '10px', background: bg, color: clr, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: small ? '1rem' : '1.15rem', flexShrink: 0 }}>
+        <i className={`fas ${icon}`} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <p title={title || ''} style={{ color: '#64748b', fontSize: small ? '.75rem' : '.8rem', fontWeight: 600, margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</p>
+        <h3 style={{ fontSize: small ? '1.15rem' : '1.35rem', fontWeight: 800, margin: 0 }}>
+          {loading ? <i className="fas fa-spinner fa-spin" style={{ fontSize: '.9rem' }} /> : value}
+        </h3>
+      </div>
+    </div>
+  );
+  return href ? <Link href={href} style={{ textDecoration: 'none', color: 'inherit' }}>{inner}</Link> : inner;
 }
 
 AdminDashboard.getLayout = function getLayout(page) {

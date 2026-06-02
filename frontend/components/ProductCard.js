@@ -37,12 +37,18 @@ export default function ProductCard({ product, showAddToCart = true }) {
     ? (description.length > 60 ? description.substring(0, 60) + '...' : description)
     : '';
 
+  const outOfStock = stock === 0;
+
   return (
-    <div className="product-card" data-id={_id}>
+    <div className="product-card" data-id={_id} style={outOfStock ? { opacity: 0.72 } : {}}>
       <div className="product-card__badges">
         {badge && <span className={`product-card__badge badge-${badge}`}>{badge.toUpperCase()}</span>}
-        {stock === 0 && <span className="product-card__badge badge-danger">OUT OF STOCK</span>}
-        {discount > 0 && <span className="product-card__badge badge-sale">-{discount}%</span>}
+        {outOfStock && (
+          <span className="product-card__badge badge-danger" style={{ background: '#ef4444', color: '#fff', fontWeight: 800 }}>
+            OUT OF STOCK
+          </span>
+        )}
+        {!outOfStock && discount > 0 && <span className="product-card__badge badge-sale">-{discount}%</span>}
       </div>
       
       <button 
@@ -53,18 +59,28 @@ export default function ProductCard({ product, showAddToCart = true }) {
         <i className={`${isInWishlist(_id) ? 'fas' : 'far'} fa-heart`}></i>
       </button>
 
-      <div className="product-card__img-wrapper">
+      <div className="product-card__img-wrapper" style={{ position: 'relative' }}>
         <Link href={`/products/${_id}`}>
-          <img 
+          <img
             src={images && images[0] ? images[0] : product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
-            alt={name} 
-            loading="lazy" 
+            alt={name}
+            loading="lazy"
+            style={outOfStock ? { filter: 'grayscale(40%)' } : {}}
             onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'; }}
           />
         </Link>
-        <div className="product-card__quick-view" onClick={handleQuickView}>
-          <i className="fas fa-eye"></i> Quick View
-        </div>
+        {outOfStock && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+            <span style={{ background: '#ef4444', color: '#fff', padding: '6px 16px', borderRadius: '6px', fontWeight: 800, fontSize: '.82rem', letterSpacing: '.5px' }}>
+              OUT OF STOCK
+            </span>
+          </div>
+        )}
+        {!outOfStock && (
+          <div className="product-card__quick-view" onClick={handleQuickView}>
+            <i className="fas fa-eye"></i> Quick View
+          </div>
+        )}
       </div>
 
         <div className="product-card__body">
@@ -99,20 +115,17 @@ export default function ProductCard({ product, showAddToCart = true }) {
           </div>
 
         <div className="product-card__actions">
-          {showAddToCart && stock > 0 ? (
-            <button 
-              className="btn-add-cart" 
-              onClick={handleAddToCart}
-            >
+          {showAddToCart && !outOfStock ? (
+            <button className="btn-add-cart" onClick={handleAddToCart}>
               <i className="fas fa-cart-plus"></i> Add to Cart
             </button>
-          ) : showAddToCart && stock === 0 ? (
-            <button 
-              className="btn-add-cart" 
+          ) : showAddToCart && outOfStock ? (
+            <button
+              className="btn-add-cart"
               disabled
-              style={{ opacity: 0.5, cursor: 'not-allowed' }}
+              style={{ background: '#f1f5f9', color: '#94a3b8', cursor: 'not-allowed', border: '1px solid #e2e8f0', fontWeight: 700 }}
             >
-              Out of Stock
+              <i className="fas fa-ban" style={{ marginRight: '6px' }}></i>Out of Stock
             </button>
           ) : null}
         </div>
