@@ -10,8 +10,6 @@ const { cleanEnv } = require('../lib/env');
 const { withTimeout } = require('../lib/resilience');
 
 const initializePayment = async (req, res, next) => {
-    const __t = Date.now();
-    const __lap = (label) => { console.log(`[PAYMENT_TIMING] ${label}: +${Date.now() - __t}ms`); };
     try {
         const order_id = req.body.order_id || req.body.orderId;
         const email = req.body.email;
@@ -38,7 +36,7 @@ const initializePayment = async (req, res, next) => {
             console.error('[PAYMENT] order fetch timed out:', e.message);
             return res.status(503).json({ success: false, message: 'Order service is slow right now. Please try again.' });
         }
-        __lap('order fetched');
+
 
         if (orderError || !order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
@@ -83,7 +81,7 @@ const initializePayment = async (req, res, next) => {
 
         // Initialize Paystack transaction — 6s timeout so total stays under 10s
         const frontendUrl = cleanEnv(process.env.FRONTEND_URL || 'https://www.hilgod.com').replace(/\/$/, '');
-        __lap('before paystack.initialize');
+
         let response;
         try {
             response = await withTimeout(
@@ -102,14 +100,14 @@ const initializePayment = async (req, res, next) => {
             }
             throw e; // re-throw for the outer catch to handle as a gateway error
         }
-        __lap('paystack.initialize done');
+
 
         // Save the payment reference (best-effort, 3s max — don't block the redirect)
         withTimeout(
             (signal) => supabase.from('orders').update({ payment_reference: response.data.reference }).eq('id', order_id).abortSignal(signal),
             3000,
         ).catch((e) => console.warn('[PAYMENT] reference save failed (non-fatal):', e.message));
-        __lap('order updated + responding');
+
 
         res.status(200).json({ success: true, data: response.data });
     } catch (err) {

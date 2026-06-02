@@ -6,9 +6,9 @@
 -- 1. Ensure reviews table exists (idempotent)
 CREATE TABLE IF NOT EXISTS reviews (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id    UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    product_id    UUID NOT NULL,
     product_name  TEXT,
-    user_id       UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    user_id       UUID,
     user_name     TEXT NOT NULL DEFAULT 'Customer',
     user_email    TEXT,
     rating        SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
@@ -16,6 +16,34 @@ CREATE TABLE IF NOT EXISTS reviews (
     message       TEXT NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- If product_id was created as TEXT (e.g. from an earlier partial migration),
+-- upgrade it to UUID so comparisons and FK work correctly.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'reviews'
+          AND column_name = 'product_id' AND data_type = 'text'
+    ) THEN
+        ALTER TABLE reviews ALTER COLUMN product_id TYPE UUID USING product_id::uuid;
+        RAISE NOTICE 'reviews.product_id column converted from text to uuid';
+    END IF;
+END $$;
+
+-- Add FK only if not already present (ALTER TABLE … ADD CONSTRAINT IF NOT EXISTS is PG15+;
+-- use DO block for compatibility with PG14).
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'reviews' AND constraint_name = 'reviews_product_id_fkey'
+    ) THEN
+        ALTER TABLE reviews
+            ADD CONSTRAINT reviews_product_id_fkey
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- 2. Migrate product_reviews data safely — only copy columns that actually exist
 DO $$
@@ -61,11 +89,12 @@ BEGIN
         RETURN;
     END IF;
 
-    -- Build dynamic INSERT
+    -- Build dynamic INSERT — cast product_id to uuid since product_reviews
+    -- may store it as text while the reviews table uses uuid.
     sql := format(
         'INSERT INTO reviews (product_id, user_name, user_email, rating, title, message, created_at)
          SELECT
-             pr.%I,
+             pr.%I::uuid,
              %s,
              %s,
              %s,
@@ -75,7 +104,7 @@ BEGIN
          FROM product_reviews pr
          WHERE NOT EXISTS (
              SELECT 1 FROM reviews r
-             WHERE r.product_id = pr.%I
+             WHERE r.product_id::text = pr.%I::text
          )
          ON CONFLICT DO NOTHING',
         -- product_id

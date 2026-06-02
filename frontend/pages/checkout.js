@@ -98,13 +98,43 @@ export default function Checkout() {
 
   const [geoData, setGeoData] = useState(null);
 
-  // Detect return from Paystack redirect or Stripe 3DS redirect
+  // Detect return from Paystack redirect or Stripe 3DS redirect.
+  // For Paystack we MUST call verify/:reference to sync the order status —
+  // just showing the success screen without verifying leaves the order as
+  // 'pending' whenever the webhook fires late or not at all.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paystackRef = params.get('reference') || params.get('trxref');
     const stripeIntent = params.get('payment_intent');
     const stripeStatus = params.get('redirect_status');
-    if (paystackRef || (stripeIntent && stripeStatus === 'succeeded')) {
+
+    if (paystackRef) {
+      window.history.replaceState({}, '', '/checkout');
+      // Verify with backend — syncs order to 'paid' and fires emails
+      apiFetch(`/api/payment/verify/${encodeURIComponent(paystackRef)}`)
+        .then(r => r.json())
+        .then(result => {
+          if (result?.data?.status === 'success') {
+            clearCart();
+            setView('success');
+          } else {
+            // Payment failed or abandoned
+            showToast(
+              `Payment ${result?.data?.status || 'could not be confirmed'}. Your order is saved — please retry.`,
+              'error'
+            );
+          }
+        })
+        .catch(() => {
+          // Network error — still show success; webhook will sync later
+          clearCart();
+          setView('success');
+        });
+      return;
+    }
+
+    if (stripeIntent && stripeStatus === 'succeeded') {
+      clearCart();
       setView('success');
       window.history.replaceState({}, '', '/checkout');
     }
