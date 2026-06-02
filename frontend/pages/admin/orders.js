@@ -69,22 +69,36 @@ export default function AdminOrders() {
     };
   }, []);
 
-  const handleStatusChange = (id, val) => setLocalStatuses(prev => ({ ...prev, [id]: val }));
+  // When status dropdown changes, immediately pre-fill the matching email template
+  // so that when the modal opens (after Save) the right message is already loaded.
+  const handleStatusChange = (id, val) => {
+    setLocalStatuses(prev => ({ ...prev, [id]: val }));
+    const tpl = EMAIL_TEMPLATES.find(t => t.label.toLowerCase().includes(val.toLowerCase()));
+    if (tpl) setEmailForm({ subject: tpl.subject, body: tpl.body });
+  };
 
   const handleSaveStatus = async (orderId) => {
     setUpdatingId(orderId);
     try {
       const res = await apiFetch(`/api/orders/${orderId}`, { method: 'PUT', body: JSON.stringify({ status: localStatuses[orderId] }) });
       const data = await res.json();
-      if (data.success) { setMessage({ type: 'success', text: 'Status updated!' }); fetchOrders(); }
-      else { setMessage({ type: 'error', text: data.error || 'Failed to update' }); }
+      if (data.success) {
+        setMessage({ type: 'success', text: 'Status updated!' });
+        fetchOrders();
+        // Auto-open email compose modal with pre-filled template for the new status
+        const updatedOrder = data.data || orders.find(o => o._id === orderId);
+        if (updatedOrder) setEmailModal({ order: { ...updatedOrder, _id: orderId } });
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update' });
+      }
     } catch (err) { setMessage({ type: 'error', text: 'Network error' }); }
     finally { setUpdatingId(null); setTimeout(() => setMessage({ type: '', text: '' }), 3000); }
   };
 
   const openEmailModal = (order) => {
-    // Pre-fill subject based on current order status
-    const tpl = EMAIL_TEMPLATES.find(t => t.label.toLowerCase().includes((order.status || '').toLowerCase()));
+    // Pre-fill based on the pending/selected status for this order (may differ from saved status)
+    const pendingStatus = localStatuses[order._id] || order.status || '';
+    const tpl = EMAIL_TEMPLATES.find(t => t.label.toLowerCase().includes(pendingStatus.toLowerCase()));
     setEmailForm({ subject: tpl?.subject || `Update on your order #${order._id.slice(-8).toUpperCase()}`, body: tpl?.body || '' });
     setEmailModal({ order });
   };
