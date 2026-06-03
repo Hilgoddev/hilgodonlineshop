@@ -503,6 +503,13 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const allowed = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
         if (!allowed.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
 
+        // Read the previous status so we can detect the FIRST transition into a
+        // paid state (e.g. admin confirming a bank-transfer/POD order). That is
+        // the moment to decrement stock + notify sellers — which otherwise only
+        // happens for online payments via the webhook/verify path.
+        const { data: prev } = await supabase
+            .from('orders').select('status').eq('id', req.params.id).single();
+
         const { data, error } = await supabase
             .from('orders')
             .update({ status })
@@ -510,6 +517,16 @@ router.put('/:id', verifyToken, async (req, res, next) => {
             .select('*');
         if (error) throw error;
         if (!data?.length) return res.status(404).json({ success: false, error: 'Order not found' });
+
+        // One-time paid-transition side effects (idempotent: only when crossing
+        // from a non-paid status into a paid one).
+        const PAID_SET = ['paid', 'shipped', 'delivered'];
+        const wasPaid = prev && PAID_SET.includes(prev.status);
+        const nowPaid = PAID_SET.includes(status);
+        if (!wasPaid && nowPaid && data[0].user_id) {
+            const { handlePaymentSuccess } = require('../services/paymentSuccess');
+            handlePaymentSuccess(data[0].id, data[0].user_id).catch(() => {});
+        }
 
         // Bust all page caches so the next admin fetch sees fresh data.
         for (let p = 1; p <= 10; p++) {
