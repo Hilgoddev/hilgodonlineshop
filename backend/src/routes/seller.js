@@ -3,6 +3,21 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 
+// Statuses that count as real revenue for a seller (money actually received).
+const PAID_STATUSES = ['paid', 'shipped', 'delivered'];
+
+// Given a list of order IDs, return a Set of those that are in a paid status.
+async function getPaidOrderIdSet(orderIds = []) {
+  const ids = [...new Set((orderIds || []).filter(Boolean))];
+  if (!ids.length) return new Set();
+  const { data } = await supabase
+    .from('orders')
+    .select('id')
+    .in('id', ids)
+    .in('status', PAID_STATUSES);
+  return new Set((data || []).map((o) => o.id));
+}
+
 const requireSellerOrAdmin = async (req, res, next) => {
   try {
     const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
@@ -85,18 +100,23 @@ router.get('/dashboard', verifyToken, requireSellerOrAdmin, async (req, res, nex
       .order('created_at', { ascending: false });
     if (pErr) throw pErr;
 
-    // Filter order_items at DB level using the seller's product IDs
+    // Filter order_items at DB level using the seller's product IDs.
+    // IMPORTANT: only count items from PAID orders — unpaid/pending/cancelled
+    // orders must never inflate a seller's sales/earnings (payout-relevant).
     const productIds = (products || []).map((p) => p.id);
     let totalSales = 0;
     let totalUnits = 0;
     if (productIds.length > 0) {
       const { data: orderItems, error: oiErr } = await supabase
         .from('order_items')
-        .select('quantity, unit_price')
+        .select('quantity, unit_price, order_id')
         .in('product_id', productIds);
       if (oiErr) throw oiErr;
-      totalSales = (orderItems || []).reduce((sum, it) => sum + Number(it.unit_price || 0) * Number(it.quantity || 0), 0);
-      totalUnits = (orderItems || []).reduce((sum, it) => sum + Number(it.quantity || 0), 0);
+
+      const paidOrderIds = await getPaidOrderIdSet((orderItems || []).map((i) => i.order_id));
+      const paidItems = (orderItems || []).filter((i) => paidOrderIds.has(i.order_id));
+      totalSales = paidItems.reduce((sum, it) => sum + Number(it.unit_price || 0) * Number(it.quantity || 0), 0);
+      totalUnits = paidItems.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
     }
 
     res.status(200).json({
@@ -130,10 +150,13 @@ router.get('/analytics', verifyToken, requireSellerOrAdmin, async (req, res, nex
     if (productIds.length > 0) {
       const { data: orderItems, error: oiErr } = await supabase
         .from('order_items')
-        .select('product_id, quantity, unit_price')
+        .select('product_id, quantity, unit_price, order_id')
         .in('product_id', productIds);
       if (oiErr) throw oiErr;
+      // Only count items from PAID orders (payout-relevant — no unpaid inflation).
+      const paidOrderIds = await getPaidOrderIdSet((orderItems || []).map((i) => i.order_id));
       for (const item of orderItems || []) {
+        if (!paidOrderIds.has(item.order_id)) continue;
         if (!salesByProduct[item.product_id]) salesByProduct[item.product_id] = { sales: 0, units: 0 };
         salesByProduct[item.product_id].sales += Number(item.unit_price || 0) * Number(item.quantity || 0);
         salesByProduct[item.product_id].units += Number(item.quantity || 0);
