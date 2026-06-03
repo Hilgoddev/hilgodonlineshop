@@ -12,10 +12,13 @@ async function handlePaymentSuccess(order_id, user_id) {
 
     if (orderCheckErr) return;
 
-    // Fetch order items
+    // Fetch order items. NOTE: the column is `unit_price`, NOT `price`.
+    // Selecting a non-existent column makes PostgREST error, which previously
+    // made this whole function abort — so stock was never decremented and no
+    // confirmation emails were ever sent. Always select real columns.
     const { data: items, error: itemsErr } = await supabase
       .from('order_items')
-      .select('product_id, quantity, price')
+      .select('product_id, quantity, unit_price')
       .eq('order_id', order_id);
 
     if (itemsErr || !items?.length) return;
@@ -44,7 +47,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     const emailItems = items.map(i => ({
       name: productMap[i.product_id]?.name || 'Product',
       quantity: i.quantity,
-      price: Number(i.price) || 0,
+      price: Number(i.unit_price) || 0,
       image: productMap[i.product_id]?.images?.[0] || null,
     }));
 
@@ -82,7 +85,7 @@ async function handlePaymentSuccess(order_id, user_id) {
         const sellerEmailItems = sellerItems.map(i => ({
           name: productMap[i.product_id]?.name || 'Product',
           quantity: i.quantity,
-          price: Number(i.price) || 0,
+          price: Number(i.unit_price) || 0,
         }));
         sendEmail({
           to: seller.email,

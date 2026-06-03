@@ -200,13 +200,24 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                 throw new Error(`Amount mismatch on webhook for order ${webhookOrderId}: paid=${paidAmount}, expected=${orderAmount}`);
             }
 
-            // Mark paid by order_id and store final reference from gateway.
-            const { error: updateErr } = await supabase
+            // Atomically claim the paid transition: only the FIRST caller to
+            // flip a not-yet-paid order to paid runs post-processing. This makes
+            // stock decrement + emails exactly-once even if the webhook AND the
+            // redirect /verify path both fire for the same payment.
+            const { data: claimed, error: updateErr } = await supabase
                 .from('orders')
                 .update({ status: 'paid', payment_reference: reference })
-                .eq('id', webhookOrderId);
+                .eq('id', webhookOrderId)
+                .neq('status', 'paid')
+                .select('id');
             if (updateErr) throw updateErr;
-            
+
+            // Already processed by another path — ack and stop (idempotent).
+            if (!claimed || !claimed.length) {
+                await supabase.from('payment_events').update({ processed_at: new Date().toISOString() }).eq('event_key', eventKey);
+                return res.sendStatus(200);
+            }
+
             // Clear user's cart
             const userId = metadata?.user_id || dbOrder.user_id;
             if (userId) {
@@ -250,7 +261,9 @@ router.get('/verify/:reference', verifyToken, async (req, res) => {
         const status = txn.status; // 'success' | 'failed' | 'abandoned'
         const orderId = txn.metadata?.order_id || null;
 
-        // Sync order if we have a reference and it succeeded
+        // Sync order if it succeeded. Atomically claim the paid transition so
+        // post-processing (stock decrement + emails) runs exactly once even if
+        // the webhook also fires for this payment.
         if (status === 'success' && orderId) {
             const { data: order } = await supabase
                 .from('orders')
@@ -258,11 +271,17 @@ router.get('/verify/:reference', verifyToken, async (req, res) => {
                 .eq('id', orderId)
                 .maybeSingle();
 
-            // Only update if not already past 'paid'
-            if (order && !['paid', 'processing', 'shipped', 'delivered'].includes(order.status)) {
-                await supabase.from('orders').update({ status: 'paid', payment_reference: reference }).eq('id', orderId);
-                const { handlePaymentSuccess } = require('../services/paymentSuccess');
-                handlePaymentSuccess(orderId, order.user_id).catch(() => {});
+            if (order && !['paid', 'shipped', 'delivered'].includes(order.status)) {
+                const { data: claimed } = await supabase
+                    .from('orders')
+                    .update({ status: 'paid', payment_reference: reference })
+                    .eq('id', orderId)
+                    .neq('status', 'paid')
+                    .select('id');
+                if (claimed && claimed.length) {
+                    const { handlePaymentSuccess } = require('../services/paymentSuccess');
+                    handlePaymentSuccess(orderId, order.user_id).catch(() => {});
+                }
             }
         }
 
