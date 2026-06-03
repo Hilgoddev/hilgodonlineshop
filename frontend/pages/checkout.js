@@ -343,7 +343,7 @@ export default function Checkout() {
                   theme: 'stripe',
                   variables: { colorPrimary: '#E31C1C', borderRadius: '8px' },
                 },
-                loader: 'eager',
+                loader: 'auto',
               }}
             >
               <StripePaymentForm
