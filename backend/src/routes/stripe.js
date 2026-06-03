@@ -24,7 +24,7 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
 
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, total_amount, user_id')
+      .select('id, total_amount, user_id, currency')
       .eq('id', order_id)
       .eq('user_id', req.user.id)
       .single();
@@ -38,12 +38,14 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid order amount' });
     }
 
-    // Currency is configurable — Stripe accounts outside Nigeria must use a
-    // supported currency (e.g. usd). Set STRIPE_CURRENCY=ngn if your Stripe
-    // account has NGN enabled, otherwise leave it as 'usd' (default).
+    // Charge in the order's own currency (stored at checkout). All orders are
+    // created in NGN today, so this charges NGN — matching Paystack. An optional
+    // STRIPE_CURRENCY env can override only if a deployment needs to force one.
     const { cleanEnv: _ce } = require('../lib/env');
-    const stripeCurrency = (_ce(process.env.STRIPE_CURRENCY) || 'usd').toLowerCase();
+    const stripeCurrency = (_ce(process.env.STRIPE_CURRENCY) || order.currency || 'ngn').toLowerCase();
 
+    // Zero-decimal currencies (e.g. NGN is treated as 2-decimal by Stripe, so
+    // we use the standard *100 minor-unit conversion). amount is in major units.
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: stripeCurrency,
