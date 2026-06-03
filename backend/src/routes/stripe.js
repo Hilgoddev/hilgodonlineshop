@@ -4,6 +4,7 @@ const stripe = require('../config/stripe');
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { handlePaymentSuccess } = require('../services/paymentSuccess');
+const { withTimeout } = require('../lib/resilience');
 
 // POST /api/stripe/create-payment-intent
 // Creates a Stripe PaymentIntent for an existing order. Amount is always sourced
@@ -22,12 +23,22 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'order_id is required' });
     }
 
-    const { data: order, error } = await supabase
-      .from('orders')
-      .select('id, total_amount, user_id, currency')
-      .eq('id', order_id)
-      .eq('user_id', req.user.id)
-      .single();
+    // Fetch order — 6s timeout so a cold Supabase never hangs the request.
+    let order, error;
+    try {
+      ({ data: order, error } = await withTimeout(
+        (signal) => supabase
+          .from('orders')
+          .select('id, total_amount, user_id, currency')
+          .eq('id', order_id)
+          .eq('user_id', req.user.id)
+          .abortSignal(signal)
+          .single(),
+        6000,
+      ));
+    } catch (e) {
+      return res.status(503).json({ success: false, message: 'Order service is slow right now. Please try again.' });
+    }
 
     if (error || !order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
@@ -44,21 +55,27 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
     const { cleanEnv: _ce } = require('../lib/env');
     const stripeCurrency = (_ce(process.env.STRIPE_CURRENCY) || order.currency || 'ngn').toLowerCase();
 
-    // Zero-decimal currencies (e.g. NGN is treated as 2-decimal by Stripe, so
-    // we use the standard *100 minor-unit conversion). amount is in major units.
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
-      currency: stripeCurrency,
-      automatic_payment_methods: { enabled: true },
-      metadata: { order_id, user_id: req.user.id },
-    });
+    // amount is in major units; *100 gives minor units (kobo/cents).
+    const paymentIntent = await withTimeout(
+      () => stripe.paymentIntents.create({
+        amount: Math.round(amount * 100),
+        currency: stripeCurrency,
+        automatic_payment_methods: { enabled: true },
+        metadata: { order_id, user_id: req.user.id },
+      }),
+      8000,
+    );
 
-    await supabase
+    // Respond immediately so the Stripe form renders fast. Persisting the
+    // reference is best-effort (the webhook also stores it on success).
+    res.json({ success: true, clientSecret: paymentIntent.client_secret, currency: stripeCurrency });
+
+    supabase
       .from('orders')
       .update({ payment_reference: paymentIntent.id })
-      .eq('id', order_id);
-
-    res.json({ success: true, clientSecret: paymentIntent.client_secret, currency: stripeCurrency });
+      .eq('id', order_id)
+      .then(() => {}, (e) => console.warn('[STRIPE] reference save failed (non-fatal):', e?.message));
+    return;
   } catch (err) {
     const type = err?.type || '';
     if (type === 'StripeAuthenticationError') {
