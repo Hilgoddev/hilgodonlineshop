@@ -801,6 +801,18 @@ table {
   display: inline-block;
 }
 
+/* Email compose modal actions: center on larger screens, keep mobile behavior on small screens */
+.email-actions {
+  justify-content: center;
+  margin: 0;
+}
+
+@media (max-width: 767px) {
+  .email-actions {
+    justify-content: flex-end !important;
+  }
+}
+
 .section-link {
   color: var(--primary);
   font-size: .9rem;

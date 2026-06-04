@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { uploadLimiter } = require('../middleware/rateLimit');
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -34,7 +35,7 @@ async function ensureBucket() {
 ensureBucket();
 
 // POST /api/upload/product-image
-router.post('/product-image', verifyToken, upload.single('image'), async (req, res, next) => {
+router.post('/product-image', verifyToken, uploadLimiter, upload.single('image'), async (req, res, next) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No image file provided' });

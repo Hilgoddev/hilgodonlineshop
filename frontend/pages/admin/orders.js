@@ -337,10 +337,11 @@ export default function AdminOrders() {
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '4px' }}>
+                <div className="email-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'center', paddingTop: '4px' }}>
                   <button className="btn btn-outline" onClick={() => setEmailModal(null)} disabled={emailSending}>Cancel</button>
                   <button
                     className="btn btn-primary"
+                     style={{ margin: 0 }}
                     onClick={handleSendEmail}
                     disabled={emailSending || !emailForm.subject.trim() || !emailForm.body.trim()}
                   >
