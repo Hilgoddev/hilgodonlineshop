@@ -1181,6 +1181,26 @@ table {
   background: var(--gray-2);
 }
 
+/* ---- HIDDEN SCROLLBARS ON TABLES ----
+   Tables still scroll horizontally, but the scrollbar is not shown.
+   Targets the inline `overflow-x: auto` wrappers used around every table,
+   plus a reusable .no-scrollbar utility. */
+[style*="overflow-x: auto"],
+[style*="overflow-x:auto"],
+[style*="overflow: auto"],
+.no-scrollbar {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE / old Edge */
+}
+[style*="overflow-x: auto"]::-webkit-scrollbar,
+[style*="overflow-x:auto"]::-webkit-scrollbar,
+[style*="overflow: auto"]::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none;                /* Chrome / Safari / Opera */
+  width: 0;
+  height: 0;
+}
+
 /* ---- DIVIDER ---- */
 .divider {
   border: none;
