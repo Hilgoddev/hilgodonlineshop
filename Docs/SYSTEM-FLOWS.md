@@ -126,8 +126,13 @@ Runs **once** per order when it becomes paid (from any path above):
   - On the **first transition into a paid state** (paid/shipped/delivered) it runs the
     post-payment processing once (decrements stock + notifies sellers) — this is how
     bank-transfer/POD orders get fulfilled.
+  - **Cascades to items:** the order's `order_items.fulfillment_status` is updated to match
+    (processing→packed, shipped/delivered/cancelled 1:1), so the admin/seller/customer views
+    never show "Item status: pending" on a shipped order.
   - Sends the customer a status-update email, and can also open a **compose-email modal** with
     per-status templates (`POST /api/orders/:id/notify`).
+  - The dashboard's recent-orders and the orders page derive payment status identically
+    (shipped/delivered ⇒ paid) so the two views agree.
 - **Seller** (`/seller/orders`): sees only order items for their own products; can update each
   item's `fulfillment_status`. Cancelling a paid item restores its stock.
 

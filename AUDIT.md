@@ -10,7 +10,7 @@
 | Check | Result |
 |---|---|
 | Orders before cleanup | 68 total — **64 pending**, 2 paid, 1 processing, 1 cancelled |
-| `payment_events` | **0** — no payment webhook had **ever** been recorded |
+| `payment_events` | was **0** (no webhook ever fired) → now **≥1**: payment confirmation is working after the fixes + webhook config |
 | Order currency | 100% NGN (consistent — settlement is NGN) |
 | Anon-key access to `orders`/`order_items`/`profiles`/`seller_payouts`/`payment_events` | **0 rows (RLS blocks)** — no anonymous data leak |
 | `products` anon read | Public (correct for storefront) |
@@ -48,6 +48,21 @@
 | **Env** | added `SUPABASE_ANON_KEY` to backend (needed for password verification) | Vercel + `.env` |
 
 ---
+
+## 3b. Consistency & hardening — round 2
+
+| Area | Fix |
+|---|---|
+| **Product detail consistency** | `GET /api/products/:id` now 404s inactive/unapproved products (matches listing + checkout) — a hidden product can't be opened or carted by direct URL |
+| **Item status sync** | Admin order-status change now cascades to `order_items.fulfillment_status` (processing→packed, shipped/delivered/cancelled 1:1) — modal no longer shows "Item status: pending" on a shipped order |
+| **Dashboard ⇄ orders page** | Admin dashboard recent-orders now derives `paymentStatus` identically to `/admin/orders` (shipped/delivered ⇒ paid) — the two views agree |
+| **Reviews** | rating 1–5 integer, one per user/product (409), length caps, rate-limited |
+| **Cart/Wishlist** | strict quantity (rejects NaN, clamps 1–99), productId type check |
+| **Password** | `PUT /password` verifies current password (GoTrue) + rate-limited |
+| **Rate limits** | password, reviews, upload, returns, seller-apply, careers, payment-verify |
+| **Currency** | guard against 0/non-finite exchange rate (no NaN/Infinity on screen) |
+| **Tables UI** | scrollbars hidden (scroll preserved) |
+| **db-test** | 404 in production |
 
 ## 4. Verified NON-issues (flagged by agents, confirmed safe)
 
