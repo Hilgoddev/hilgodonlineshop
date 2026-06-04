@@ -528,6 +528,19 @@ router.put('/:id', verifyToken, async (req, res, next) => {
             handlePaymentSuccess(data[0].id, data[0].user_id).catch(() => {});
         }
 
+        // Keep order_items.fulfillment_status in sync with the order status so the
+        // admin/seller/customer views don't show "Item status: pending" on a
+        // shipped/delivered/cancelled order. Map order status → item fulfillment.
+        const ITEM_STATUS_MAP = { processing: 'packed', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' };
+        const itemStatus = ITEM_STATUS_MAP[status];
+        if (itemStatus) {
+            supabase
+                .from('order_items')
+                .update({ fulfillment_status: itemStatus })
+                .eq('order_id', req.params.id)
+                .then(() => {}, (e) => console.warn('[ORDERS] item status sync failed (non-fatal):', e?.message));
+        }
+
         // Bust all page caches so the next admin fetch sees fresh data.
         for (let p = 1; p <= 10; p++) {
             for (const lim of [50, 100, 200]) ordersAllCache.delete(`orders-all:${p}:${lim}`);
