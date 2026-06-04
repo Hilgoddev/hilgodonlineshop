@@ -70,15 +70,20 @@ router.get('/', async (req, res, next) => {
 // Create a new category (Admin only)
 router.post('/', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { name, slug, parent_id, is_active, image_url } = req.body;
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        const slug = typeof req.body.slug === 'string' ? req.body.slug.trim() : '';
+        const { parent_id, is_active, image_url } = req.body;
 
         if (!name || !slug) {
             return res.status(400).json({ success: false, error: 'Name and slug are required' });
         }
+        if (name.length > 120 || slug.length > 120) {
+            return res.status(400).json({ success: false, error: 'Name/slug too long (max 120 characters)' });
+        }
 
         const { data, error } = await supabase
             .from('categories')
-            .insert([{ name, slug, parent_id, is_active, image_url: image_url || null }])
+            .insert([{ name, slug, parent_id: parent_id || null, is_active, image_url: image_url || null }])
             .select();
             
         if (error) throw error;
@@ -92,7 +97,13 @@ router.post('/', verifyToken, requireAdmin, async (req, res, next) => {
 // Update a category (Admin only)
 router.put('/:id', verifyToken, requireAdmin, async (req, res, next) => {
     try {
-        const { name, slug, parent_id, is_active, image_url } = req.body;
+        const { parent_id, is_active, image_url } = req.body;
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : undefined;
+        const slug = typeof req.body.slug === 'string' ? req.body.slug.trim() : undefined;
+
+        if ((name && name.length > 120) || (slug && slug.length > 120)) {
+            return res.status(400).json({ success: false, error: 'Name/slug too long (max 120 characters)' });
+        }
 
         const updatePayload = { name, slug, parent_id, is_active };
         if (image_url !== undefined) updatePayload.image_url = image_url;

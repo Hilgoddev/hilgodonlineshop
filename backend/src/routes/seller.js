@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { writeLimiter } = require('../middleware/rateLimit');
 
 // Statuses that count as real revenue for a seller (money actually received).
 const PAID_STATUSES = ['paid', 'shipped', 'delivered'];
@@ -30,7 +31,7 @@ const requireSellerOrAdmin = async (req, res, next) => {
   }
 };
 
-router.post('/apply', verifyToken, async (req, res, next) => {
+router.post('/apply', verifyToken, writeLimiter, async (req, res, next) => {
   try {
     const { fullName, businessName, email, phone, businessCategory, monthlyRevenue } = req.body;
     if (!fullName || !businessName || !email || !phone) {

@@ -32,7 +32,7 @@ router.get('/', verifyToken, async (req, res, next) => {
 router.post('/', verifyToken, async (req, res, next) => {
     try {
         const productId = req.body.productId || req.body.product_id;
-        if (!productId) return res.status(400).json({ success: false, error: 'productId is required' });
+        if (!productId || typeof productId !== 'string') return res.status(400).json({ success: false, error: 'productId is required' });
 
         const { error } = await supabase.from('wishlist_items').upsert({ user_id: req.user.id, product_id: productId });
         if (error) throw error;

@@ -62,7 +62,7 @@ const flashSaleRoutes = require('./routes/flash-sales');
 const exchangeRatesRoutes = require('./routes/exchange-rates');
 const returnsRoutes = require('./routes/returns');
 const supabase = require('./config/supabase');
-const { generalApiLimiter, adminApiLimiter, newsletterLimiter, deliveryLimiter } = require('./middleware/rateLimit');
+const { generalApiLimiter, adminApiLimiter, newsletterLimiter, deliveryLimiter, writeLimiter } = require('./middleware/rateLimit');
 
 // Apply Routes
 app.use('/api', generalApiLimiter);
@@ -85,8 +85,12 @@ app.use('/api/flash-sales', flashSaleRoutes);
 app.use('/api/exchange-rates', exchangeRatesRoutes);
 app.use('/api/returns', returnsRoutes);
 
-// Basic DB connectivity route used by frontend system test page
+// Basic DB connectivity route used by the system-test page. Gated to non-production
+// to avoid exposing infrastructure status publicly.
 app.get('/api/db-test', async (req, res, next) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ success: false, message: 'Not found' });
+    }
     try {
         const { error } = await supabase.from('products').select('id').limit(1);
         if (error) throw error;
@@ -183,7 +187,7 @@ app.post('/api/delivery/apply', deliveryLimiter, async (req, res) => {
 });
 
 // POST /api/careers/apply — saves application to DB and emails admin
-app.post('/api/careers/apply', async (req, res) => {
+app.post('/api/careers/apply', writeLimiter, async (req, res) => {
     const { fullName, email, phone, role, coverNote, cvLink } = req.body;
     if (!fullName || !email || !role) {
         return res.status(400).json({ success: false, error: 'Name, email and role are required' });

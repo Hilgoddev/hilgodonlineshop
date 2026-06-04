@@ -4,6 +4,17 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 
+// Strictly parse a cart quantity: must be a finite positive integer.
+// Returns null for invalid input (e.g. "abc" → NaN, which previously slipped
+// through Math.max(1, NaN) === NaN and corrupted the cart row).
+const MAX_QTY = 99;
+const parseQuantity = (raw, { defaultTo1 = true } = {}) => {
+  if ((raw === undefined || raw === null || raw === '') && defaultTo1) return 1;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return null;
+  return Math.min(n, MAX_QTY);
+};
+
 const mapProduct = (p, flashSale = null) => {
   const pricing = getEffectiveProductPricing(p, flashSale);
   return {
@@ -41,8 +52,9 @@ router.get('/', verifyToken, async (req, res, next) => {
 router.post('/', verifyToken, async (req, res, next) => {
   try {
     const productId = req.body.productId || req.body.product_id;
-    const quantity = Math.max(1, Number(req.body.quantity || 1));
-    if (!productId) return res.status(400).json({ success: false, error: 'productId is required' });
+    if (!productId || typeof productId !== 'string') return res.status(400).json({ success: false, error: 'productId is required' });
+    const quantity = parseQuantity(req.body.quantity);
+    if (quantity === null) return res.status(400).json({ success: false, error: 'quantity must be a positive integer' });
 
     const { data: existing } = await supabase
       .from('cart_items')
@@ -51,7 +63,7 @@ router.post('/', verifyToken, async (req, res, next) => {
       .eq('product_id', productId)
       .maybeSingle();
 
-    const nextQty = (existing?.quantity || 0) + quantity;
+    const nextQty = Math.min((existing?.quantity || 0) + quantity, MAX_QTY);
     const { error } = await supabase
       .from('cart_items')
       .upsert({ user_id: req.user.id, product_id: productId, quantity: nextQty }, { onConflict: 'user_id,product_id' });
@@ -66,8 +78,9 @@ router.post('/', verifyToken, async (req, res, next) => {
 router.put('/', verifyToken, async (req, res, next) => {
   try {
     const productId = req.body.productId || req.body.product_id;
-    const quantity = Math.max(1, Number(req.body.quantity || 1));
-    if (!productId) return res.status(400).json({ success: false, error: 'productId is required' });
+    if (!productId || typeof productId !== 'string') return res.status(400).json({ success: false, error: 'productId is required' });
+    const quantity = parseQuantity(req.body.quantity, { defaultTo1: false });
+    if (quantity === null) return res.status(400).json({ success: false, error: 'quantity must be a positive integer' });
 
     const { error } = await supabase
       .from('cart_items')

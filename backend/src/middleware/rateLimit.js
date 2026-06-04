@@ -57,4 +57,51 @@ const deliveryLimiter = rateLimit({
   },
 });
 
-module.exports = { generalApiLimiter, adminApiLimiter, paymentInitLimiter, newsletterLimiter, deliveryLimiter };
+// Password change limiter — prevents brute-force / abuse of the password endpoint.
+const passwordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDev ? 100 : 5,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many password change attempts, please try again later.',
+  },
+});
+
+// Review creation limiter — prevents review spam.
+const reviewLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: isDev ? 100 : 15,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many reviews submitted, please try again later.',
+  },
+});
+
+// Image upload limiter — prevents storage-exhaustion abuse.
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: isDev ? 200 : 40,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many uploads, please try again later.',
+  },
+});
+
+// Generic write limiter for low-frequency user actions (returns, seller apply, careers).
+const writeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: isDev ? 100 : 10,
+  message: {
+    success: false,
+    code: 'RATE_LIMIT_EXCEEDED',
+    message: 'Too many requests, please try again later.',
+  },
+});
+
+module.exports = {
+  generalApiLimiter, adminApiLimiter, paymentInitLimiter, newsletterLimiter,
+  deliveryLimiter, passwordLimiter, reviewLimiter, uploadLimiter, writeLimiter,
+};

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const { reviewLimiter } = require('../middleware/rateLimit');
 
 // Get reviews for a product
 router.get('/:productId', async (req, res, next) => {
@@ -22,12 +23,34 @@ router.get('/:productId', async (req, res, next) => {
 });
 
 // Create a review — requires authentication; name/email sourced from verified profile
-router.post('/', verifyToken, async (req, res, next) => {
+router.post('/', verifyToken, reviewLimiter, async (req, res, next) => {
     try {
         const { product_id, product_name, rating, title, message } = req.body;
 
         if (!product_id || !message) {
             return res.status(400).json({ success: false, error: 'product_id and message are required' });
+        }
+
+        // Rating must be an integer 1–5. Reject anything else (no silent default to 5).
+        const parsedRating = Number(rating);
+        if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+            return res.status(400).json({ success: false, error: 'rating must be an integer between 1 and 5' });
+        }
+
+        // Bound message length to prevent abuse / oversized rows.
+        if (String(message).length > 2000) {
+            return res.status(400).json({ success: false, error: 'message is too long (max 2000 characters)' });
+        }
+
+        // One review per user per product. Guards against review spam.
+        const { data: existing } = await supabase
+            .from('reviews')
+            .select('id')
+            .eq('product_id', product_id)
+            .eq('user_email', req.user.email)
+            .maybeSingle();
+        if (existing) {
+            return res.status(409).json({ success: false, error: 'You have already reviewed this product' });
         }
 
         const { data: profile } = await supabase
@@ -43,8 +66,8 @@ router.post('/', verifyToken, async (req, res, next) => {
                 product_name,
                 user_name: profile?.full_name || req.user.email || 'Customer',
                 user_email: req.user.email,
-                rating: parseInt(rating) || 5,
-                title,
+                rating: parsedRating,
+                title: title ? String(title).slice(0, 200) : null,
                 message
             }])
             .select()

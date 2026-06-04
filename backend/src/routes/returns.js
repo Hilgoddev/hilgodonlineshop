@@ -4,9 +4,10 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const requireAdmin = require('../middleware/requireAdmin');
 const { sendEmail, escapeHtml } = require('../services/email');
+const { writeLimiter } = require('../middleware/rateLimit');
 
 // POST /api/returns — authenticated; verifies order ownership and email match
-router.post('/', verifyToken, async (req, res, next) => {
+router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
     try {
         const { orderId, email, reason, details } = req.body;
 

@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const paystack = require('../config/paystack');
 const { verifyToken } = require('./auth');
-const { paymentInitLimiter } = require('../middleware/rateLimit');
+const { paymentInitLimiter, writeLimiter } = require('../middleware/rateLimit');
 const { handlePaymentSuccess } = require('../services/paymentSuccess');
 const { cleanEnv } = require('../lib/env');
 const { withTimeout } = require('../lib/resilience');
@@ -246,7 +246,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 // Verifies a Paystack transaction by reference and syncs order status.
 // Called by the checkout page after Paystack redirects back to confirm
 // the payment actually succeeded (prevents spoofed callback URLs).
-router.get('/verify/:reference', verifyToken, async (req, res) => {
+router.get('/verify/:reference', verifyToken, writeLimiter, async (req, res) => {
     const { reference } = req.params;
     if (!reference) return res.status(400).json({ success: false, message: 'reference is required' });
 

@@ -169,9 +169,15 @@ export function CurrencyProvider({ children }) {
     const formatPrice = (price, sourceCurrency = 'NGN', compact = true) => {
         const src = String(sourceCurrency || 'NGN').toUpperCase();
         const dst = String(currency || 'USD').toUpperCase();
-        const srcRate = exchangeRates[src] ?? 1;
-        const dstRate = exchangeRates[dst] ?? 1;
-        const priceInUSD = price / srcRate;
+        // Guard against missing/zero/non-finite rates so we never render
+        // Infinity or NaN. A bad rate falls back to 1 (no conversion).
+        const rawSrc = Number(exchangeRates[src]);
+        const rawDst = Number(exchangeRates[dst]);
+        const srcRate = Number.isFinite(rawSrc) && rawSrc > 0 ? rawSrc : 1;
+        const dstRate = Number.isFinite(rawDst) && rawDst > 0 ? rawDst : 1;
+        const amount = Number(price);
+        const safeAmount = Number.isFinite(amount) ? amount : 0;
+        const priceInUSD = safeAmount / srcRate;
         const converted = priceInUSD * dstRate;
         const symbol = SYMBOLS[dst] || dst;
         if (compact) return `${symbol}${converted.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
