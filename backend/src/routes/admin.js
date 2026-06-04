@@ -163,6 +163,9 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                         _id:         o.id,
                         id:          o.id,
                         status:      o.status,
+                        // Same derivation as GET /api/orders/all so the dashboard
+                        // and the orders page agree: shipped/delivered imply paid.
+                        paymentStatus: ['paid', 'shipped', 'delivered'].includes(o.status) ? 'paid' : 'pending',
                         totalAmount: Number(o.total_amount || 0),
                         createdAt:   o.created_at,
                         user: {
