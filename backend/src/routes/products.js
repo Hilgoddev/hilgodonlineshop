@@ -336,6 +336,14 @@ router.get('/:id', async (req, res, next) => {
             throw error;
         }
 
+        // Consistency: the public listing only shows active + approved products,
+        // and order creation only accepts them. Hide everything else here too so
+        // a deactivated/pending/rejected product can't be viewed or carted by
+        // direct URL. (Sellers preview their own via the seller dashboard.)
+        if (!data || data.is_active !== true || data.status !== 'approved') {
+            return res.status(404).json({ success: false, error: 'Product not found' });
+        }
+
         // If product has no store but has a seller, fetch seller's store
         if (data && !data.store && data.seller_id) {
             const { data: sellerStore } = await supabase
