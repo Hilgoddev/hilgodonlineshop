@@ -48,7 +48,7 @@ export default function AdminProducts() {
 
   const fetchProducts = async () => {
     try {
-      const { res, json } = await adminJson('/api/products/all?limit=200&page=1');
+      const { res, json } = await adminJson('/api/products/all?limit=1000&page=1');
       if (res.ok && json.success) setProducts(json.data || []);
       else setMessage({ type: 'error', text: errorMessage(json, 'Could not load products') });
     } catch {

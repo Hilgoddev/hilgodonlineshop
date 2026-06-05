@@ -278,7 +278,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
         if (!profile || profile.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required' });
 
         const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
-        const parsedLimit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const parsedLimit = Math.min(1000, Math.max(1, Number(req.query.limit) || 50));
         const offset      = (parsedPage - 1) * parsedLimit;
         const search      = req.query.search || '';
 
@@ -312,7 +312,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
         return res.status(200).json(payload);
     } catch (err) {
         const parsedPage  = Math.max(1, Number(req.query.page)  || 1);
-        const parsedLimit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const parsedLimit = Math.min(1000, Math.max(1, Number(req.query.limit) || 50));
         const hit = allCache.get(`all:${parsedPage}:${parsedLimit}:${req.query.search || ''}`);
         if (hit) return res.status(200).json({ ...hit.value, stale: true });
         console.error('products /all failed:', err?.message || err);

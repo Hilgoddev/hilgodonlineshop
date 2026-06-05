@@ -231,14 +231,6 @@ export default function Footer() {
                 <span style={{ fontSize: '.78rem' }}>Earn money with every delivery</span>
               </div>
             </Link>
-            <Link href="/track-order" className="footer-cta-link">
-              <i className="fas fa-location-dot"></i>
-              <div>
-                <strong>Track Your Order</strong>
-                <br />
-                <span style={{ fontSize: '.78rem' }}>Real-time delivery tracking</span>
-              </div>
-            </Link>
             <div style={{ marginTop: 'var(--space-4)' }}>
               <span className="footer-col-title">Download App</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>

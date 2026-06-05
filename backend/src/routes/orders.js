@@ -415,7 +415,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
         await attachSellerEmails([...itemMap.values()]);
 
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || [], userMap.get(o.user_id) || null));
-        const totalRevenue = data.reduce((sum, o) => sum + (o.status === 'paid' || o.status === 'delivered' ? o.totalAmount : 0), 0);
+        const totalRevenue = data.reduce((sum, o) => sum + (['paid', 'shipped', 'delivered'].includes(o.status) ? o.totalAmount : 0), 0);
         const payload = { success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } };
         ordersAllCache.set(cacheKey, payload);
         return res.status(200).json(payload);

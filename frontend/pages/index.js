@@ -846,13 +846,13 @@ export default function Home({ products, categories = [], flashSales = [] }) {
                 <div className="contact-card-value">Chat with us</div>
               </div>
             </a>
-            <a href="/track-order" className="contact-card">
+            <a href="/account?tab=orders" className="contact-card">
               <div className="contact-card-icon" style={{ background: '#dbeafe', color: '#2563eb' }}>
-                <i className="fas fa-truck-fast"></i>
+                <i className="fas fa-box"></i>
               </div>
               <div>
-                <div className="contact-card-label">Track Your Order</div>
-                <div className="contact-card-value">Real-time updates</div>
+                <div className="contact-card-label">My Orders</div>
+                <div className="contact-card-value">View order history & status</div>
               </div>
             </a>
             <a href="/return-request" className="contact-card">

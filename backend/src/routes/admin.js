@@ -42,11 +42,13 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             supabase.from('orders').select('id', { count: 'exact', head: true }),
             // ALL orders by status for breakdown chart
             supabase.from('orders').select('status'),
-            // Total revenue: all paid/delivered orders ever
-            supabase.from('orders').select('total_amount').in('status', ['paid', 'delivered']),
+            // Total revenue: all orders that represent received money. MUST include
+            // 'shipped' — a paid order that's been shipped is still revenue (otherwise
+            // shipping an order makes its money vanish from the dashboard).
+            supabase.from('orders').select('total_amount').in('status', ['paid', 'shipped', 'delivered']),
             // Monthly revenue trend: last 6 months
             supabase.from('orders').select('total_amount, created_at')
-                .in('status', ['paid', 'delivered'])
+                .in('status', ['paid', 'shipped', 'delivered'])
                 .gte('created_at', sixMonthsAgoISO),
             // ALL registered users (profiles) — covers every role including unsynced
             supabase.from('profiles').select('id', { count: 'exact', head: true }),

@@ -481,9 +481,18 @@ export default function Navbar() {
               </div>
             </div>
 
-            {/* Categories */}
+            {/* Primary nav — mirrors the desktop top nav so mobile has every link */}
+            <div className="mobile-nav-title">Browse</div>
+            <Link href="/" className="mobile-nav-link" onClick={closeMobileMenu}>
+              <span><i className="fas fa-house icon"></i>Home</span><i className="fas fa-chevron-right"></i>
+            </Link>
+            <Link href="/flash-sales" className="mobile-nav-link" onClick={closeMobileMenu}>
+              <span><i className="fas fa-bolt icon" style={{ color: '#f59e0b' }}></i>Deals &amp; Flash Sales</span><i className="fas fa-chevron-right"></i>
+            </Link>
+
+            {/* Categories — show all so nothing on desktop is missing on mobile */}
             <div className="mobile-nav-title">Shop by Category</div>
-            {categories.slice(0, 7).map((cat) => (
+            {categories.map((cat) => (
               <Link key={cat.slug} href={`/products?category=${cat.slug}`} className="mobile-nav-link" onClick={closeMobileMenu}>
                 <span><i className={`fas ${cat.icon} icon`}></i>{cat.name}</span><i className="fas fa-chevron-right"></i>
               </Link>
