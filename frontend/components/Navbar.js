@@ -5,6 +5,54 @@ import { useRouter } from 'next/router';
 import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 
+// Category icons keyed by lowercased category NAME (DB categories have no icon,
+// and their slugs are messy — names are clean). Drives icons everywhere a
+// category is shown in the nav, including Health & Ladies.
+const ICON_BY_NAME = {
+  'womenswear': 'fa-person-dress',
+  'menswear': 'fa-person',
+  'shoes': 'fa-shoe-prints',
+  'herbs': 'fa-leaf',
+  'health': 'fa-heart-pulse',
+  'ladies': 'fa-bag-shopping',
+  'beauty & care': 'fa-wand-magic-sparkles',
+  'beauty': 'fa-wand-magic-sparkles',
+  'electronics': 'fa-mobile-screen',
+  'accessories': 'fa-glasses',
+  'home supplies': 'fa-house',
+  'home': 'fa-house',
+  'kitchenware': 'fa-kitchen-set',
+  'kitchen': 'fa-kitchen-set',
+  'gaming': 'fa-gamepad',
+  'sports': 'fa-basketball',
+  'toys': 'fa-child',
+  'collectibles': 'fa-gem',
+};
+
+const iconForCategory = (c) =>
+  c.icon || ICON_BY_NAME[(c.name || '').toLowerCase()] || ICON_BY_NAME[(c.slug || '').toLowerCase()] || 'fa-tags';
+
+// Preferred lead order; everything else follows alphabetically by name.
+const CATEGORY_ORDER = ['womenswear', 'menswear', 'shoes', 'herbs'];
+const orderRank = (c) => {
+  const name = (c.name || '').toLowerCase();
+  const slug = (c.slug || '').toLowerCase();
+  const i = CATEGORY_ORDER.findIndex((k) => k === name || k === slug);
+  return i === -1 ? CATEGORY_ORDER.length : i;
+};
+const sortCategories = (list) =>
+  [...(list || [])].sort((a, b) => {
+    const ra = orderRank(a), rb = orderRank(b);
+    if (ra !== rb) return ra - rb;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
+// "Ladies" is a display alias that should lead to the Womenswear products.
+const isLadies = (c) =>
+  (c.slug || '').toLowerCase() === 'ladies-bag' || (c.name || '').toLowerCase() === 'ladies';
+const categoryHref = (c) =>
+  isLadies(c) ? '/products?category=womenswear' : `/products?category=${c.slug}`;
+
 function getInitials(firstName, lastName) {
   return [(firstName || '').charAt(0), (lastName || '').charAt(0)].filter(Boolean).join('').toUpperCase() || '?';
 }
