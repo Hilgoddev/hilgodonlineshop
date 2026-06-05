@@ -146,21 +146,23 @@ export default function Navbar() {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    const FALLBACK_CATS = [
+    const FALLBACK_CATS = sortCategories([
       { name: 'Accessories', slug: 'accessories', icon: 'fa-glasses' },
-      { name: 'Beauty & Care', slug: 'beauty', icon: 'fa-sparkles' },
+      { name: 'Beauty & Care', slug: 'beauty', icon: 'fa-wand-magic-sparkles' },
       { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' },
       { name: 'Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
       { name: 'Gaming', slug: 'gaming', icon: 'fa-gamepad' },
+      { name: 'Health', slug: 'health', icon: 'fa-heart-pulse' },
       { name: 'Herbs', slug: 'herbs', icon: 'fa-leaf' },
       { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
       { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
+      { name: 'Ladies', slug: 'ladies-bag', icon: 'fa-bag-shopping' },
       { name: 'Menswear', slug: 'menswear', icon: 'fa-person' },
       { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' },
       { name: 'Sports', slug: 'sports', icon: 'fa-basketball' },
       { name: 'Toys', slug: 'toys', icon: 'fa-child' },
       { name: 'Womenswear', slug: 'womenswear', icon: 'fa-person-dress' },
-    ];
+    ]);
     const fetchCategories = async () => {
       try {
         const res = await fetch('/api/categories');
@@ -169,7 +171,8 @@ export default function Navbar() {
         if (!text || text.trimStart().startsWith('<')) { setCategories(FALLBACK_CATS); return; }
         const data = JSON.parse(text);
         if (data.success && data.data?.length > 0) {
-          setCategories(data.data.map(c => ({ name: c.name, slug: c.slug, icon: c.icon || 'fa-tags' })));
+          const mapped = data.data.map(c => ({ name: c.name, slug: c.slug, icon: iconForCategory(c) }));
+          setCategories(sortCategories(mapped));
         } else {
           setCategories(FALLBACK_CATS);
         }
@@ -455,19 +458,20 @@ export default function Navbar() {
             <div className="cat-nav-item all-cats-wrap" id="all-cats-wrap" onMouseEnter={() => setAllCatsMenuOpen(true)} onMouseLeave={() => setAllCatsMenuOpen(false)} onClick={() => { if (window.innerWidth <= 900) setAllCatsMenuOpen(!allCatsMenuOpen); }}>
               <i className="fas fa-bars"></i> All Categories
               <div className={`all-cats-menu ${allCatsMenuOpen ? 'open' : ''}`} id="all-cats-menu" style={{ display: allCatsMenuOpen ? 'grid' : 'none' }}>
-                {categories.map((cat) => (<Link key={cat.slug} href={`/products?category=${cat.slug}`} className="all-cats-link" onClick={(e) => e.stopPropagation()}><i className={`fas ${cat.icon}`}></i>{cat.name}</Link>))}
+                {categories.map((cat) => (<Link key={cat.slug} href={categoryHref(cat)} className="all-cats-link" onClick={(e) => e.stopPropagation()}><i className={`fas ${cat.icon}`}></i>{cat.name}</Link>))}
                 <Link href="/categories" className="all-cats-link" style={{ color: 'var(--primary)', fontWeight: '700' }} onClick={(e) => e.stopPropagation()}><i className="fas fa-th-large"></i>View All Categories</Link>
               </div>
             </div>
             <Link href="/" className="cat-nav-item"><i className="fas fa-house"></i> Home</Link>
-            <Link href="/products?category=beauty" className="cat-nav-item">Beauty</Link>
             <Link href="/products?category=womenswear" className="cat-nav-item">Womenswear</Link>
             <Link href="/products?category=menswear" className="cat-nav-item">Menswear</Link>
+            <Link href="/products?category=shoes" className="cat-nav-item">Shoes</Link>
+            <Link href="/products?category=herbs" className="cat-nav-item">Herbs</Link>
+            <Link href="/products?category=beauty" className="cat-nav-item">Beauty</Link>
             <Link href="/products?category=electronics" className="cat-nav-item">Electronics</Link>
             <Link href="/products?category=accessories" className="cat-nav-item">Accessories</Link>
             <Link href="/products?category=home" className="cat-nav-item">Home</Link>
             <Link href="/products?category=kitchen" className="cat-nav-item">Kitchen</Link>
-            <Link href="/products?category=shoes" className="cat-nav-item">Shoes</Link>
             <Link href="/flash-sales" className="cat-nav-item" style={{ color: '#ffd700', fontWeight: '700' }}><i className="fas fa-bolt"></i> Deals</Link>
           </div>
         </nav>
@@ -538,10 +542,10 @@ export default function Navbar() {
               <span><i className="fas fa-bolt icon" style={{ color: '#f59e0b' }}></i>Deals &amp; Flash Sales</span><i className="fas fa-chevron-right"></i>
             </Link>
 
-            {/* Categories — show all so nothing on desktop is missing on mobile */}
+            {/* Categories — exclude "Ladies" (it just duplicates Womenswear) */}
             <div className="mobile-nav-title">Shop by Category</div>
-            {categories.map((cat) => (
-              <Link key={cat.slug} href={`/products?category=${cat.slug}`} className="mobile-nav-link" onClick={closeMobileMenu}>
+            {categories.filter(cat => !isLadies(cat)).map((cat) => (
+              <Link key={cat.slug} href={categoryHref(cat)} className="mobile-nav-link" onClick={closeMobileMenu}>
                 <span><i className={`fas ${cat.icon} icon`}></i>{cat.name}</span><i className="fas fa-chevron-right"></i>
               </Link>
             ))}
