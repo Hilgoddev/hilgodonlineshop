@@ -12,7 +12,8 @@
     "update:rates": "node scripts/update-exchange-rates.js",
     "probe:injection": "node scripts/injection-probe.js",
     "probe:attack": "node scripts/attack-probe.js",
-    "probe": "node scripts/injection-probe.js && node scripts/attack-probe.js"
+    "probe:robust": "node scripts/robustness-probe.js",
+    "probe": "node scripts/injection-probe.js && node scripts/attack-probe.js && node scripts/robustness-probe.js"
   },
   "keywords": [],
   "author": "",

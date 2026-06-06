@@ -219,7 +219,9 @@ function revalidateProducts(cacheKey, params) {
 router.get('/', async (req, res, next) => {
     try {
         const { category, subcategory, search, seller_id, sort, in_stock, on_sale, limit = 20, page = 1 } = req.query;
-        const parsedLimit = Math.max(1, Number(limit) || 20);
+        // Cap the public page size (frontend asks for <=60) so a single request
+        // can't pull the entire catalog as it grows.
+        const parsedLimit = Math.min(100, Math.max(1, Number(limit) || 20));
         const parsedPage  = Math.max(1, Number(page)  || 1);
         const params = { category, subcategory, search, seller_id, sort, in_stock: in_stock === 'true', on_sale: on_sale === 'true', parsedLimit, parsedPage };
 
