@@ -9,7 +9,10 @@
     "test": "jest",
     "verify:supabase": "node scripts/verify-supabase-setup.js",
     "seed:static-products": "node scripts/seed-products-from-static.js",
-    "update:rates": "node scripts/update-exchange-rates.js"
+    "update:rates": "node scripts/update-exchange-rates.js",
+    "probe:injection": "node scripts/injection-probe.js",
+    "probe:attack": "node scripts/attack-probe.js",
+    "probe": "node scripts/injection-probe.js && node scripts/attack-probe.js"
   },
   "keywords": [],
   "author": "",
