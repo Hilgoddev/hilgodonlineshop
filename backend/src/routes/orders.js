@@ -21,6 +21,12 @@ const mapOrder = (order, items = [], user = null) => ({
     updatedAt: order.updated_at,
     deliveryAddress: order.shipping_address || null,
     paymentReference: order.payment_reference || null,
+    // Stored method when present; otherwise infer from the reference prefix for
+    // legacy orders (Paystack refs start "ORD_", Stripe PaymentIntents "pi_").
+    paymentMethod: order.payment_method
+        || (order.payment_reference?.startsWith('pi_') ? 'stripe'
+            : order.payment_reference?.startsWith('ORD_') ? 'paystack'
+            : null),
     items,
     user   // { firstName, lastName, email, phone }
 });
@@ -258,24 +264,29 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         // Create order with server-computed total (products + delivery fee).
         const initialStatus = paymentMethod === 'pod' ? 'processing' : 'pending';
+        const orderRow = {
+            user_id: req.user.id,
+            total_amount,
+            currency: 'NGN',
+            status: initialStatus,
+            shipping_address: shippingAddress,
+            payment_method: paymentMethod,
+        };
         let orderRows, orderErr;
         try {
             ({ data: orderRows, error: orderErr } = await withTimeout(
-                (signal) => supabase
-                    .from('orders')
-                    .insert([
-                        {
-                            user_id: req.user.id,
-                            total_amount,
-                            currency: 'NGN',
-                            status: initialStatus,
-                            shipping_address: shippingAddress,
-                        },
-                    ])
-                    .select('*')
-                    .abortSignal(signal),
+                (signal) => supabase.from('orders').insert([orderRow]).select('*').abortSignal(signal),
                 8 * 1000,
             ));
+            // Backward-compat: if the payment_method column hasn't been added yet,
+            // retry without it so order creation never breaks.
+            if (orderErr && String(orderErr.message || '').includes('payment_method')) {
+                const { payment_method, ...legacyRow } = orderRow;
+                ({ data: orderRows, error: orderErr } = await withTimeout(
+                    (signal) => supabase.from('orders').insert([legacyRow]).select('*').abortSignal(signal),
+                    8 * 1000,
+                ));
+            }
         } catch (e) {
             console.error('[ORDERS] order insert failed:', e?.message || e);
             return res.status(503).json({ success: false, error: 'Order service is busy. Please try again.' });
@@ -521,6 +532,22 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         if (error) throw error;
         if (!data?.length) return res.status(404).json({ success: false, error: 'Order not found' });
 
+        // Cascade the order status to its line items' fulfillment_status so the
+        // order modal / per-item views reflect the order's progress (no more
+        // "Item status: pending" on a shipped order). Best-effort; ignore if the
+        // column doesn't exist on an older schema.
+        const ITEM_STATUS_BY_ORDER = { processing: 'packed', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' };
+        const itemStatus = ITEM_STATUS_BY_ORDER[status];
+        if (itemStatus) {
+            const { error: itemErr } = await supabase
+                .from('order_items')
+                .update({ fulfillment_status: itemStatus })
+                .eq('order_id', req.params.id);
+            if (itemErr && !String(itemErr.message || '').includes('fulfillment_status')) {
+                console.warn('[ORDERS] item-status cascade failed:', itemErr.message);
+            }
+        }
+
         // One-time paid-transition side effects (idempotent: only when crossing
         // from a non-paid status into a paid one).
         const PAID_SET = ['paid', 'shipped', 'delivered'];
@@ -529,19 +556,6 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         if (!wasPaid && nowPaid && data[0].user_id) {
             const { handlePaymentSuccess } = require('../services/paymentSuccess');
             handlePaymentSuccess(data[0].id, data[0].user_id).catch(() => {});
-        }
-
-        // Keep order_items.fulfillment_status in sync with the order status so the
-        // admin/seller/customer views don't show "Item status: pending" on a
-        // shipped/delivered/cancelled order. Map order status → item fulfillment.
-        const ITEM_STATUS_MAP = { processing: 'packed', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled' };
-        const itemStatus = ITEM_STATUS_MAP[status];
-        if (itemStatus) {
-            supabase
-                .from('order_items')
-                .update({ fulfillment_status: itemStatus })
-                .eq('order_id', req.params.id)
-                .then(() => {}, (e) => console.warn('[ORDERS] item status sync failed (non-fatal):', e?.message));
         }
 
         // Bust all page caches so the next admin fetch sees fresh data.

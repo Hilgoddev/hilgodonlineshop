@@ -4,6 +4,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ConfirmModal from '@/components/ConfirmModal';
 
 export default function AdminSellers() {
@@ -30,6 +31,7 @@ export default function AdminSellers() {
   };
 
   useEffect(() => { fetchSellers(); }, []);
+  useAutoRefresh(fetchSellers, { table: 'profiles' });
 
   const handleDemote = (userId, name) => {
     setModal({

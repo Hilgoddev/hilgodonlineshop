@@ -3,6 +3,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ConfirmModal from '@/components/ConfirmModal';
 
 const STATUS_COLORS = {
@@ -23,8 +24,8 @@ export default function AdminRiders() {
   const [adminNotes, setAdminNotes] = useState('');
   const closeModal = () => setModal(m => ({ ...m, open: false }));
 
-  const fetchRiders = async () => {
-    setLoading(true);
+  const fetchRiders = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const { res, json } = await adminJson('/api/admin/riders');
       if (res.ok && json.success) setRiders(json.data || []);
@@ -32,11 +33,12 @@ export default function AdminRiders() {
     } catch {
       setMessage({ type: 'error', text: 'Network error' });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => { fetchRiders(); }, []);
+  useAutoRefresh(() => fetchRiders({ silent: true }), { table: 'rider_applications' });
 
   const showMsg = (type, text) => {
     setMessage({ type, text });

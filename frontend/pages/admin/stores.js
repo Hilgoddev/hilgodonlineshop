@@ -3,26 +3,28 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { apiFetch } from '../../lib/apiClient';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 export default function AdminStores() {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  const fetchStores = async () => {
-    setLoading(true);
+  const fetchStores = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     const { res, json } = await adminJson('/api/stores/all');
     if (res.ok && json.success) {
       setStores(json.data || []);
     } else {
       setMessage({ type: 'error', text: errorMessage(json, 'Could not load stores') });
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   useEffect(() => {
     fetchStores();
   }, []);
+  useAutoRefresh(() => fetchStores({ silent: true }), { table: 'stores' });
 
   const updateStatus = async (id, status) => {
     setMessage({ type: '', text: '' });

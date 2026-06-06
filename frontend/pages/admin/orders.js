@@ -138,6 +138,8 @@ export default function AdminOrders() {
 
   const statusColors = { pending: '#f59e0b', paid: '#0ba4db', processing: '#3b82f6', shipped: '#8b5cf6', delivered: '#10b981', cancelled: '#ef4444' };
   const payColors = { paid: '#10b981', pending: '#f59e0b', failed: '#ef4444', refunded: '#6366f1' };
+  const PAYMENT_LABELS = { paystack: 'Paystack', stripe: 'Stripe', bank_transfer: 'Bank Transfer', pod: 'Pay on Delivery', opay: 'OPay', card: 'Card' };
+  const methodLabel = (m) => (m ? (PAYMENT_LABELS[m] || m) : 'Unknown');
 
   const badge = (text, colorMap) => {
     const c = colorMap[text] || '#64748b';
@@ -206,7 +208,12 @@ export default function AdminOrders() {
                           </td>
                           <td style={{ padding: '14px 16px', verticalAlign: 'top', fontWeight: '600' }}>{order.items?.length || 0}</td>
                           <td style={{ padding: '14px 16px', fontWeight: '700', verticalAlign: 'top' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</td>
-                          <td style={{ padding: '14px 16px', verticalAlign: 'top' }}><span style={badge(order.paymentStatus || 'pending', payColors)}>{order.paymentStatus || 'pending'}</span></td>
+                          <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
+                            <span style={badge(order.paymentStatus || 'pending', payColors)}>{order.paymentStatus || 'pending'}</span>
+                            <div style={{ fontSize: '.72rem', color: 'var(--gray-1)', marginTop: '4px' }}>
+                              <i className="fas fa-credit-card" style={{ fontSize: '.62rem', marginRight: '3px' }}></i>{methodLabel(order.paymentMethod)}
+                            </div>
+                          </td>
                           <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '120px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>

@@ -4,6 +4,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ConfirmModal from '@/components/ConfirmModal';
 
 export default function AdminCustomers() {
@@ -31,6 +32,7 @@ export default function AdminCustomers() {
   };
 
   useEffect(() => { fetchCustomers(); }, []);
+  useAutoRefresh(fetchCustomers, { table: 'profiles' });
 
   const handleRoleChange = (userId, newRole) => {
     const labels = { admin: 'Admin', seller: 'Seller', customer: 'Customer' };

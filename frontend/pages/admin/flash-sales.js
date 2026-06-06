@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { apiFetch } from '../../lib/apiClient';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import { normalizePricing } from '../../lib/pricing';
@@ -195,12 +196,12 @@ export default function AdminFlashSales() {
 
   const subcategoryOptions = categoriesData.find(c => c.id === newForm.category)?.subs || [];
 
-  const fetchSales = async () => {
-    setLoading(true);
+  const fetchSales = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     const { res, json } = await adminJson('/api/flash-sales/all');
     if (res.ok && json.success) setSales(json.data || []);
     else setMessage({ type: 'error', text: errorMessage(json, 'Could not load flash sales') });
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   const fetchProducts = async () => {
@@ -209,6 +210,7 @@ export default function AdminFlashSales() {
   };
 
   useEffect(() => { fetchSales(); fetchProducts(); }, []);
+  useAutoRefresh(() => fetchSales({ silent: true }), { table: 'flash_sales' });
 
   // Image upload for new product
   const handleImageFile = async (e) => {

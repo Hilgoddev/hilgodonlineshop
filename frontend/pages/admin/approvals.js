@@ -3,6 +3,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { apiFetch } from '../../lib/apiClient';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 export default function ApprovalsPage() {
   const [pendingStores, setPendingStores] = useState([]);
@@ -12,8 +13,8 @@ export default function ApprovalsPage() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
 
-  const fetchPendingData = async () => {
-    setLoading(true);
+  const fetchPendingData = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError('');
     try {
       const [storesRes, productsRes, sellerAppsRes] = await Promise.all([
@@ -50,6 +51,7 @@ export default function ApprovalsPage() {
   useEffect(() => {
     fetchPendingData();
   }, []);
+  useAutoRefresh(() => fetchPendingData({ silent: true }), { table: 'products' });
 
   const handleStoreStatus = async (id, status) => {
     setBusyId(`store-${id}`);

@@ -521,6 +521,11 @@ export default function Account() {
                                   {addr.phone && <div style={{ fontSize: '.8rem', color: 'var(--gray-1)', marginTop: '3px' }}><i className="fas fa-phone" style={{ fontSize: '.65rem', marginRight: '4px' }}></i>{addr.phone}</div>}
                                 </div>
                               )}
+                              {/* Payment method */}
+                              <div style={{ fontSize: '.8rem', color: 'var(--gray-1)', marginTop: '10px' }}>
+                                <i className="fas fa-credit-card" style={{ fontSize: '.7rem', marginRight: '5px', color: 'var(--primary)' }}></i>
+                                Paid via <strong style={{ color: 'var(--dark)' }}>{({ paystack: 'Paystack', stripe: 'Stripe', bank_transfer: 'Bank Transfer', pod: 'Pay on Delivery', opay: 'OPay', card: 'Card' }[order.paymentMethod]) || 'Unknown'}</strong>
+                              </div>
                             </div>
                           )}
                         </div>

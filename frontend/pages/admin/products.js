@@ -3,6 +3,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
@@ -59,6 +60,7 @@ export default function AdminProducts() {
   };
 
   useEffect(() => { fetchProducts(); }, []);
+  useAutoRefresh(fetchProducts, { table: 'products' });
 
   const handleImageFile = async (index, e) => {
     const file = e.target.files?.[0];

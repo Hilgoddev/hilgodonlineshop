@@ -25,6 +25,8 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
   const custEmail = order.user?.email || 'N/A';
   const addr = order.deliveryAddress;
   const orderId = `#${String(order._id || order.id).slice(-8).toUpperCase()}`;
+  const PAYMENT_LABELS = { paystack: 'Paystack', stripe: 'Stripe', bank_transfer: 'Bank Transfer', pod: 'Pay on Delivery', opay: 'OPay', card: 'Card' };
+  const paymentLabel = order.paymentMethod ? (PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod) : 'Unknown';
 
   return (
     <div
@@ -69,6 +71,9 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
               <div style={{ fontWeight: '600' }}>{custName}</div>
               <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>{custEmail}</div>
               {order.user?.phone && <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}><i className="fas fa-phone" style={{ fontSize: '.7rem', marginRight: 4 }}></i>{order.user.phone}</div>}
+              <div style={{ fontSize: '.85rem', color: 'var(--gray-1)', marginTop: '4px' }}>
+                <i className="fas fa-credit-card" style={{ fontSize: '.7rem', marginRight: 4 }}></i>Payment: <strong style={{ color: 'var(--dark)' }}>{paymentLabel}</strong>
+              </div>
             </div>
             {addr && (
               <div>
