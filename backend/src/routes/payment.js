@@ -251,12 +251,21 @@ router.get('/verify/:reference', verifyToken, writeLimiter, async (req, res) => 
     if (!reference) return res.status(400).json({ success: false, message: 'reference is required' });
 
     try {
-        const result = await withTimeout(
-            () => paystack.transaction.verify(reference),
+        // Call Paystack's verify REST endpoint directly — more reliable than the
+        // paystack-api library's verify() with a raw string reference.
+        const PAYSTACK_SECRET = cleanEnv(process.env.PAYSTACK_SECRET_KEY);
+        const vres = await withTimeout(
+            () => fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+                headers: { Authorization: `Bearer ${PAYSTACK_SECRET}` },
+            }),
             8000,
         );
-        const txn = result?.data;
-        if (!txn) return res.status(502).json({ success: false, message: 'Invalid response from payment gateway' });
+        const vjson = await vres.json().catch(() => null);
+        if (!vres.ok || !vjson?.status || !vjson?.data) {
+            console.error('[PAYMENT] paystack verify failed:', vres.status, vjson?.message);
+            return res.status(502).json({ success: false, message: vjson?.message || 'Could not verify payment. If you were charged, it will be confirmed shortly.' });
+        }
+        const txn = vjson.data;
 
         const status = txn.status; // 'success' | 'failed' | 'abandoned'
         const orderId = txn.metadata?.order_id || null;
