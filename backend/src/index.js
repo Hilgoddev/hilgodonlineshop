@@ -30,6 +30,10 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }));
 app.use('/api/grey/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Ensure req.body is always an object so `const { x } = req.body` in handlers
+// never throws (e.g. a POST with text/plain or no body) — those should fall
+// through to validation (400), not crash with a TypeError (500).
+app.use((req, res, next) => { if (req.body === undefined || req.body === null) req.body = {}; next(); });
 app.use(morgan('dev'));
 app.use((req, res, next) => {
     req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
@@ -242,6 +246,11 @@ app.post('/api/careers/apply', writeLimiter, async (req, res) => {
     }).catch(() => {});
 
     res.status(200).json({ success: true, message: 'Application submitted. We will be in touch soon!' });
+});
+
+// JSON 404 for any unmatched route (instead of Express's default HTML page).
+app.use((req, res) => {
+    res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Resource not found' });
 });
 
 // Error Handling Middleware
