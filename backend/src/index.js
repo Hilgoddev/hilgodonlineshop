@@ -248,13 +248,23 @@ app.post('/api/careers/apply', writeLimiter, async (req, res) => {
 app.use((err, req, res, next) => {
     console.error(err.stack);
     const status = err.status || 500;
+    const isProd = process.env.NODE_ENV === 'production';
+
+    // Never leak raw DB/driver errors to clients on 5xx in production (the probe
+    // found malformed input surfacing Postgres codes like 22P02 + an HTML page).
+    // Client (4xx) messages are intentional/safe and kept as-is.
+    const isServerError = status >= 500;
     const code = err.code || (status === 400 ? 'VALIDATION_FAILED' : 'INTERNAL_ERROR');
-    const message = err.message || 'Internal Server Error';
+    const safeCode = isServerError && isProd ? 'INTERNAL_ERROR' : code;
+    const message = isServerError && isProd
+        ? 'Something went wrong. Please try again.'
+        : (err.message || 'Internal Server Error');
+
     res.status(status).json({
         success: false,
-        code,
+        code: safeCode,
         message,
-        details: err.details || null,
+        details: isServerError && isProd ? null : (err.details || null),
         requestId: req.requestId || null,
         timestamp: new Date().toISOString(),
         ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),

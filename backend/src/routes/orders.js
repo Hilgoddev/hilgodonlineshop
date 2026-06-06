@@ -7,6 +7,7 @@ const { cleanEnv } = require('../lib/env');
 const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
+const { isUuid } = require('../lib/validate');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 const mapOrder = (order, items = [], user = null) => ({
@@ -442,6 +443,8 @@ router.get('/:id', verifyToken, async (req, res, next) => {
             if (error) throw error;
             order = (orders || []).find((o) => String(o.id).replace(/-/g, '').startsWith(id.replace(/-/g, '')));
         } else {
+            // Full-length id must be a valid uuid, else Postgres throws 22P02.
+            if (!isUuid(id)) return res.status(404).json({ success: false, error: 'Order not found' });
             const { data, error } = await supabase.from('orders').select('*').eq('id', id).maybeSingle();
             if (error) throw error;
             order = data;

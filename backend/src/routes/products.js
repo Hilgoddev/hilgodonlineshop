@@ -4,6 +4,7 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 const { withTimeout, makeCache } = require('../lib/resilience');
+const { isUuid } = require('../lib/validate');
 const allCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Short-lived in-memory cache for the public product list. Supabase (free tier)
@@ -323,6 +324,12 @@ router.get('/all', verifyToken, async (req, res, next) => {
 // GET /api/products/:id
 router.get('/:id', async (req, res, next) => {
     try {
+        // Reject malformed ids up front — an invalid uuid otherwise hits Postgres
+        // and throws 22P02 (a 500 that leaks the DB error). 404 is consistent
+        // with "product not found".
+        if (!isUuid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'Product not found' });
+        }
         const { data, error } = await supabase
             .from('products')
             .select('*, store:stores(name, slug, logo_url, status), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url, phone_number)')

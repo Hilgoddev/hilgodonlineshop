@@ -3,11 +3,16 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { reviewLimiter } = require('../middleware/rateLimit');
+const { isUuid } = require('../lib/validate');
 
 // Get reviews for a product
 router.get('/:productId', async (req, res, next) => {
     try {
         const { productId } = req.params;
+        // Malformed id → no reviews (avoids a 22P02 500 leaking the DB error).
+        if (!isUuid(productId)) {
+            return res.json({ success: true, data: [] });
+        }
         const { data, error } = await supabase
             .from('reviews')
             .select('*')
