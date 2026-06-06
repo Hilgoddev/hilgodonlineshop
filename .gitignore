@@ -137,3 +137,7 @@ VERIFICATION_REPORT.md
 # ===========================================
 # END OF GITIGNORE
 # ===========================================
+# ===========================================
+# Local-only security probe scripts (never commit/deploy)
+# ===========================================
+backend/scripts/*-probe.js
