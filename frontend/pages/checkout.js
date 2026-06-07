@@ -306,10 +306,10 @@ export default function Checkout() {
             Thank you for shopping with Hilgod. Your order is being processed and you will receive a confirmation email shortly.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/track-order" className="btn btn-primary btn-lg">
+            <Link href="/track-order" className="checkout-btn btn btn-primary btn-lg">
               <i className="fas fa-location-dot"></i> Track Order
             </Link>
-            <Link href="/" className="btn btn-outline btn-lg">
+            <Link href="/" className="checkout-btn-outline btn btn-outline btn-lg">
               <i className="fas fa-shop"></i> Continue Shopping
             </Link>
           </div>

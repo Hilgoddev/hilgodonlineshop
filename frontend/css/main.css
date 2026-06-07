@@ -102,9 +102,11 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
 }
+
 main {
   /* padding: 1rem; */
 }
+
 img {
   display: block;
   max-width: 100%;
@@ -403,12 +405,14 @@ table {
 }
 
 .btn.btn-width-fit {
-  width:fit-content;
+  width: fit-content;
 }
 
 /* tactile small button touch targets on mobile */
 @media (max-width: 767px) {
-  .btn-sm, .btn-icon {
+
+  .btn-sm,
+  .btn-icon {
     min-height: 44px;
     min-width: 44px;
     display: inline-flex;
@@ -440,39 +444,93 @@ table {
     flex-direction: row;
     width: auto;
   }
+
   .btn-group .btn {
     flex: 1;
   }
 }
 
 /* Responsive Grid Columns System */
-.grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
-.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
-.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
-.grid-cols-5 { grid-template-columns: repeat(5, 1fr); }
-.grid-cols-6 { grid-template-columns: repeat(6, 1fr); }
+.grid-cols-1 {
+  grid-template-columns: repeat(1, 1fr);
+}
+
+.grid-cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.grid-cols-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.grid-cols-6 {
+  grid-template-columns: repeat(6, 1fr);
+}
 
 @media (min-width: 480px) {
-  .sm-grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .sm-grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
-  .sm-grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .sm-grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sm-grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .sm-grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 @media (min-width: 768px) {
-  .md-grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .md-grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
-  .md-grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
-  .md-grid-cols-5 { grid-template-columns: repeat(5, 1fr); }
-  .md-grid-cols-6 { grid-template-columns: repeat(6, 1fr); }
+  .md-grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .md-grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .md-grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .md-grid-cols-5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .md-grid-cols-6 {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 @media (min-width: 992px) {
-  .lg-grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-  .lg-grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
-  .lg-grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
-  .lg-grid-cols-5 { grid-template-columns: repeat(5, 1fr); }
-  .lg-grid-cols-6 { grid-template-columns: repeat(6, 1fr); }
+  .lg-grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .lg-grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .lg-grid-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .lg-grid-cols-5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  .lg-grid-cols-6 {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 /* ---- BADGE ---- */
@@ -1166,19 +1224,27 @@ table {
    Scrolling still works everywhere (page, tables, mobile nav, modals, carousels)
    but the scrollbar itself is never shown. */
 * {
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* IE / old Edge */
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE / old Edge */
 }
+
 *::-webkit-scrollbar {
-  display: none;                /* Chrome / Safari / Opera */
+  display: none;
+  /* Chrome / Safari / Opera */
   width: 0;
   height: 0;
 }
-html, body {
+
+html,
+body {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-html::-webkit-scrollbar, body::-webkit-scrollbar {
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
@@ -1220,17 +1286,21 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   .container {
     padding: 0 var(--space-3);
   }
-}/* ---- GLOBAL PRODUCT GRIDS ---- */
+}
+
+/* ---- GLOBAL PRODUCT GRIDS ---- */
 .product-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-4);
 }
+
 @media (max-width: 992px) {
   .product-grid-3 {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
 @media (max-width: 576px) {
   .product-grid-3 {
     grid-template-columns: 1fr;
@@ -1245,18 +1315,21 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
+
 .empty-state i {
   font-size: 4rem;
   color: var(--gray-3);
   margin-bottom: var(--space-4);
   display: block;
 }
+
 .empty-state h3 {
   font-size: 1.3rem;
   font-weight: 700;
   margin-bottom: var(--space-2);
   color: var(--dark);
 }
+
 .empty-state p {
   color: var(--gray-1);
   margin-bottom: var(--space-6);
@@ -1278,15 +1351,53 @@ html::-webkit-scrollbar, body::-webkit-scrollbar {
   border-bottom: 1px solid var(--gray-4);
   gap: var(--space-3);
 }
-.checkout-item:last-child { border-bottom: none; }
-.checkout-item-info { flex: 1; }
-.checkout-item-name { font-size: .9rem; font-weight: 600; }
-.checkout-item-details { font-size: .82rem; color: var(--gray-1); margin-top: 2px; }
-.checkout-item-total { font-size: .95rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
+
+.checkout-btn {
+  justify-content: center;
+  margin: 0 !important;
+}
+
+@media (max-width: 767px) {
+  .checkout-btn-outline {
+    width: 100% !important;
+  }
+}
+
+.checkout-item:last-child {
+  border-bottom: none;
+}
+
+.checkout-item-info {
+  flex: 1;
+}
+
+.checkout-item-name {
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.checkout-item-details {
+  font-size: .82rem;
+  color: var(--gray-1);
+  margin-top: 2px;
+}
+
+.checkout-item-total {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+}
 
 /* ---- PULSE ANIMATION ---- */
 @keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
 
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+}
