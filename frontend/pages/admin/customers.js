@@ -6,8 +6,10 @@ import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 export default function AdminCustomers() {
+  const { formatPrice } = useCurrency();
   const { data: session } = useSession();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,7 @@ export default function AdminCustomers() {
                         <td className="col-hide-sm" style={{ padding: '14px 16px', color: 'var(--gray-1)' }}>{customer.email}</td>
                         <td className="col-hide-md" style={{ padding: '14px 16px', fontSize: '.82rem', color: 'var(--gray-1)' }}>{new Date(customer.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                         <td style={{ padding: '14px 16px', fontWeight: '700' }}>{customer.orderCount}</td>
-                        <td style={{ padding: '14px 16px', fontWeight: '700' }}>₦{customer.totalSpent?.toLocaleString()}</td>
+                        <td style={{ padding: '14px 16px', fontWeight: '700' }}>{formatPrice(customer.totalSpent || 0, 'NGN', false)}</td>
                         <td className="col-hide-md" style={{ padding: '14px 16px' }}>
                           <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '.78rem', fontWeight: '600', background: customer.provider === 'google' ? '#e8f0fe' : '#f1f5f9', color: customer.provider === 'google' ? '#4285f4' : '#64748b' }}>
                             <i className={`fa${customer.provider === 'google' ? 'b' : 's'} fa-${customer.provider === 'google' ? 'google' : 'envelope'}`} style={{ marginRight: '4px' }}></i>

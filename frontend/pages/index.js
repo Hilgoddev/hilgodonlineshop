@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 import { cleanEnv, resolveServerApiBase } from '@/lib/env';
@@ -32,6 +33,7 @@ const CATEGORY_IMAGES = {
 };
 
 export default function Home({ products, categories = [], flashSales = [] }) {
+  const { formatPrice } = useCurrency();
   const [catalogProducts, setCatalogProducts] = useState(products || []);
   const [catalogLoading, setCatalogLoading] = useState(!products || products.length === 0);
   const [categoryList, setCategoryList] = useState(categories || []);
@@ -104,7 +106,7 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       id: 4,
       bg: 'linear-gradient(135deg,#0a1628 0%,#1a2d4d 50%,#0d3b6e 100%)',
       tag: { text: 'Hot Deal', icon: 'fas fa-laptop', color: '#f59e0b' },
-      title: 'Premium Laptops<br /><span>From ₦280,000</span>',
+      title: `Premium Laptops<br /><span>From ${formatPrice(280000, 'NGN', false)}</span>`,
       sub: 'MacBook Air, HP Pavilion, Dell XPS and more.',
       btnLink: '/products?category=electronics',
       btnText: 'Shop Laptops',

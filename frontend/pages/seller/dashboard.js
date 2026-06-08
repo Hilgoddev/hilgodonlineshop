@@ -103,7 +103,7 @@ export default function SellerDashboard() {
                           </td>
                           <td style={{ padding: '10px', fontWeight: 600 }}>{p.name}</td>
                           <td className="col-hide-sm" style={{ padding: '10px', textTransform: 'capitalize', color: 'var(--gray-1)' }}>{p.category}</td>
-                          <td style={{ padding: '10px', fontWeight: 700 }}>{formatPrice(Number(p.price || 0), 'NGN', false)}</td>
+                          <td style={{ padding: '10px', fontWeight: 700 }}>{formatPrice(Number(p.price || 0), p.currency || 'NGN', false)}</td>
                           <td style={{ padding: '10px' }}>{p.stock}</td>
                         </tr>
                       ))}

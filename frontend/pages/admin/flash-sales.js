@@ -8,6 +8,7 @@ import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import { normalizePricing } from '../../lib/pricing';
 import { categoriesData } from '@/pages/categories';
 import styles from '@/css/fix.module.css';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 const EMPTY_NEW = {
   name: '', description: '', price: '', currency: 'NGN',
@@ -15,7 +16,7 @@ const EMPTY_NEW = {
 };
 
 // ── Product Picker Modal ──────────────────────────────────────────────────────
-function ProductPickerModal({ products, onSelect, onClose }) {
+function ProductPickerModal({ products, onSelect, onClose, formatPrice }) {
   const [search, setSearch] = useState('');
   const inputRef = useRef(null);
 
@@ -153,7 +154,7 @@ function ProductPickerModal({ products, onSelect, onClose }) {
                       {p.category}{p.brand ? ` · ${p.brand}` : ''}
                     </div>
                     <div style={{ fontWeight: 800, fontSize: '0.92rem', color: '#0f172a' }}>
-                      ₦{Number(p.price || 0).toLocaleString()}
+                      {formatPrice(p.price || 0, p.currency || 'NGN', false)}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: p.stock > 0 ? '#16a34a' : '#dc2626', marginTop: '2px', fontWeight: 600 }}>
                       {p.stock > 0 ? `${p.stock} in stock` : 'Out of stock'}
@@ -171,6 +172,7 @@ function ProductPickerModal({ products, onSelect, onClose }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminFlashSales() {
+  const { formatPrice } = useCurrency();
   const [sales, setSales] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -410,7 +412,7 @@ export default function AdminFlashSales() {
                       {selectedProduct.category}{selectedProduct.brand ? ` · ${selectedProduct.brand}` : ''}
                     </div>
                     <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
-                      ₦{Number(selectedProduct.price || 0).toLocaleString()} original price
+                      {formatPrice(selectedProduct.price || 0, selectedProduct.currency || 'NGN', false)} original price
                     </div>
                   </div>
                   <button
@@ -680,10 +682,10 @@ export default function AdminFlashSales() {
                         </div>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#dc2626', fontWeight: 700 }}>
-                        ₦{Number(sale.sale_price).toLocaleString()}
+                        {formatPrice(sale.sale_price || 0, sale.products?.currency || 'NGN', false)}
                       </td>
                       <td style={{ padding: '12px 16px', color: '#94a3b8', textDecoration: 'line-through' }}>
-                        ₦{Number(sale.original_price || 0).toLocaleString()}
+                        {formatPrice(sale.original_price || 0, sale.products?.currency || 'NGN', false)}
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         {discount > 0 && (
@@ -721,10 +723,11 @@ export default function AdminFlashSales() {
 
       {/* Product Picker Modal */}
       {pickerOpen && (
-        <ProductPickerModal
+          <ProductPickerModal
           products={allProducts}
           onSelect={(p) => { setSelectedProduct(p); setPickerOpen(false); }}
           onClose={() => setPickerOpen(false)}
+          formatPrice={formatPrice}
         />
       )}
     </>

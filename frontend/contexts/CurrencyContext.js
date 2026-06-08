@@ -6,6 +6,22 @@ const CURRENCY_STORAGE_KEY = 'hilgod_currency_pref';
 const RATES_CACHE_KEY = 'hilgod_exchange_rates_cache';
 const RATES_CACHE_TTL = 24 * 60 * 60 * 1000;
 const SUPPORTED = ['USD', 'NGN', 'GBP', 'EUR'];
+const REQUIRED_RATES = ['USD', 'NGN', 'GBP', 'EUR'];
+
+const normalizeRates = (input) => {
+    if (!input || typeof input !== 'object') return null;
+
+    const rates = {};
+    for (const currency of REQUIRED_RATES) {
+        const numericRate = Number(input[currency]);
+        if (!Number.isFinite(numericRate) || numericRate <= 0) {
+            return null;
+        }
+        rates[currency] = numericRate;
+    }
+
+    return rates;
+};
 
 const mapLocaleToCurrency = (locale = '') => {
     const lower = String(locale).toLowerCase();
@@ -53,11 +69,16 @@ export function CurrencyProvider({ children }) {
                 if (localRatesCache) {
                     try {
                         const { rates: cachedRates, timestamp } = JSON.parse(localRatesCache);
-                        if (Date.now() - timestamp < RATES_CACHE_TTL && cachedRates && typeof cachedRates === 'object') {
-                            rates = cachedRates;
+                        const normalizedCachedRates = normalizeRates(cachedRates);
+                        if (Date.now() - Number(timestamp || 0) < RATES_CACHE_TTL && normalizedCachedRates) {
+                            rates = normalizedCachedRates;
                             ratesLoaded = true;
+                        } else {
+                            try { localStorage.removeItem(RATES_CACHE_KEY); } catch (_) {}
                         }
-                    } catch (_) {}
+                    } catch (_) {
+                        try { localStorage.removeItem(RATES_CACHE_KEY); } catch (_) {}
+                    }
                 }
 
                 if (!ratesLoaded) {
@@ -65,8 +86,9 @@ export function CurrencyProvider({ children }) {
                         const ratesRes = await fetch('/api/exchange-rates', { cache: 'no-store' });
                         if (ratesRes.ok) {
                             const ratesData = await ratesRes.json();
-                            if (ratesData?.success && ratesData?.rates) {
-                                rates = { ...FALLBACK_RATES, ...ratesData.rates };
+                            const normalizedRates = normalizeRates(ratesData?.rates);
+                            if (ratesData?.success && normalizedRates) {
+                                rates = normalizedRates;
                                 ratesLoaded = true;
                                 try {
                                     localStorage.setItem(RATES_CACHE_KEY, JSON.stringify({
@@ -103,8 +125,8 @@ export function CurrencyProvider({ children }) {
                     try {
                         const clientData = await fetch('https://ipwho.is/', { cache: 'no-store' })
                             .then(r => r.ok ? r.json() : null);
-                        if (clientData?.success && clientData?.currency?.code) {
-                            geoCurrency = clientData.currency.code;
+                        if (clientData?.success && clientData?.currency?.code && SUPPORTED.includes(String(clientData.currency.code).toUpperCase())) {
+                            geoCurrency = String(clientData.currency.code).toUpperCase();
                             geoDetected = true;
                         }
                     } catch (_) {}
@@ -118,8 +140,9 @@ export function CurrencyProvider({ children }) {
                     const normalized = String(detectedCurrency || 'USD').toUpperCase();
                     const finalCurrency = SUPPORTED.includes(normalized) && Number(rates[normalized]) > 0
                         ? normalized
-                        : Number(rates[tzCurrency]) > 0 ? tzCurrency
-                        : Number(rates[localeCurrency]) > 0 ? localeCurrency : 'USD';
+                        : SUPPORTED.includes(String(tzCurrency).toUpperCase()) && Number(rates[tzCurrency]) > 0 ? String(tzCurrency).toUpperCase()
+                        : SUPPORTED.includes(String(localeCurrency).toUpperCase()) && Number(rates[localeCurrency]) > 0 ? String(localeCurrency).toUpperCase()
+                        : 'USD';
                     setCurrency(finalCurrency);
 
                     // Only persist when we got a REAL geo detection or timezone/locale,

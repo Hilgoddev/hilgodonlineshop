@@ -12,6 +12,18 @@ const REQUIRED_CURRENCIES = ['USD', 'NGN', 'GBP', 'EUR'];
 const CURRENCYFREAKS_API_KEY = process.env.CURRENCYFREAKS_API_KEY?.trim() || '';
 const EXCHANGERATE_API_KEY = process.env.EXCHANGERATE_API_KEY?.trim() || '';
 
+const normalizeRatesMap = (rates) => {
+  if (!rates || typeof rates !== 'object') return null;
+
+  const map = {};
+  for (const currency of REQUIRED_CURRENCIES) {
+    const value = Number(rates[currency]);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    map[currency] = value;
+  }
+  return map;
+};
+
 // Updated fallback rates to realistic values (tested: ~1,365 NGN per USD)
 const FALLBACK_RATES = {
   rates: { USD: 1, NGN: 1365, GBP: 0.75, EUR: 0.87 },
@@ -27,10 +39,13 @@ const buildRatesMap = (rows) => {
   const map = {};
   (rows || []).forEach((row) => {
     if (row?.target_currency) {
-      map[String(row.target_currency).toUpperCase()] = Number(row.rate);
+      const value = Number(row.rate);
+      if (Number.isFinite(value) && value > 0) {
+        map[String(row.target_currency).toUpperCase()] = value;
+      }
     }
   });
-  return map;
+  return normalizeRatesMap(map);
 };
 
 const getLatestUpdatedAt = (rows) => {
@@ -61,12 +76,16 @@ const fetchFromCurrencyFreaks = async () => {
     }
 
     // CurrencyFreaks returns rates as strings, convert to numbers
-    const ratesMap = {};
-    REQUIRED_CURRENCIES.forEach((currency) => {
-      const rateStr = data.rates[currency];
-      ratesMap[currency] = rateStr !== undefined ? Number(rateStr) : (currency === 'USD' ? 1 : 0);
-    });
-
+    const ratesMap = normalizeRatesMap(
+      REQUIRED_CURRENCIES.reduce((acc, currency) => {
+        const rateStr = data.rates[currency];
+        acc[currency] = rateStr !== undefined ? Number(rateStr) : (currency === 'USD' ? 1 : 0);
+        return acc;
+      }, {})
+    );
+    if (!ratesMap) {
+      throw new Error('Invalid CurrencyFreaks rates map');
+    }
     // Validate rates are reasonable (guard against API errors)
     const ngnRate = ratesMap['NGN'];
     if (ngnRate && (ngnRate < 100 || ngnRate > 10000)) {
@@ -101,10 +120,15 @@ const fetchFromExchangerateAPI = async () => {
       throw new Error('Invalid exchangerate-api response');
     }
 
-    const ratesMap = {};
-    REQUIRED_CURRENCIES.forEach((currency) => {
-      ratesMap[currency] = Number(data.conversion_rates[currency] ?? (currency === 'USD' ? 1 : 0));
-    });
+    const ratesMap = normalizeRatesMap(
+      REQUIRED_CURRENCIES.reduce((acc, currency) => {
+        acc[currency] = Number(data.conversion_rates[currency] ?? (currency === 'USD' ? 1 : 0));
+        return acc;
+      }, {})
+    );
+    if (!ratesMap) {
+      throw new Error('Invalid exchangerate-api rates map');
+    }
 
     console.log('[EXCHANGE_RATES] Exchangerate-API rates fetched successfully:', ratesMap);
     return ratesMap;

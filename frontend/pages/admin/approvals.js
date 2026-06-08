@@ -4,8 +4,10 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { apiFetch } from '../../lib/apiClient';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 export default function ApprovalsPage() {
+  const { formatPrice } = useCurrency();
   const [pendingStores, setPendingStores] = useState([]);
   const [pendingProducts, setPendingProducts] = useState([]);
   const [pendingSellerApplications, setPendingSellerApplications] = useState([]);
@@ -257,7 +259,7 @@ export default function ApprovalsPage() {
                       {pendingProducts.map((product) => (
                         <tr key={product.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                           <td style={{ padding: '12px 16px', fontWeight: 600 }}>{product.name}</td>
-                          <td style={{ padding: '12px 16px' }}>₦{Number(product.price || 0).toLocaleString()}</td>
+                          <td style={{ padding: '12px 16px' }}>{formatPrice(product.price || 0, product.currency || 'NGN', false)}</td>
                           <td style={{ padding: '12px 16px', color: '#64748b' }}>
                             {product.created_at ? new Date(product.created_at).toLocaleDateString() : '—'}
                           </td>

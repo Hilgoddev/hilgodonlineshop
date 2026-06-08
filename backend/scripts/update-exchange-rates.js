@@ -6,6 +6,17 @@ const EXCHANGERATE_API_KEY = process.env.EXCHANGERATE_API_KEY?.trim();
 
 const REQUIRED_CURRENCIES = ['USD', 'NGN', 'GBP', 'EUR'];
 
+function normalizeRatesMap(rates) {
+  if (!rates || typeof rates !== 'object') return null;
+  const map = {};
+  for (const currency of REQUIRED_CURRENCIES) {
+    const value = Number(rates[currency]);
+    if (!Number.isFinite(value) || value <= 0) return null;
+    map[currency] = value;
+  }
+  return map;
+}
+
 async function fetchFromCurrencyFreaks() {
   if (!CURRENCYFREAKS_API_KEY) {
     console.warn('CURRENCYFREAKS_API_KEY not configured');
@@ -25,11 +36,16 @@ async function fetchFromCurrencyFreaks() {
       throw new Error('Invalid CurrencyFreaks API response');
     }
 
-    const ratesMap = {};
-    REQUIRED_CURRENCIES.forEach((currency) => {
-      const rateStr = data.rates[currency];
-      ratesMap[currency] = rateStr !== undefined ? Number(rateStr) : (currency === 'USD' ? 1 : 0);
-    });
+    const ratesMap = normalizeRatesMap(
+      REQUIRED_CURRENCIES.reduce((acc, currency) => {
+        const rateStr = data.rates[currency];
+        acc[currency] = rateStr !== undefined ? Number(rateStr) : (currency === 'USD' ? 1 : 0);
+        return acc;
+      }, {})
+    );
+    if (!ratesMap) {
+      throw new Error('Invalid CurrencyFreaks rates map');
+    }
 
     // Validate rates are reasonable
     const ngnRate = ratesMap['NGN'];
@@ -64,10 +80,15 @@ async function fetchFromExchangerateAPI() {
       throw new Error('Invalid exchangerate-api response');
     }
 
-    const ratesMap = {};
-    REQUIRED_CURRENCIES.forEach((currency) => {
-      ratesMap[currency] = Number(data.conversion_rates[currency] ?? (currency === 'USD' ? 1 : 0));
-    });
+    const ratesMap = normalizeRatesMap(
+      REQUIRED_CURRENCIES.reduce((acc, currency) => {
+        acc[currency] = Number(data.conversion_rates[currency] ?? (currency === 'USD' ? 1 : 0));
+        return acc;
+      }, {})
+    );
+    if (!ratesMap) {
+      throw new Error('Invalid exchangerate-api rates map');
+    }
 
     console.log('Exchangerate-API rates fetched:', ratesMap);
     return ratesMap;

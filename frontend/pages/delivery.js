@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import Layout from '@/components/Layout';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 export default function Delivery() {
+  const { formatPrice } = useCurrency();
   const [formData, setFormData] = useState({
     fullName: '',
     dateOfBirth: '',
@@ -96,7 +98,7 @@ export default function Delivery() {
           {/* Stats */}
           <div className="delivery-stats">
             <div>
-              <div style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--primary)' }}>₦5K+</div>
+              <div style={{ fontSize: '2rem', fontWeight: '900', color: 'var(--primary)' }}>{formatPrice(5000, 'NGN', false)}+</div>
               <div style={{ color: 'rgba(255,255,255,.6)', fontSize: '.85rem' }}>Avg. Daily Earnings</div>
             </div>
             <div>
@@ -124,7 +126,7 @@ export default function Delivery() {
               </div>
               <h3 style={{ fontWeight: '700', marginBottom: '8px' }}>Competitive Pay</h3>
               <p style={{ color: 'var(--gray-1)', fontSize: '.9rem' }}>
-                Earn ₦1,500–₦3,000 per delivery plus bonuses for peak hours.
+                Earn {formatPrice(1500, 'NGN', false)}–{formatPrice(3000, 'NGN', false)} per delivery plus bonuses for peak hours.
               </p>
             </div>
             <div style={{ textAlign: 'center', padding: 'var(--space-6)', borderRadius: 'var(--radius-lg)', border: '2px solid var(--gray-5)' }}>

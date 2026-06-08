@@ -205,7 +205,7 @@ export default function SellerOrders() {
                           )}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: '.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-                            <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(Number(item.price), 'NGN', false)} each</div>
+                            <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(Number(item.price), item.currency || 'NGN', false)} each</div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             <select
@@ -230,7 +230,7 @@ export default function SellerOrders() {
                                 {savingItemId === item.id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}
                               </button>
                             )}
-                            <div style={{ fontWeight: 700, fontSize: '.9rem', flexShrink: 0 }}>{formatPrice(item.price * item.quantity, 'NGN', false)}</div>
+                            <div style={{ fontWeight: 700, fontSize: '.9rem', flexShrink: 0 }}>{formatPrice(item.price * item.quantity, item.currency || 'NGN', false)}</div>
                           </div>
                         </div>
                       ))}

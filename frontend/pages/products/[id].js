@@ -271,14 +271,14 @@ export default function ProductDetail({ product, relatedProducts }) {
             <div className="pdp-pricing">
               <span className="pdp-price">{formatPrice(pricing.price || 0, productCurrency, false)}</span>
               {origPrice && (
-                <span className="pdp-original">{formatPrice(origPrice, productCurrency)}</span>
+                <span className="pdp-original">{formatPrice(origPrice, productCurrency, false)}</span>
               )}
               {discount > 0 && (
                 <span className="pdp-discount">Save {discount}%</span>
               )}
               {pricing.price >= 10000 && (
                 <div className="pdp-installment">
-                  Or pay {formatPrice((pricing.price / 4) || 0, productCurrency)}/month × 4 months
+                  Or pay {formatPrice((pricing.price / 4) || 0, productCurrency, false)}/month × 4 months
                 </div>
               )}
             </div>
@@ -372,7 +372,7 @@ export default function ProductDetail({ product, relatedProducts }) {
             <div className="pdp-meta">
               <div className="pdp-meta-item">
                 <i className="fas fa-truck-fast"></i>
-                <span>Free delivery on orders above <strong>₦50,000</strong></span>
+                <span>Free delivery on orders above <strong>{formatPrice(50000, 'NGN', false)}</strong></span>
               </div>
               <div className="pdp-meta-item">
                 <i className="fas fa-rotate-left"></i>

@@ -5,8 +5,10 @@ import Layout from '@/components/Layout';
 import { apiFetch } from '../lib/apiClient';
 import { useSession } from '@/contexts/AuthContext';
 import ConfirmModal from '@/components/ConfirmModal';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 export default function SellerZone() {
+  const { formatPrice } = useCurrency();
   const router = useRouter();
   const { data: session } = useSession();
   const isSeller = session?.user?.role === 'seller' || session?.user?.role === 'admin';
@@ -186,7 +188,7 @@ export default function SellerZone() {
               <div style={{ color: 'rgba(255,255,255,.6)', fontSize: '.85rem' }}>Sellers</div>
             </div>
             <div>
-              <div style={{ fontSize: '2.2rem', fontWeight: '900', color: 'var(--primary)' }}>₦0</div>
+              <div style={{ fontSize: '2.2rem', fontWeight: '900', color: 'var(--primary)' }}>{formatPrice(0, 'NGN', false)}</div>
               <div style={{ color: 'rgba(255,255,255,.6)', fontSize: '.85rem' }}>Monthly Fees</div>
             </div>
             <div>
@@ -590,10 +592,10 @@ export default function SellerZone() {
                   onChange={handleInputChange}
                 >
                   <option>Just starting</option>
-                  <option>Up to ₦100,000</option>
-                  <option>₦100,000 – ₦1,000,000</option>
-                  <option>₦1M – ₦10M</option>
-                  <option>₦10M+</option>
+                  <option>Up to {formatPrice(100000, 'NGN', false)}</option>
+                  <option>{formatPrice(100000, 'NGN', false)} – {formatPrice(1000000, 'NGN', false)}</option>
+                  <option>{formatPrice(1000000, 'NGN', false)} – {formatPrice(10000000, 'NGN', false)}</option>
+                  <option>{formatPrice(10000000, 'NGN', false)}+</option>
                 </select>
               </div>
               {!session && (

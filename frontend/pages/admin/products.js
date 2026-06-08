@@ -8,6 +8,7 @@ import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
 import styles from '@/css/fix.module.css';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 const EMPTY_FORM = {
   name: '',
@@ -25,6 +26,7 @@ const EMPTY_FORM = {
 };
 
 export default function AdminProducts() {
+  const { formatPrice } = useCurrency();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -495,7 +497,7 @@ export default function AdminProducts() {
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '3px 8px', background: 'var(--gray-5)', borderRadius: '4px', fontSize: '.82rem' }}>{product.category}</span>
                     </td>
-                    <td style={{ padding: '12px', fontWeight: 700 }}>₦{Number(product.price || 0).toLocaleString()}</td>
+                    <td style={{ padding: '12px', fontWeight: 700 }}>{formatPrice(product.price || 0, product.currency || 'NGN', false)}</td>
                     <td style={{ padding: '12px' }}>
                       <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '.82rem', fontWeight: 600, background: product.stock > 10 ? '#dcfce7' : product.stock > 0 ? '#fef3c7' : '#fee2e2', color: product.stock > 10 ? '#16a34a' : product.stock > 0 ? '#d97706' : '#ef4444' }}>
                         {product.stock}

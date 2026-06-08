@@ -167,7 +167,7 @@ export default function AdminAnalytics() {
               return (
                 <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }}>
                   <div style={{ fontSize: '.65rem', color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {m.revenue > 0 ? `₦${(m.revenue / 1000).toFixed(0)}k` : ''}
+                    {m.revenue > 0 ? formatPrice(m.revenue, 'NGN', false) : ''}
                   </div>
                   <div
                     title={`${fmtMonth(m.month)}: ${formatPrice(m.revenue, 'NGN', false)} (${m.orders} orders)`}

@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/apiClient';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 const EMPTY_FORM = {
   name: '',
@@ -22,6 +23,7 @@ const EMPTY_FORM = {
 };
 
 export default function SellerProducts() {
+  const { formatPrice } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -455,7 +457,7 @@ export default function SellerProducts() {
                       </td>
                       <td style={{ padding: '10px', maxWidth: '200px' }}>{p.name}</td>
                       <td style={{ padding: '10px', textTransform: 'capitalize' }}>{p.category}</td>
-                      <td style={{ padding: '10px' }}>N{Number(p.price || 0).toLocaleString()}</td>
+                      <td style={{ padding: '10px' }}>{formatPrice(Number(p.price || 0), p.currency || 'NGN', false)}</td>
                       <td style={{ padding: '10px' }}>{p.stock}</td>
                       <td style={{ padding: '10px' }}>
                         <span style={{

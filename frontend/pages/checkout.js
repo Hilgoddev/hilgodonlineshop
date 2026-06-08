@@ -748,7 +748,7 @@ export default function Checkout() {
                 fontSize: '.78rem', color: 'var(--success)', fontWeight: '600',
                 display: 'flex', alignItems: 'center', gap: '6px',
               }}>
-                <i className="fas fa-truck-fast"></i> Free delivery on orders above ₦50,000
+                <i className="fas fa-truck-fast"></i> Free delivery on orders above {formatPrice(50000, 'NGN', false)}
               </div>
             )}
 
