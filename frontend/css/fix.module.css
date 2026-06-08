@@ -25,4 +25,19 @@
   .modal__inner {
     grid-template-columns: 1fr;
   }
+
+@media (max-width: 767px) {
+  .btn__outline {
+    width: 100% !important;
+  }
+}
+ 
+}
+.btn-primary {
+    width: 0 !important;
+  }
+  @media (max-width: 767px) {
+  .btn-primary {
+    width: 100% !important;
+  }
 }

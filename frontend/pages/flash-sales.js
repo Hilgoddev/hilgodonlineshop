@@ -4,6 +4,7 @@ import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import { withNormalizedPricing, normalizePricing } from '@/lib/pricing';
 import { resolveServerApiBase } from '@/lib/env';
+import styles from '@/css/fix.module.css';
 
 function CountdownBadge({ expiresAt }) {
   const [cd, setCd] = useState({ h: 0, m: 0, s: 0 });
@@ -84,18 +85,18 @@ export default function FlashSales({ flashSales = [] }) {
             Our next flash sale is coming soon. Subscribe to our newsletter to be the first to know about exclusive limited-time deals — up to 70% off on top products.
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: 'var(--space-8)' }}>
-            <Link href="/products" className="btn btn-primary btn-lg">
+            <Link href="/products" className={`btn btn-primary btn-lg ${styles.btnPrimary}`}>
               <i className="fas fa-shopping-bag"></i> Shop All Products
             </Link>
-            <Link href="/" className="btn btn-outline btn-lg">
+            <Link href="/" className={`btn btn-outline btn-lg ${styles.btn__outline}`}>
               <i className="fas fa-home"></i> Back to Home
             </Link>
           </div>
-          <div style={{ padding: '20px 28px', background: 'linear-gradient(135deg,#1e0a3c,#3b0764)', borderRadius: 'var(--radius-md)', color: '#fff', textAlign: 'left' }}>
+          <div style={{display:'flex',flexDirection: 'column',alignItems: 'center', padding: '20px 28px', background: 'linear-gradient(135deg,#1e0a3c,#3b0764)', borderRadius: 'var(--radius-md)', color: '#fff', textAlign: 'left' }}>
             <div style={{ fontWeight: 700, marginBottom: '8px', fontSize: '.9rem' }}>
               <i className="fas fa-bell" style={{ marginRight: '8px' }}></i>Be the first to know
             </div>
-            <p style={{ fontSize: '.82rem', color: 'rgba(255,255,255,.75)', marginBottom: '12px' }}>
+            <p style={{textAlign:'center', fontSize: '.82rem', color: 'rgba(255,255,255,.75)', marginBottom: '12px' }}>
               Flash sales are announced first via newsletter and WhatsApp.
             </p>
             <a href="https://wa.me/2348080535728" className="btn" style={{ background: '#25d366', color: '#fff', border: 'none', fontSize: '.85rem' }} target="_blank" rel="noopener noreferrer">

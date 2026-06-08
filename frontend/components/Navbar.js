@@ -470,8 +470,8 @@ export default function Navbar() {
             <Link href="/products?category=beauty" className="cat-nav-item">Beauty</Link>
             <Link href="/products?category=electronics" className="cat-nav-item">Electronics</Link>
             <Link href="/products?category=accessories" className="cat-nav-item">Accessories</Link>
-            <Link href="/products?category=home" className="cat-nav-item">Home</Link>
-            <Link href="/products?category=kitchen" className="cat-nav-item">Kitchen</Link>
+            <Link href="/products?category=home" className="cat-nav-item home">Home</Link>
+            <Link href="/products?category=kitchen" className="cat-nav-item kitchen">Kitchen</Link>
             <Link href="/flash-sales" className="cat-nav-item" style={{ color: '#ffd700', fontWeight: '700' }}><i className="fas fa-bolt"></i> Deals</Link>
           </div>
         </nav>
