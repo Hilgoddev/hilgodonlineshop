@@ -4,6 +4,7 @@ import { useSession, signOut } from '../contexts/AuthContext';
 import { useRouter } from 'next/router';
 import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
+import styles from '../css/fix.module.css';
 
 // Category icons keyed by lowercased category NAME (DB categories have no icon,
 // and their slugs are messy — names are clean). Drives icons everywhere a
@@ -471,8 +472,8 @@ export default function Navbar() {
             <Link href="/products?category=electronics" className="cat-nav-item">Electronics</Link>
             <Link href="/products?category=accessories" className="cat-nav-item">Accessories</Link>
             <Link href="/products?category=home" className="cat-nav-item home">Home</Link>
-            <Link href="/products?category=kitchen" className="cat-nav-item kitchen">Kitchen</Link>
-            <Link href="/flash-sales" className="cat-nav-item" style={{ color: '#ffd700', fontWeight: '700' }}><i className="fas fa-bolt"></i> Deals</Link>
+            <Link href="/products?category=kitchen" className={`cat-nav-item ${styles.n__kitchen}`}>Kitchen</Link>
+            <Link href="/flash-sales" className={`cat-nav-item ${styles.n__deals}`} style={{ color: '#ffd700', fontWeight: '700' }}><i className="fas fa-bolt"></i> Deals</Link>
           </div>
         </nav>
       </header>
