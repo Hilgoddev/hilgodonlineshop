@@ -220,7 +220,7 @@ export default function AdminDashboard() {
                       <td style={{ padding: '12px' }}>
                         {order.user?.firstName || 'N/A'} {order.user?.lastName || ''}
                       </td>
-                      <td style={{ padding: '12px', fontWeight: 700 }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</td>
+                      <td style={{ padding: '12px', fontWeight: 700 }}>{formatPrice(order.totalAmount || 0, order.currency || 'NGN', false)}</td>
                       <td style={{ padding: '12px' }}>
                         <span style={getPayBadge(order.paymentStatus)}>{order.paymentStatus || 'pending'}</span>
                       </td>

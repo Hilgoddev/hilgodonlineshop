@@ -207,7 +207,7 @@ export default function AdminOrders() {
                             <div style={{ fontSize: '.8rem', color: 'var(--gray-1)' }}>{custEmail}</div>
                           </td>
                           <td style={{ padding: '14px 16px', verticalAlign: 'top', fontWeight: '600' }}>{order.items?.length || 0}</td>
-                          <td style={{ padding: '14px 16px', fontWeight: '700', verticalAlign: 'top' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</td>
+                          <td style={{ padding: '14px 16px', fontWeight: '700', verticalAlign: 'top' }}>{formatPrice(order.totalAmount || 0, order.currency || 'NGN', false)}</td>
                           <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                             <span style={badge(order.paymentStatus || 'pending', payColors)}>{order.paymentStatus || 'pending'}</span>
                             <div style={{ fontSize: '.72rem', color: 'var(--gray-1)', marginTop: '4px' }}>

@@ -6,7 +6,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     // Fetch order and verify it hasn't been processed already (guard against duplicate webhook calls)
     const { data: order, error: orderCheckErr } = await supabase
       .from('orders')
-      .select('total_amount, status')
+      .select('total_amount, status, currency')
       .eq('id', order_id)
       .single();
 
@@ -60,7 +60,7 @@ async function handlePaymentSuccess(order_id, user_id) {
           sendEmail({
             to: user.email,
             subject: `Payment Confirmed — Order #${String(order_id).slice(0, 8).toUpperCase()}`,
-            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName),
+            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName, order?.currency),
             emailType: 'payment_confirmed',
             orderId: order_id,
             userId: user_id,
@@ -90,7 +90,7 @@ async function handlePaymentSuccess(order_id, user_id) {
         sendEmail({
           to: seller.email,
           subject: `New Order Received — #${String(order_id).slice(0, 8).toUpperCase()}`,
-          html: newOrderSellerHtml(order_id, sellerEmailItems),
+          html: newOrderSellerHtml(order_id, sellerEmailItems, order?.currency),
           emailType: 'new_order_seller',
           orderId: order_id,
           userId: sellerId,
@@ -104,7 +104,7 @@ async function handlePaymentSuccess(order_id, user_id) {
       sendEmail({
         to: adminEmail,
         subject: `New Paid Order — #${String(order_id).slice(0, 8).toUpperCase()}`,
-        html: newOrderAdminHtml(order_id, emailItems, order?.total_amount || 0, user_id || 'Unknown'),
+        html: newOrderAdminHtml(order_id, emailItems, order?.total_amount || 0, user_id || 'Unknown', order?.currency),
         emailType: 'new_order_admin',
         orderId: order_id,
       }).catch(() => {});

@@ -24,6 +24,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
   const custName = order.user?.firstName ? `${order.user.firstName} ${order.user.lastName}`.trim() : 'Guest';
   const custEmail = order.user?.email || 'N/A';
   const addr = order.deliveryAddress;
+  const orderCurrency = order.currency || 'NGN';
   const orderId = `#${String(order._id || order.id).slice(-8).toUpperCase()}`;
   const PAYMENT_LABELS = { paystack: 'Paystack', stripe: 'Stripe', bank_transfer: 'Bank Transfer', pod: 'Pay on Delivery', opay: 'OPay', card: 'Card' };
   const paymentLabel = order.paymentMethod ? (PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod) : 'Unknown';
@@ -88,7 +89,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <strong>Items ({order.items?.length || 0})</strong>
-            <strong>{formatPrice(order.totalAmount || 0, 'NGN', false)}</strong>
+            <strong>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</strong>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -103,7 +104,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: '600' }}>{item.name}</div>
                   <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>
-                    Qty: {item.quantity} · {formatPrice(item.price || 0, 'NGN', false)}
+                    Qty: {item.quantity} · {formatPrice(item.price || 0, item.currency || orderCurrency, false)}
                   </div>
                   {item.fulfillmentStatus && (
                     <div style={{ fontSize: '.75rem', color: '#475569', textTransform: 'capitalize' }}>

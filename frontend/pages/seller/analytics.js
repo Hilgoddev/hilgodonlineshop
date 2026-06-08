@@ -59,10 +59,10 @@ export default function SellerAnalytics() {
           <>
             {/* Metric Cards */}
             <div className="seller-metrics-grid" style={{ marginBottom: '24px' }}>
-              <MetricCard icon="fa-naira-sign" label="Total Revenue" value={formatPrice(Number(data.metrics.totalSales || 0), 'NGN', false)} />
+              <MetricCard icon="fa-naira-sign" label="Total Revenue" value={formatPrice(Number(data.metrics.totalSales || 0), data.metrics.currency || 'NGN', false)} />
               <MetricCard icon="fa-boxes-stacked" label="Units Sold" value={data.metrics.totalUnits || 0} />
               <MetricCard icon="fa-box" label="Products" value={data.metrics.productCount || 0} />
-              <MetricCard icon="fa-tag" label="Avg. List Price" value={formatPrice(Number(data.metrics.avgProductPrice || 0), 'NGN', false)} />
+              <MetricCard icon="fa-tag" label="Avg. List Price" value={formatPrice(Number(data.metrics.avgProductPrice || 0), data.metrics.currency || 'NGN', false)} />
             </div>
 
             {/* Product Status Breakdown */}
@@ -108,7 +108,7 @@ export default function SellerAnalytics() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
                             <span style={{ padding: '2px 8px', borderRadius: '999px', fontSize: '.72rem', fontWeight: 700, background: bg, color }}>{product.status}</span>
                             <div style={{ textAlign: 'right' }}>
-                              <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(product.sales, 'NGN', false)}</div>
+                              <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(product.sales, product.currency || data.metrics.currency || 'NGN', false)}</div>
                               <div style={{ fontSize: '.75rem', color: 'var(--gray-1)' }}>{product.units} sold</div>
                             </div>
                           </div>

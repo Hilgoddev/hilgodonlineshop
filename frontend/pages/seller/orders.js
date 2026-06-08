@@ -185,7 +185,7 @@ export default function SellerOrders() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.sellerTotal, 'NGN', false)}</div>
+                          <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.sellerTotal, order.currency || 'NGN', false)}</div>
                           <div style={{ fontSize: '.75rem', color: 'var(--gray-1)' }}>{order.buyer.name}</div>
                         </div>
                         <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '.75rem', fontWeight: 700, background: bg, color, textTransform: 'capitalize' }}>

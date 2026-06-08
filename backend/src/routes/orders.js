@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
-const { sendEmail, orderConfirmationHtml, orderStatusHtml, escapeHtml } = require('../services/email');
+const { sendEmail, orderConfirmationHtml, orderStatusHtml, escapeHtml, formatMoney } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
 const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
@@ -325,7 +325,7 @@ router.post('/', verifyToken, async (req, res, next) => {
         sendEmail({
             to: req.user.email,
             subject: `Order Confirmed — Hilgod #${order.id.slice(0,8).toUpperCase()}`,
-            html: orderConfirmationHtml(order.id, responseItems, total_amount),
+            html: orderConfirmationHtml(order.id, responseItems, total_amount, order.currency),
             emailType: 'order_confirmation',
             orderId: order.id,
             userId: req.user.id,
@@ -576,7 +576,7 @@ router.put('/:id', verifyToken, async (req, res, next) => {
                         sendEmail({
                             to: user.email,
                             subject: `Order Update — Hilgod`,
-                            html: orderStatusHtml(orderId, newStatus),
+            html: orderStatusHtml(orderId, newStatus),
                             emailType: 'order_status',
                             orderId,
                             userId: updatedOrder.user_id,
@@ -621,7 +621,8 @@ router.post('/:id/notify', verifyToken, async (req, res, next) => {
             user.user_metadata?.full_name || user.user_metadata?.name || user.email.split('@')[0]
         );
         const orderId  = String(order.id).slice(0, 8).toUpperCase();
-        const total    = Number(order.total_amount || 0).toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+        const orderCurrency = String(order.currency || 'NGN').toUpperCase();
+        const total    = formatMoney(Number(order.total_amount || 0), orderCurrency);
         const placed   = new Date(order.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
         const addr     = order.shipping_address || {};
         const addrLine = [addr.street, addr.city, addr.state, addr.country].filter(Boolean).join(', ');
@@ -636,9 +637,9 @@ router.post('/:id/notify', verifyToken, async (req, res, next) => {
         const itemRows = (items || []).map(it => {
             const name  = escapeHtml(it.product?.name || 'Product');
             const img   = it.product?.images?.[0] || '';
-            const price = Number(it.unit_price || 0).toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+            const price = formatMoney(Number(it.unit_price || 0), orderCurrency);
             const line  = Number(it.unit_price || 0) * Number(it.quantity || 1);
-            const lineF = line.toLocaleString('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
+            const lineF = formatMoney(line, orderCurrency);
             const imgTag = img ? `<img src="${escapeHtml(img)}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px">` : '';
             return `<tr>
               <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle">${imgTag}${name}</td>

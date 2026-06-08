@@ -323,7 +323,9 @@ export default function Account() {
                       <button onClick={() => setActiveTab('orders')} style={{ fontSize: '.82rem', color: 'var(--primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>View All</button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {orders.slice(0, 3).map(order => (
+                    {orders.slice(0, 3).map(order => {
+                      const orderCurrency = order.currency || 'NGN';
+                      return (
                         <div key={order._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: 'var(--gray-6)', borderRadius: 'var(--radius)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--primary-xlight)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -335,11 +337,12 @@ export default function Account() {
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '.88rem' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</div>
+                            <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '.88rem' }}>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</div>
                             <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', textTransform: 'capitalize', background: order.status === 'delivered' ? '#dcfce7' : order.status === 'shipped' ? '#ede9fe' : '#fef3c7', color: order.status === 'delivered' ? '#15803d' : order.status === 'shipped' ? '#6d28d9' : '#92400e' }}>{order.status || 'pending'}</span>
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
                     </div>
                   </div>
                 )}
@@ -449,6 +452,7 @@ export default function Account() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {orders.map(order => {
                       const isExpanded = expandedOrder === order._id;
+                      const orderCurrency = order.currency || 'NGN';
                       const statusColor = { delivered: '#15803d', shipped: '#6d28d9', paid: '#0369a1', processing: '#1e40af', cancelled: '#b91c1c' }[order.status] || '#92400e';
                       const statusBg = { delivered: '#dcfce7', shipped: '#ede9fe', paid: '#e0f2fe', processing: '#dbeafe', cancelled: '#fee2e2' }[order.status] || '#fef3c7';
                       const addr = order.deliveryAddress;
@@ -470,7 +474,7 @@ export default function Account() {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.totalAmount || 0, 'NGN', false)}</div>
+                                <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</div>
                                 <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: statusBg, color: statusColor, textTransform: 'capitalize' }}>{order.status || 'pending'}</span>
                               </div>
                               <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} style={{ color: 'var(--gray-2)', fontSize: '.75rem', flexShrink: 0 }}></i>
@@ -493,7 +497,7 @@ export default function Account() {
                                     <div style={{ flex: 1, minWidth: 0 }}>
                                       <div style={{ fontWeight: 700, fontSize: '.88rem', marginBottom: '2px' }}>{item.name}</div>
                                       <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>
-                                        Qty: {item.quantity} · {formatPrice(item.price || 0, 'NGN', false)}
+                                        Qty: {item.quantity} · {formatPrice(item.price || 0, item.currency || orderCurrency, false)}
                                       </div>
                                       {item.seller && (
                                         <div style={{ fontSize: '.72rem', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -503,7 +507,7 @@ export default function Account() {
                                       )}
                                     </div>
                                     <div style={{ fontWeight: 800, fontSize: '.88rem', flexShrink: 0 }}>
-                                      {formatPrice((item.price || 0) * (item.quantity || 1), 'NGN', false)}
+                                      {formatPrice((item.price || 0) * (item.quantity || 1), item.currency || orderCurrency, false)}
                                     </div>
                                   </div>
                                 ))}

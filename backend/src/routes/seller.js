@@ -101,17 +101,13 @@ router.get('/dashboard', verifyToken, requireSellerOrAdmin, async (req, res, nex
       .order('created_at', { ascending: false });
     if (pErr) throw pErr;
 
-    // Filter order_items at DB level using the seller's product IDs.
-    // IMPORTANT: only count items from PAID orders — unpaid/pending/cancelled
-    // orders must never inflate a seller's sales/earnings (payout-relevant).
-    const productIds = (products || []).map((p) => p.id);
     let totalSales = 0;
     let totalUnits = 0;
-    if (productIds.length > 0) {
+    {
       const { data: orderItems, error: oiErr } = await supabase
         .from('order_items')
-        .select('quantity, unit_price, order_id')
-        .in('product_id', productIds);
+        .select('quantity, unit_price, order_id, seller_id')
+        .eq('seller_id', req.user.id);
       if (oiErr) throw oiErr;
 
       const paidOrderIds = await getPaidOrderIdSet((orderItems || []).map((i) => i.order_id));
@@ -146,13 +142,12 @@ router.get('/analytics', verifyToken, requireSellerOrAdmin, async (req, res, nex
       .order('created_at', { ascending: false });
     if (pErr) throw pErr;
 
-    const productIds = (products || []).map((p) => p.id);
     const salesByProduct = {};
-    if (productIds.length > 0) {
+    {
       const { data: orderItems, error: oiErr } = await supabase
         .from('order_items')
-        .select('product_id, quantity, unit_price, order_id')
-        .in('product_id', productIds);
+        .select('product_id, quantity, unit_price, order_id, seller_id')
+        .eq('seller_id', req.user.id);
       if (oiErr) throw oiErr;
       // Only count items from PAID orders (payout-relevant — no unpaid inflation).
       const paidOrderIds = await getPaidOrderIdSet((orderItems || []).map((i) => i.order_id));
@@ -207,25 +202,15 @@ router.get('/analytics', verifyToken, requireSellerOrAdmin, async (req, res, nex
 
 router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
   try {
-    const { data: products, error: pErr } = await supabase
-      .from('products')
-      .select('id, name, images')
-      .eq('seller_id', req.user.id)
-      .eq('is_active', true);
-    if (pErr) throw pErr;
-
-    const productIds = (products || []).map((p) => p.id);
-    if (!productIds.length) return res.status(200).json({ success: true, data: [] });
-
     let { data: orderItems, error: oiErr } = await supabase
       .from('order_items')
-      .select('id, order_id, product_id, quantity, unit_price, fulfillment_status')
-      .in('product_id', productIds);
+      .select('id, order_id, product_id, seller_id, quantity, unit_price, fulfillment_status, product:products(name, images)')
+      .eq('seller_id', req.user.id);
     if (oiErr && String(oiErr.message || '').includes('fulfillment_status')) {
       ({ data: orderItems, error: oiErr } = await supabase
         .from('order_items')
-        .select('id, order_id, product_id, quantity, unit_price')
-        .in('product_id', productIds));
+        .select('id, order_id, product_id, seller_id, quantity, unit_price, product:products(name, images)')
+        .eq('seller_id', req.user.id));
     }
     if (oiErr) throw oiErr;
 
@@ -234,7 +219,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
 
     const { data: orders, error: ordErr } = await supabase
       .from('orders')
-      .select('id, user_id, total_amount, status, created_at, shipping_address')
+      .select('id, user_id, total_amount, status, created_at, shipping_address, currency')
       .in('id', orderIds)
       .order('created_at', { ascending: false });
     if (ordErr) throw ordErr;
@@ -244,16 +229,13 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
       ? await supabase.from('profiles').select('id, full_name, username').in('id', buyerIds)
       : { data: [] };
     const buyerMap = new Map((buyers || []).map((b) => [b.id, b]));
-    const productMap = new Map((products || []).map((p) => [p.id, p]));
-
     const itemsByOrder = (orderItems || []).reduce((map, oi) => {
       const list = map.get(oi.order_id) || [];
-      const product = productMap.get(oi.product_id);
       list.push({
         id: oi.id,
         productId: oi.product_id,
-        name: product?.name || 'Product',
-        image: product?.images?.[0] || null,
+        name: oi.product?.name || 'Product',
+        image: oi.product?.images?.[0] || null,
         quantity: Number(oi.quantity),
         price: Number(oi.unit_price),
         fulfillmentStatus: oi.fulfillment_status || 'pending',
@@ -269,6 +251,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
         id: o.id,
         status: o.status,
         totalAmount: Number(o.total_amount),
+        currency: o.currency || 'NGN',
         createdAt: o.created_at,
         buyer: {
           name: buyer?.full_name || buyer?.username || 'Customer',
