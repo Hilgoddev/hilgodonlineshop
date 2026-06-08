@@ -306,7 +306,7 @@ export default function Navbar() {
                     <div key={p._id} className="suggestion-item" onClick={() => router.push(`/products/${p._id}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}>
                       <i className="fas fa-search" style={{ color: 'var(--gray-2)' }}></i>
                       <span style={{ fontSize: '.9rem', fontWeight: '600' }}>{p.name}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700' }}>{formatPrice(p.price || 0, p.currency || 'NGN')}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
                     </div>
                   ))}
                   <div className="suggestion-item" onClick={() => router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'var(--primary-xlight)' }}>

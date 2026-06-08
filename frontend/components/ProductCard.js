@@ -106,10 +106,10 @@ export default function ProductCard({ product, showAddToCart = true }) {
           )}
 
           <div className="product-card__pricing">
-            <span className="product-card__price">{formatPrice(price || 0, product.currency || 'NGN')}</span>
+            <span className="product-card__price">{formatPrice(price || 0, product.currency || 'NGN', false)}</span>
             {discount > 0 && (
               <>
-                <span className="product-card__original">{formatPrice(originalPrice || 0, product.currency || 'NGN')}</span>
+                <span className="product-card__original">{formatPrice(originalPrice || 0, product.currency || 'NGN', false)}</span>
               </>
             )}
           </div>

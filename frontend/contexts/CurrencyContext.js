@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const CurrencyContext = createContext();
-const FALLBACK_RATES = { USD: 1, NGN: 1550, GBP: 0.79, EUR: 0.92 };
+const FALLBACK_RATES = { USD: 1, NGN: 1365, GBP: 0.75, EUR: 0.87 };
 const CURRENCY_STORAGE_KEY = 'hilgod_currency_pref';
+const RATES_CACHE_KEY = 'hilgod_exchange_rates_cache';
+const RATES_CACHE_TTL = 24 * 60 * 60 * 1000;
 const SUPPORTED = ['USD', 'NGN', 'GBP', 'EUR'];
 
 const mapLocaleToCurrency = (locale = '') => {
@@ -47,11 +49,11 @@ export function CurrencyProvider({ children }) {
                 let ratesLoaded = false;
 
                 // Check localStorage cache first
-                const localRatesCache = typeof window !== 'undefined' ? localStorage.getItem('hilgod_exchange_rates_cache') : null;
+                const localRatesCache = typeof window !== 'undefined' ? localStorage.getItem(RATES_CACHE_KEY) : null;
                 if (localRatesCache) {
                     try {
                         const { rates: cachedRates, timestamp } = JSON.parse(localRatesCache);
-                        if (Date.now() - timestamp < 86400000 && cachedRates && typeof cachedRates === 'object') {
+                        if (Date.now() - timestamp < RATES_CACHE_TTL && cachedRates && typeof cachedRates === 'object') {
                             rates = cachedRates;
                             ratesLoaded = true;
                         }
@@ -67,7 +69,7 @@ export function CurrencyProvider({ children }) {
                                 rates = { ...FALLBACK_RATES, ...ratesData.rates };
                                 ratesLoaded = true;
                                 try {
-                                    localStorage.setItem('hilgod_exchange_rates_cache', JSON.stringify({
+                                    localStorage.setItem(RATES_CACHE_KEY, JSON.stringify({
                                         rates,
                                         timestamp: Date.now()
                                     }));
@@ -75,27 +77,8 @@ export function CurrencyProvider({ children }) {
                             }
                         }
                     } catch (_) {
-                        console.warn('Failed to fetch rates from backend, trying external API...');
+                        console.warn('Failed to fetch rates from backend, using fallback rates...');
                     }
-                }
-
-                if (!ratesLoaded) {
-                    try {
-                        const ratesRes = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
-                        if (ratesRes.ok) {
-                            const ratesData = await ratesRes.json();
-                            if (ratesData?.rates && typeof ratesData.rates === 'object') {
-                                rates = { ...FALLBACK_RATES, ...ratesData.rates };
-                                ratesLoaded = true;
-                                try {
-                                    localStorage.setItem('hilgod_exchange_rates_cache', JSON.stringify({
-                                        rates,
-                                        timestamp: Date.now()
-                                    }));
-                                } catch (_) {}
-                            }
-                        }
-                    } catch (_) {}
                 }
 
                 // ── Dynamic-first geolocation ────────────────────────────
@@ -133,10 +116,10 @@ export function CurrencyProvider({ children }) {
                 if (isMounted) {
                     setExchangeRates(rates);
                     const normalized = String(detectedCurrency || 'USD').toUpperCase();
-                    const finalCurrency = SUPPORTED.includes(normalized) && rates[normalized]
+                    const finalCurrency = SUPPORTED.includes(normalized) && Number(rates[normalized]) > 0
                         ? normalized
-                        : rates[tzCurrency] ? tzCurrency
-                        : rates[localeCurrency] ? localeCurrency : 'USD';
+                        : Number(rates[tzCurrency]) > 0 ? tzCurrency
+                        : Number(rates[localeCurrency]) > 0 ? localeCurrency : 'USD';
                     setCurrency(finalCurrency);
 
                     // Only persist when we got a REAL geo detection or timezone/locale,
