@@ -170,6 +170,15 @@ function ProductPickerModal({ products, onSelect, onClose, formatPrice }) {
   );
 }
 
+// Campaign type metadata — drives labels, icons, badge colours and the
+// storefront path each campaign type appears on.
+const TYPE_META = {
+  flash:        { label: 'Flash Sale',   icon: 'fa-bolt', path: '/flash-sales',  color: '#dc2626', bg: '#fee2e2' },
+  black_friday: { label: 'Black Friday', icon: 'fa-tag',  path: '/black-friday', color: '#0f172a', bg: '#e2e8f0' },
+  easter:       { label: 'Easter Sale',  icon: 'fa-egg',  path: '/easter',       color: '#7e22ce', bg: '#f3e8ff' },
+};
+const typeMeta = (t) => TYPE_META[t] || TYPE_META.flash;
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminFlashSales() {
   const { formatPrice } = useCurrency();
@@ -353,11 +362,11 @@ export default function AdminFlashSales() {
         Add products to flash sale — pick from existing inventory or upload a brand new product.
       </p>
 
-      {/* Add Flash Sale Card */}
+      {/* Add Campaign Card */}
       <div className="card" style={{ marginBottom: '28px', padding: '24px' }}>
         <h3 style={{ fontWeight: 800, fontSize: '1rem', marginBottom: '20px', color: '#0f172a' }}>
-          <i className="fas fa-bolt" style={{ marginRight: '8px', color: '#ef4444' }} />
-          Add Flash Sale
+          <i className={`fas ${typeMeta(campaignType).icon}`} style={{ marginRight: '8px', color: typeMeta(campaignType).color }} />
+          Add {typeMeta(campaignType).label}
         </h3>
 
         {/* Mode tabs */}
@@ -634,7 +643,7 @@ export default function AdminFlashSales() {
           <button type="submit" className="btn btn-primary" disabled={submitting || imageUploading} style={{ minWidth: '160px' }}>
             {submitting
               ? <><i className="fas fa-spinner fa-spin" /> Adding…</>
-              : <><i className="fas fa-bolt" /> Add Flash Sale</>}
+              : <><i className={`fas ${typeMeta(campaignType).icon}`} /> Add {typeMeta(campaignType).label}</>}
           </button>
         </form>
       </div>
@@ -644,7 +653,7 @@ export default function AdminFlashSales() {
         <div style={{ padding: '14px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a', margin: 0 }}>
             <i className="fas fa-list" style={{ marginRight: '8px', color: '#64748b' }} />
-            All Flash Sales
+            All Campaigns
           </h3>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{sales.length} total</span>
         </div>
@@ -655,7 +664,7 @@ export default function AdminFlashSales() {
           </div>
         ) : sales.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
-            No flash sales yet. Add one above to get started.
+            No campaigns yet. Add one above to get started.
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -663,6 +672,7 @@ export default function AdminFlashSales() {
               <thead>
                 <tr style={{ background: '#f8fafc', color: '#64748b' }}>
                   <th style={{ padding: '12px 16px', textAlign: 'left' }}>Product</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Type</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left' }}>Sale Price</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left' }}>Original</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left' }}>Discount</th>
@@ -698,6 +708,12 @@ export default function AdminFlashSales() {
                           )}
                           <span style={{ fontWeight: 600, color: '#0f172a' }}>{sale.products?.name || '—'}</span>
                         </div>
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: typeMeta(sale.type).bg, color: typeMeta(sale.type).color, padding: '3px 9px', borderRadius: '20px', fontSize: '0.74rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          <i className={`fas ${typeMeta(sale.type).icon}`} style={{ fontSize: '0.7rem' }} />
+                          {typeMeta(sale.type).label}
+                        </span>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#dc2626', fontWeight: 700 }}>
                         {formatPrice(sale.sale_price || 0, sale.products?.currency || 'NGN', false)}
