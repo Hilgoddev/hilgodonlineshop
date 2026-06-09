@@ -212,6 +212,37 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
     }
 });
 
+// Lightweight counts for the sidebar attention badges (pending approvals + payouts).
+// Cheap head-count queries; tolerant of any missing table (returns 0 for it).
+const badgeCache = makeCache({ ttlMs: 20 * 1000 });
+router.get('/badge-counts', verifyToken, requireAdmin, async (req, res) => {
+    const cached = badgeCache.get('counts');
+    if (cached && cached.fresh) return res.status(200).json(cached.value);
+    try {
+        const pending = async (table) => {
+            const { count, error } = await supabase
+                .from(table)
+                .select('id', { count: 'exact', head: true })
+                .eq('status', 'pending');
+            return error ? 0 : (count || 0);
+        };
+        const [products, stores, sellerApps, payouts] = await Promise.all([
+            pending('products'),
+            pending('stores'),
+            pending('seller_applications'),
+            pending('seller_payouts'),
+        ]);
+        const payload = {
+            success: true,
+            data: { approvals: products + stores + sellerApps, payouts },
+        };
+        badgeCache.set('counts', payload);
+        return res.status(200).json(payload);
+    } catch (err) {
+        return res.status(200).json({ success: true, data: { approvals: 0, payouts: 0 } });
+    }
+});
+
 router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
     try {
         const parsedPage  = Math.max(1, Number(req.query.page)  || 1);

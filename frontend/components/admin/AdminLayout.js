@@ -1,8 +1,36 @@
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signOut, useSession } from '../../contexts/AuthContext';
+import { adminJson } from '../../lib/adminApi';
+
+// Red attention badge (matches the cart count style) shown on nav items that
+// need action. Renders nothing when the count is 0.
+function NavBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span
+      style={{
+        marginLeft: 'auto',
+        background: '#ef4444',
+        color: '#fff',
+        fontSize: '0.68rem',
+        fontWeight: 800,
+        minWidth: '18px',
+        height: '18px',
+        borderRadius: '9px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '0 5px',
+        lineHeight: 1,
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: 'fa-gauge-high' },
@@ -23,6 +51,28 @@ export default function AdminLayout({ children, title, description }) {
   const router = useRouter();
   const { data: session } = useSession();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [badges, setBadges] = useState({ approvals: 0, payouts: 0 });
+
+  // Pull pending counts for the sidebar attention badges. Refreshed on navigation
+  // so a just-handled approval/payout drops the count without a manual reload.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { res, json } = await adminJson('/api/admin/badge-counts');
+        if (!cancelled && res.ok && json?.success) {
+          setBadges({ approvals: json.data?.approvals || 0, payouts: json.data?.payouts || 0 });
+        }
+      } catch { /* non-fatal — badges just stay hidden */ }
+    })();
+    return () => { cancelled = true; };
+  }, [router.pathname]);
+
+  // Map nav href -> attention count (0 = no badge).
+  const badgeFor = (href) =>
+    href === '/admin/approvals' ? badges.approvals
+    : href === '/admin/payouts' ? badges.payouts
+    : 0;
 
   const handleLogout = async () => {
     await signOut();
@@ -112,6 +162,7 @@ export default function AdminLayout({ children, title, description }) {
                 >
                   <i className={`fas ${item.icon}`} style={{ width: '1.1rem', textAlign: 'center' }} />
                   {item.label}
+                  <NavBadge count={badgeFor(item.href)} />
                 </Link>
               );
             })}
@@ -181,6 +232,7 @@ export default function AdminLayout({ children, title, description }) {
                 >
                   <i className={`fas ${item.icon}`} style={{ width: '1.1rem', textAlign: 'center' }} />
                   {item.label}
+                  <NavBadge count={badgeFor(item.href)} />
                 </Link>
               );
             })}
