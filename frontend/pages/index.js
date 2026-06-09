@@ -5,7 +5,7 @@ import ProductCard from '@/components/ProductCard';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
-import { cleanEnv, resolveServerApiBase } from '@/lib/env';
+import { resolveServerApiBase } from '@/lib/env';
 import HomeCampaignSection from '@/components/HomeCampaignSection';
 
 // Campaign types shown on the landing page, in display order. Each renders its
@@ -183,10 +183,10 @@ export default function Home({ products, categories = [], campaigns = [] }) {
     if (catalogProducts && catalogProducts.length > 0) {
       setBestsellers([...catalogProducts]
         .sort((a, b) => (b.ratings?.count || 0) - (a.ratings?.count || 0))
-        .slice(0, 5));
+        .slice(0, 8));
       setNewArrivals([...catalogProducts]
         .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at))
-        .slice(0, 5));
+        .slice(0, 8));
     } else if (!catalogLoading) {
       setBestsellers([]);
       setNewArrivals([]);
@@ -198,13 +198,15 @@ export default function Home({ products, categories = [], campaigns = [] }) {
   // the others out, leaving sections like Womenswear empty even though stock exists.
   useEffect(() => {
     let cancelled = false;
-    const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
+    // Same-origin /api (Next.js rewrite → backend) so category fetches don't depend
+    // on the API host's CORS allowlist.
+    const apiBase = '/api';
     const loadCat = async (slugs, setter) => {
       for (const slug of slugs) {
         try {
-          const data = await fetchJsonWithTimeout(`${apiBase}/products?category=${encodeURIComponent(slug)}&limit=5`, 8000);
+          const data = await fetchJsonWithTimeout(`${apiBase}/products?category=${encodeURIComponent(slug)}&limit=8`, 8000);
           if (!cancelled && data?.success && Array.isArray(data.data) && data.data.length) {
-            setter(data.data.slice(0, 5));
+            setter(data.data.slice(0, 8));
             return;
           }
         } catch { /* try the next fallback slug */ }
@@ -225,8 +227,7 @@ export default function Home({ products, categories = [], campaigns = [] }) {
     const loadProducts = async () => {
       if (products && products.length > 0) return;
 
-      const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
-      const data = await fetchJsonWithTimeout(`${apiBase}/products?limit=20`, 15000);
+      const data = await fetchJsonWithTimeout(`/api/products?limit=20`, 15000);
       if (cancelled || !data?.success || !Array.isArray(data.data)) return;
 
       setCatalogProducts(data.data);
@@ -252,10 +253,7 @@ export default function Home({ products, categories = [], campaigns = [] }) {
 
     let cancelled = false;
     const loadCategories = async () => {
-      const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000/api')
-        .replace(/^﻿/, '')
-        .trim();
-      const data = await fetchJsonWithTimeout(`${apiBase}/categories`, 15000);
+      const data = await fetchJsonWithTimeout(`/api/categories`, 15000);
       if (cancelled || !data?.success || !Array.isArray(data.data)) return;
       setCategoryList(data.data);
     };

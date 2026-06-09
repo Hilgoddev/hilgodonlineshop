@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
-import { cleanEnv, resolveServerApiBase } from '@/lib/env';
+import { resolveServerApiBase } from '@/lib/env';
 
 const PAGE_SIZE = 20;
 // How many rows we pull per network round-trip. We page over this buffer
@@ -48,7 +48,9 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
 
   const filterKey = useRef(makeFilterKey(initCategory, initSubs, 'default', false, false));
 
-  const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
+  // Same-origin path: client fetches go through the Next.js /api rewrite (proxied
+  // to the backend) so there's no cross-origin/CORS dependency on the API host.
+  const apiBase = '/api';
   const buildParams = (limit, page) => {
     const params = new URLSearchParams({ limit: String(limit), page: String(page) });
     if (selectedCategories[0]) params.set('category', selectedCategories[0]);
@@ -111,15 +113,16 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
       .then((data) => {
         if (cancelled || !data?.success || !Array.isArray(data.data)) return;
         const batch = data.data;
-        setProducts((prev) => {
-          const merged = [...prev, ...batch];
-          // A short batch (fewer than requested) means we've reached the end —
-          // pin total to what we actually have so the loader can't keep
-          // refetching empty pages and hang (guards against count drift).
-          if (batch.length < BATCH_SIZE) setTotal(merged.length);
-          else setTotal((t) => Math.max(t, data.pagination?.total ?? data.meta?.total ?? merged.length));
-          return merged;
-        });
+        const newLen = products.length + batch.length;
+        setProducts((prev) => [...prev, ...batch]);
+        // A short batch (fewer than requested) means we've reached the end — pin
+        // total to what we actually have so the loader can't keep refetching empty
+        // pages and hang (guards against an over-estimated server count).
+        if (batch.length < BATCH_SIZE) {
+          setTotal(newLen);
+        } else {
+          setTotal((t) => Math.max(t, data.pagination?.total ?? data.meta?.total ?? newLen));
+        }
       })
       .finally(() => { if (!cancelled) setLoadingMore(false); });
 

@@ -7,6 +7,7 @@ import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { normalizePricing } from '@/lib/pricing';
 import { resolveServerApiBase } from '@/lib/env';
+import { apiFetch } from '@/lib/apiClient';
 
 export default function ProductDetail({ product, relatedProducts }) {
   const router = useRouter();
@@ -79,34 +80,35 @@ export default function ProductDetail({ product, relatedProducts }) {
     setReviewSubmitting(true);
     
     try {
-      const res = await fetch('/api/reviews', {
+      // apiFetch attaches the Supabase auth token — the reviews endpoint requires
+      // a logged-in user (name/email are taken from the verified account).
+      const res = await apiFetch('/api/reviews', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           product_id: product._id,
           product_name: product.name,
-          name: reviewForm.name,
-          email: reviewForm.email,
           rating: reviewForm.rating,
           title: reviewForm.title,
           message: reviewForm.message
         })
       });
-      
+
+      if (res.status === 401) {
+        showToast('Please log in to leave a review.', 'error');
+        return;
+      }
       const data = await res.json();
-      
-      if (data.success) {
+
+      if (res.ok && data.success) {
         showToast('Thank you! Your review has been submitted.', 'success');
         setReviewForm({ name: '', email: '', rating: 5, title: '', message: '' });
-        // Optionally, we could fetch reviews again here to update the UI
+        if (typeof loadReviews === 'function') loadReviews();
       } else {
         throw new Error(data.error || 'Failed to submit review');
       }
     } catch (error) {
       console.error(error);
-      showToast('Failed to submit review. Please try again.', 'error');
+      showToast(error.message || 'Failed to submit review. Please try again.', 'error');
     } finally {
       setReviewSubmitting(false);
     }
