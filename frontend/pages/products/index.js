@@ -110,8 +110,16 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     fetchJsonWithTimeout(`${apiBase}/products?${buildParams(BATCH_SIZE, nextBatch).toString()}`, 15000)
       .then((data) => {
         if (cancelled || !data?.success || !Array.isArray(data.data)) return;
-        setProducts((prev) => [...prev, ...data.data]);
-        setTotal(data.pagination?.total ?? data.meta?.total ?? products.length + data.data.length);
+        const batch = data.data;
+        setProducts((prev) => {
+          const merged = [...prev, ...batch];
+          // A short batch (fewer than requested) means we've reached the end —
+          // pin total to what we actually have so the loader can't keep
+          // refetching empty pages and hang (guards against count drift).
+          if (batch.length < BATCH_SIZE) setTotal(merged.length);
+          else setTotal((t) => Math.max(t, data.pagination?.total ?? data.meta?.total ?? merged.length));
+          return merged;
+        });
       })
       .finally(() => { if (!cancelled) setLoadingMore(false); });
 

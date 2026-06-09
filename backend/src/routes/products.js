@@ -102,7 +102,7 @@ const mapProduct = (p, flashSale = null) => {
 async function buildProductsPayload({ category, subcategory, search, seller_id, sort, in_stock, on_sale, parsedLimit, parsedPage }, timeoutMs = QUERY_TIMEOUT_MS) {
         let query = supabase
             .from('products')
-            .select('*, store:stores(name, slug, status, logo_url), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url)', { count: 'estimated' })
+            .select('*, store:stores(name, slug, status, logo_url), category_ref:categories(name, slug), seller:profiles(id, full_name, avatar_url)', { count: 'exact' })
             .eq('is_active', true)
             .eq('status', 'approved');
 

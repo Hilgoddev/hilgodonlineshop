@@ -178,36 +178,46 @@ export default function Home({ products, categories = [], campaigns = [] }) {
     return () => clearInterval(slideTimer);
   }, [heroSlides.length]);
 
-  // Initialize products by category
+  // Bestsellers & New Arrivals derive from the loaded catalog sample.
   useEffect(() => {
     if (catalogProducts && catalogProducts.length > 0) {
-      const cat = (p) => (p.category || '').toLowerCase();
-
-      const best = [...catalogProducts]
+      setBestsellers([...catalogProducts]
         .sort((a, b) => (b.ratings?.count || 0) - (a.ratings?.count || 0))
-        .slice(0, 5);
-      setBestsellers(best);
-
-      setElectronics(catalogProducts.filter(p => ['electronics', 'accessories', 'phones', 'laptops', 'gadgets'].includes(cat(p))).slice(0, 5));
-      setMenswear(catalogProducts.filter(p => ['menswear', 'shoes', 'men', 'fashion'].includes(cat(p))).slice(0, 5));
-      setWomenswear(catalogProducts.filter(p => ['womenswear', 'women', 'fashion'].includes(cat(p))).slice(0, 5));
-      setBeauty(catalogProducts.filter(p => ['beauty', 'beauty-health', 'skincare', 'cosmetics', 'personal-care'].includes(cat(p))).slice(0, 5));
-      setHomeKitchen(catalogProducts.filter(p => ['home', 'kitchen', 'home-kitchen', 'appliances', 'furniture'].includes(cat(p))).slice(0, 5));
-
-      const newProducts = [...catalogProducts]
+        .slice(0, 5));
+      setNewArrivals([...catalogProducts]
         .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at))
-        .slice(0, 5);
-      setNewArrivals(newProducts);
+        .slice(0, 5));
     } else if (!catalogLoading) {
       setBestsellers([]);
-      setElectronics([]);
-      setMenswear([]);
-      setWomenswear([]);
-      setBeauty([]);
-      setHomeKitchen([]);
       setNewArrivals([]);
     }
   }, [catalogProducts, catalogLoading]);
+
+  // Category sections are fetched PER CATEGORY from the API. Filtering a small
+  // shared sample let a dominant category (menswear has hundreds of items) crowd
+  // the others out, leaving sections like Womenswear empty even though stock exists.
+  useEffect(() => {
+    let cancelled = false;
+    const apiBase = cleanEnv(process.env.NEXT_PUBLIC_API_URL) || 'http://127.0.0.1:5000/api';
+    const loadCat = async (slugs, setter) => {
+      for (const slug of slugs) {
+        try {
+          const data = await fetchJsonWithTimeout(`${apiBase}/products?category=${encodeURIComponent(slug)}&limit=5`, 8000);
+          if (!cancelled && data?.success && Array.isArray(data.data) && data.data.length) {
+            setter(data.data.slice(0, 5));
+            return;
+          }
+        } catch { /* try the next fallback slug */ }
+      }
+      if (!cancelled) setter([]);
+    };
+    loadCat(['electronics', 'accessories'], setElectronics);
+    loadCat(['menswear', 'shoes'], setMenswear);
+    loadCat(['womenswear'], setWomenswear);
+    loadCat(['beauty'], setBeauty);
+    loadCat(['home', 'kitchen'], setHomeKitchen);
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
