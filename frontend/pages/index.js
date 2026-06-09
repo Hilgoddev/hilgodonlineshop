@@ -6,6 +6,16 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 import { cleanEnv, resolveServerApiBase } from '@/lib/env';
+import HomeCampaignSection from '@/components/HomeCampaignSection';
+
+// Campaign types shown on the landing page, in display order. Each renders its
+// own hero slide + its own deals section, only when it has active campaigns.
+const CAMPAIGN_ORDER = ['flash', 'black_friday', 'easter'];
+const CAMPAIGN_THEMES = {
+  flash:        { title: 'Flash Sales',  icon: 'fa-bolt', accent: '#ef4444', href: '/flash-sales',  tag: 'Flash Sale',   heroBg: 'linear-gradient(135deg,#1a1a1a 0%,#2d1a1a 50%,#3d0000 100%)' },
+  black_friday: { title: 'Black Friday', icon: 'fa-tag',  accent: '#f59e0b', href: '/black-friday', tag: 'Black Friday', heroBg: 'linear-gradient(135deg,#0f172a 0%,#1e293b 50%,#000000 100%)' },
+  easter:       { title: 'Easter Sale',  icon: 'fa-egg',  accent: '#8b5cf6', href: '/easter',       tag: 'Easter Sale',  heroBg: 'linear-gradient(135deg,#312e81 0%,#5b21b6 50%,#7e22ce 100%)' },
+};
 
 const CATEGORY_IMAGES = {
   womenswear: 'https://plus.unsplash.com/premium_photo-1661351421471-b288544c3dda?w=300&auto=format&fit=crop&q=60',
@@ -32,7 +42,7 @@ const CATEGORY_IMAGES = {
   toys: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=300&auto=format&fit=crop&q=60',
 };
 
-export default function Home({ products, categories = [], flashSales = [] }) {
+export default function Home({ products, categories = [], campaigns = [] }) {
   const { formatPrice } = useCurrency();
   const [catalogProducts, setCatalogProducts] = useState(products || []);
   const [catalogLoading, setCatalogLoading] = useState(!products || products.length === 0);
@@ -45,7 +55,6 @@ export default function Home({ products, categories = [], flashSales = [] }) {
   const [beauty, setBeauty] = useState([]);
   const [homeKitchen, setHomeKitchen] = useState([]);
   const [newArrivals, setNewArrivals] = useState([]);
-  const [flashCountdown, setFlashCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [currentSlide, setCurrentSlide] = useState(0);
 
   // Handle swipe scroll on mobile
@@ -124,32 +133,40 @@ export default function Home({ products, categories = [], flashSales = [] }) {
     }
   ];
 
-  // Inject a real flash sale slide at position 2 only when active sales exist
+  // Group active campaigns by type, in display order, keeping only types that
+  // actually have live campaigns. Drives both the hero slides and the sections.
+  const campaignGroups = CAMPAIGN_ORDER
+    .map((type) => ({ type, theme: CAMPAIGN_THEMES[type], items: campaigns.filter((c) => (c.type || 'flash') === type) }))
+    .filter((g) => g.items.length > 0);
+
+  // One hero slide per active campaign type, injected after the first base slide.
   const heroSlides = (() => {
-    if (flashSales.length === 0) return baseSlides;
-    const sale = flashSales[0];
-    const prod = sale.products || {};
-    const flashProduct = withNormalizedPricing({
-      ...prod,
-      _id: prod.id || sale.product_id,
-      id: prod.id || sale.product_id,
-      price: sale.sale_price,
-      originalPrice: sale.original_price || prod.price,
-      badge: 'sale',
+    if (campaignGroups.length === 0) return baseSlides;
+    const campaignSlides = campaignGroups.map(({ type, theme, items }) => {
+      const sale = items[0];
+      const prod = sale.products || {};
+      const cardProduct = withNormalizedPricing({
+        ...prod,
+        _id: prod.id || sale.product_id,
+        id: prod.id || sale.product_id,
+        price: sale.sale_price,
+        originalPrice: sale.original_price || prod.price,
+        badge: 'sale',
+      });
+      const discountPct = normalizePricing(cardProduct).discountPercent;
+      return {
+        id: `campaign-${type}`,
+        bg: theme.heroBg,
+        tag: { text: theme.tag, icon: `fas ${theme.icon}`, color: theme.accent },
+        title: `${prod.name || theme.title}<br /><span>${discountPct > 0 ? `Up to ${discountPct}% Off` : 'Limited Time Deal'}</span>`,
+        sub: 'Limited-time offer. Grab it before the timer runs out!',
+        btnLink: theme.href,
+        btnText: `Shop ${theme.title}`,
+        isFlash: true,
+        img: (prod.images && prod.images[0]) || prod.image_url || 'https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=500&q=80',
+      };
     });
-    const discountPct = normalizePricing(flashProduct).discountPercent;
-    const flashSlide = {
-      id: 'flash',
-      bg: 'linear-gradient(135deg,#1a1a1a 0%,#2d1a1a 50%,#3d0000 100%)',
-      tag: { text: 'Flash Sale', icon: 'fas fa-bolt', color: '#ef4444' },
-      title: `${prod.name || 'Flash Sale'}<br /><span>${discountPct > 0 ? `Up to ${discountPct}% Off` : 'Limited Time Deal'}</span>`,
-      sub: 'Limited-time offer. Grab it before the timer runs out!',
-      btnLink: '/flash-sales',
-      btnText: 'Shop Flash Sales',
-      isFlash: true,
-      img: (prod.images && prod.images[0]) || prod.image_url || 'https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=500&q=80',
-    };
-    return [baseSlides[0], flashSlide, ...baseSlides.slice(1)];
+    return [baseSlides[0], ...campaignSlides, ...baseSlides.slice(1)];
   })();
 
   // Auto-rotate slides (all devices - including mobile)
@@ -238,39 +255,6 @@ export default function Home({ products, categories = [], flashSales = [] }) {
       cancelled = true;
     };
   }, [categories]);
-
-  // Countdown driven by the first active flash sale's expires_at
-  useEffect(() => {
-    if (flashSales.length === 0) return;
-    const target = new Date(flashSales[0].expires_at);
-    const update = () => {
-      const diff = Math.max(0, target - Date.now());
-      setFlashCountdown({
-        hours: Math.floor(diff / 3600000),
-        minutes: Math.floor((diff % 3600000) / 60000),
-        seconds: Math.floor((diff % 60000) / 1000),
-      });
-    };
-    update();
-    const t = setInterval(update, 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // Format time for display
-  const formatTime = (num) => num.toString().padStart(2, '0');
-
-  // Map flash sales to ProductCard-compatible shape
-  const flashProductCards = flashSales.map(sale => {
-    const prod = sale.products || {};
-    return withNormalizedPricing({
-      ...prod,
-      _id: prod.id || sale.product_id,
-      id: prod.id || sale.product_id,
-      price: sale.sale_price,
-      originalPrice: sale.original_price || prod.price,
-      badge: 'sale',
-    });
-  });
 
   return (
     <Layout
@@ -518,159 +502,10 @@ export default function Home({ products, categories = [], flashSales = [] }) {
         </div>
       </div>
 
-      {/* Flash Sales Section — only visible when active flash sales exist */}
-      {flashSales.length > 0 && (
-        <div className="products-section">
-          <style jsx>{`
-            .flash-header {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              gap: 12px;
-              flex-wrap: wrap;
-            }
-            .flash-meta {
-              display: flex;
-              align-items: center;
-              gap: 12px;
-              flex-wrap: wrap;
-              justify-content: flex-end;
-              flex-direction: column;
-              align-items: flex-end;
-            }
-            .flash-timer {
-              display: flex;
-              align-items: center;
-              gap: 2px;
-              flex-wrap: nowrap;
-              white-space: nowrap;
-            }
-            .flash-timer-label {
-              color: #64748b;
-              font-weight: 700;
-              font-size: 0.72rem;
-              padding-top: 0;
-              white-space: nowrap;
-              margin-right: 2px;
-            }
-            .flash-timer-box {
-              display: inline-block;
-              min-width: 44px;
-              background: transparent;
-              color: #ef4444;
-              font-weight: 900;
-              font-size: 1.22rem;
-              border-radius: 6px;
-              text-align: center;
-              padding: 2px 4px;
-              line-height: 1;
-              box-shadow: none;
-            }
-            .flash-timer-unit {
-              color: #ef4444;
-              font-size: 0.5rem;
-              font-weight: 700;
-              margin-top: 1px;
-              letter-spacing: 0.06em;
-            }
-            .flash-timer-sep {
-              color: #ef4444;
-              font-weight: 900;
-              font-size: 1.1rem;
-              padding-top: 0;
-            }
-            @media (max-width: 640px) {
-              .flash-header {
-                align-items: flex-start;
-              }
-              .flash-meta {
-                width: 100%;
-                justify-content: flex-start;
-                align-items: flex-end;
-                gap: 6px;
-              }
-              .flash-timer {
-                gap: 1px;
-              }
-              .flash-timer-label {
-                font-size: 0.56rem;
-                margin-right: 1px;
-              }
-              .flash-timer-box {
-                min-width: 30px;
-                font-size: 0.86rem;
-                padding: 1px 3px;
-                border-radius: 4px;
-              }
-              .flash-timer-unit {
-                font-size: 0.42rem;
-              }
-              .flash-timer-sep {
-                font-size: 0.8rem;
-                padding-top: 0;
-              }
-            }
-            @media (max-width: 420px) {
-              .flash-header {
-                gap: 8px;
-              }
-              .flash-meta {
-                gap: 4px;
-              }
-              .flash-timer-label {
-                display: none;
-              }
-              .flash-timer-box {
-                min-width: 27px;
-                font-size: 0.78rem;
-                padding: 1px 2px;
-              }
-              .flash-timer-unit {
-                font-size: 0.38rem;
-                letter-spacing: 0.04em;
-              }
-              .flash-timer-sep {
-                font-size: 0.72rem;
-              }
-            }
-          `}</style>
-          <div className="section-header flash-header" style={{ background: 'transparent', boxShadow: 'none' }}>
-            <h2 className="section-title">
-              <span className="bar"></span>
-              <i className="fas fa-bolt" style={{ color: '#ef4444', marginRight: '6px' }} />
-              Flash Sales
-            </h2>
-            <div className="flash-meta">
-              {/* Countdown timer on the right */}
-              <div className="flash-timer">
-                <span className="flash-timer-label">
-                  <i className="fas fa-clock" style={{ marginRight: '3px' }} />Ends in:
-                </span>
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span className="flash-timer-box">{formatTime(flashCountdown.hours)}</span>
-                  <span className="flash-timer-unit">HRS</span>
-                </span>
-                <span className="flash-timer-sep">:</span>
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span className="flash-timer-box">{formatTime(flashCountdown.minutes)}</span>
-                  <span className="flash-timer-unit">MIN</span>
-                </span>
-                <span className="flash-timer-sep">:</span>
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span className="flash-timer-box">{formatTime(flashCountdown.seconds)}</span>
-                  <span className="flash-timer-unit">SEC</span>
-                </span>
-              </div>
-              <Link href="/flash-sales" className="section-link">View All Deals <i className="fas fa-arrow-right"></i></Link>
-            </div>
-          </div>
-          <div className="product-grid-5">
-            {flashProductCards.slice(0, 5).map(product => (
-              <ProductCard key={product._id} product={product} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Campaign sections - one per active type (Flash / Black Friday / Easter) */}
+      {campaignGroups.map(({ type, theme, items }) => (
+        <HomeCampaignSection key={type} campaigns={items} theme={theme} />
+      ))}
 
       {/* Best Sellers */}
       <div className="products-section">
@@ -878,16 +713,16 @@ export async function getServerSideProps({ req }) {
   try {
     const baseUrl = resolveServerApiBase(req);
 
-    // Fetch products, categories and active flash sales in parallel
-    const [prodData, catData, flashData] = await Promise.all([
+    // Fetch products, categories and ALL active campaigns (any type) in parallel
+    const [prodData, catData, campaignData] = await Promise.all([
       fetchJsonWithTimeout(`${baseUrl}/products?limit=20`, 12000),
       fetchJsonWithTimeout(`${baseUrl}/categories`, 8000),
-      fetchJsonWithTimeout(`${baseUrl}/flash-sales`, 8000),
+      fetchJsonWithTimeout(`${baseUrl}/campaigns`, 8000),
     ]);
 
     let products = [];
     let categories = [];
-    let flashSales = [];
+    let campaigns = [];
 
     if (prodData?.success && prodData.data) {
       products = prodData.data;
@@ -897,15 +732,15 @@ export async function getServerSideProps({ req }) {
       categories = catData.data;
     }
 
-    if (flashData?.success && flashData.data) {
-      flashSales = flashData.data;
+    if (campaignData?.success && campaignData.data) {
+      campaigns = campaignData.data;
     }
 
     return {
       props: {
         products,
         categories,
-        flashSales,
+        campaigns,
       },
     };
   } catch (error) {
@@ -914,7 +749,7 @@ export async function getServerSideProps({ req }) {
       props: {
         products: [],
         categories: [],
-        flashSales: [],
+        campaigns: [],
       },
     };
   }
