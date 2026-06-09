@@ -99,6 +99,30 @@ const mapProduct = (p, flashSale = null) => {
 // Build the public product-list payload from Supabase. Extracted so the route
 // can refresh it in the background (stale-while-revalidate) without blocking
 // the response on a cold/slow database.
+// Aggregate average rating + review count per product id from the reviews table.
+// Returns Map<product_id, { average, count }>. Tolerant: returns an empty map on error.
+async function getRatingsMap(ids) {
+    const map = new Map();
+    const list = (ids || []).filter(Boolean);
+    if (!list.length) return map;
+    try {
+        const { data, error } = await supabase.from('reviews').select('product_id, rating').in('product_id', list);
+        if (error || !data) return map;
+        const agg = {};
+        for (const r of data) {
+            const rt = Number(r.rating);
+            if (!(rt >= 1 && rt <= 5)) continue;
+            if (!agg[r.product_id]) agg[r.product_id] = { sum: 0, count: 0 };
+            agg[r.product_id].sum += rt;
+            agg[r.product_id].count += 1;
+        }
+        for (const [pid, v] of Object.entries(agg)) {
+            map.set(pid, { average: Number((v.sum / v.count).toFixed(2)), count: v.count });
+        }
+    } catch { /* non-fatal — products just show no rating */ }
+    return map;
+}
+
 async function buildProductsPayload({ category, subcategory, search, seller_id, sort, in_stock, on_sale, parsedLimit, parsedPage }, timeoutMs = QUERY_TIMEOUT_MS) {
         let query = supabase
             .from('products')
@@ -196,9 +220,15 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
         let flashSaleMap = new Map();
         try { flashSaleMap = await getActiveFlashSaleMap((data || []).map((p) => p.id)); } catch {}
 
+        const ratingsMap = await getRatingsMap((data || []).map((p) => p.id));
+
         return {
             success: true,
-            data: (data || []).map((p) => mapProduct(p, flashSaleMap.get(p.id))),
+            data: (data || []).map((p) => {
+                const mapped = mapProduct(p, flashSaleMap.get(p.id));
+                const r = ratingsMap.get(p.id);
+                return { ...mapped, rating: r?.average || 0, review_count: r?.count || 0 };
+            }),
             meta: { total: count || 0, page: parsedPage, limit: parsedLimit },
             pagination: { total: count || 0, page: parsedPage, limit: parsedLimit, pages: Math.ceil((count || 0) / parsedLimit) }
         };
@@ -388,7 +418,9 @@ router.get('/:id', async (req, res, next) => {
 
         let flashSaleMap = new Map();
         try { flashSaleMap = await getActiveFlashSaleMap([data.id]); } catch {}
-        const payload = { success: true, data: mapProduct(data, flashSaleMap.get(data.id)) };
+        const ratingsMap = await getRatingsMap([data.id]);
+        const r = ratingsMap.get(data.id);
+        const payload = { success: true, data: { ...mapProduct(data, flashSaleMap.get(data.id)), rating: r?.average || 0, review_count: r?.count || 0 } };
         res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
         res.status(200).json(payload);
     } catch (err) {

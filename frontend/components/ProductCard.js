@@ -88,7 +88,20 @@ export default function ProductCard({ product, showAddToCart = true }) {
           <Link href={`/products/${_id}`} className="product-card__name">
             {name}
           </Link>
-          
+
+          {product.review_count > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', margin: '4px 0' }}>
+              <span style={{ color: '#f59e0b', letterSpacing: '1px' }}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <i key={i} className={`fa${i <= Math.round(product.rating || 0) ? 's' : 'r'} fa-star`} style={{ fontSize: '.68rem' }} />
+                ))}
+              </span>
+              <span style={{ fontSize: '.72rem', color: 'var(--gray-1)' }}>
+                {Number(product.rating || 0).toFixed(1)} ({product.review_count})
+              </span>
+            </div>
+          )}
+
           {briefDesc && (
             <p className="product-card__desc">{briefDesc}</p>
           )}

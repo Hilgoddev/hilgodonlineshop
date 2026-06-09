@@ -1,10 +1,21 @@
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Footer() {
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterStatus, setNewsletterStatus] = useState('');
   const [newsletterSubmitting, setNewsletterSubmitting] = useState(false);
+  const [storeRating, setStoreRating] = useState(null);
+
+  // Site-wide rating badge (average + total review count across all products).
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/reviews/overall')
+      .then((r) => r.json())
+      .then((j) => { if (!cancelled && j?.success && j.data?.count > 0) setStoreRating(j.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const handleNewsletterSubmit = async (e) => {
     e.preventDefault();
@@ -130,6 +141,17 @@ export default function Footer() {
             <p className="footer-about">
               Hilgod Online Store — Africa's trusted destination for Electronics, Phones, Appliances, Fashion and everything in between. Shop smart, live better.
             </p>
+            {storeRating && (
+              <Link href="/reviews" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: '999px', padding: '6px 14px', textDecoration: 'none', color: '#fff', marginBottom: 'var(--space-3)' }}>
+                <span style={{ color: '#f59e0b', letterSpacing: '1px' }}>
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <i key={i} className={`fa${i <= Math.round(storeRating.average) ? 's' : 'r'} fa-star`} style={{ fontSize: '.72rem' }} />
+                  ))}
+                </span>
+                <span style={{ fontWeight: 700, fontSize: '.85rem' }}>{storeRating.average.toFixed(1)}/5</span>
+                <span style={{ fontSize: '.78rem', color: 'rgba(255,255,255,.7)' }}>· {storeRating.count.toLocaleString()} review{storeRating.count !== 1 ? 's' : ''}</span>
+              </Link>
+            )}
             <div className="footer-contact-item">
               <i className="fas fa-map-marker-alt"></i>
               <span>21 Agbor Road, Oredo Benin City Edo Statea</span>

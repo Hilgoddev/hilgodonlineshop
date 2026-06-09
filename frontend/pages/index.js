@@ -7,6 +7,7 @@ import { normalizePricing, withNormalizedPricing } from '@/lib/pricing';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 import { resolveServerApiBase } from '@/lib/env';
 import HomeCampaignSection from '@/components/HomeCampaignSection';
+import HomeTestimonials from '@/components/HomeTestimonials';
 
 // Campaign types shown on the landing page, in display order. Each renders its
 // own hero slide + its own deals section, only when it has active campaigns.
@@ -634,6 +635,9 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           ))}
         </div>
       </div>
+
+      {/* Customer Testimonials — recent reviews across the store */}
+      <HomeTestimonials />
 
       {/* Sell Banner */}
       <div style={{ marginBottom: 'var(--space-6)', cursor: 'pointer' }} onClick={() => window.location.href = '/seller-zone'}>

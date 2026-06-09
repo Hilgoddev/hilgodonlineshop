@@ -5,6 +5,37 @@ const { verifyToken } = require('./auth');
 const { reviewLimiter } = require('../middleware/rateLimit');
 const { isUuid } = require('../lib/validate');
 
+// Recent reviews across all products (homepage testimonials + /reviews page).
+// Defined BEFORE '/:productId' so "recent"/"overall" aren't treated as a product id.
+router.get('/recent', async (req, res, next) => {
+    try {
+        const limit = Math.min(60, Math.max(1, Number(req.query.limit) || 12));
+        const { data, error } = await supabase
+            .from('reviews')
+            .select('id, product_id, product_name, user_name, rating, title, message, created_at')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (error) throw error;
+        res.json({ success: true, data: data || [] });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Site-wide rating summary (average + total count) for the footer badge.
+router.get('/overall', async (req, res, next) => {
+    try {
+        const { data, error } = await supabase.from('reviews').select('rating');
+        if (error) throw error;
+        const ratings = (data || []).map((r) => Number(r.rating)).filter((n) => n >= 1 && n <= 5);
+        const count = ratings.length;
+        const average = count ? Number((ratings.reduce((a, b) => a + b, 0) / count).toFixed(2)) : 0;
+        res.json({ success: true, data: { average, count } });
+    } catch (err) {
+        next(err);
+    }
+});
+
 // Get reviews for a product
 router.get('/:productId', async (req, res, next) => {
     try {
