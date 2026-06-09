@@ -71,8 +71,24 @@ Conclusion: cross-user isolation is **clean and consistent**.
    the single shared `middleware/requireAdmin`, removing drift risk.
    _Files: `campaigns.js`, `categories.js`, `flash-sales.js`, `stores.js`_
 
-_All changes verified with `node --check` and a full app-load smoke test; the frontend
-build and backend syntax checks pass._
+4. **Order emails show buyer name + date instead of a raw user ID**
+   The admin "new paid order" email previously printed `Buyer user ID: <uuid>`. It now shows
+   `Customer: <name> · Date: <order date>`. The seller "new order" email also gained the
+   customer name + date (useful when packing for dispatch). Buyer identity is resolved once
+   and reused across the buyer, seller, and admin emails. Order/product IDs are retained.
+   _Files: `backend/src/services/email.js`, `backend/src/services/paymentSuccess.js`_
+
+5. **Email links hardened for production**
+   The `BASE_URL` used for email buttons now handles a comma-separated `FRONTEND_URL` (taking
+   the first usable origin) and, in production, **never uses a localhost origin** — it falls
+   back to `https://www.hilgod.com`. This prevents a misconfigured env from sending customers
+   email buttons that point at localhost. No email link is hardcoded to localhost.
+   _File: `backend/src/services/email.js`_
+   _Note: ensure the production backend's `FRONTEND_URL` is set to `https://www.hilgod.com`;
+   the local `.env` value of `http://localhost:3000` is correct for development only._
+
+_All changes verified with `node --check`, a full app-load smoke test, and a render test of
+the order emails under a production env; the frontend build and backend syntax checks pass._
 
 ---
 
