@@ -92,7 +92,7 @@
 
 | Component | Status | Details |
 |---|---|---|
-| **Live Key** | ✅ | `sk_live_86e7...` configured in backend env |
+| **Live Key** | ✅ | `sk_live_•••• (redacted)` configured in backend env |
 | **Webhook URL** | ✅ | Must be set to `https://hilgod-api-two.vercel.app/api/payment/webhook` in Paystack Dashboard |
 | **Initialization** | ✅ | 6s timeout; tamper detection; email validation; BOM stripping |
 | **Redirect** | ✅ | Callback URL: `{FRONTEND_URL}/checkout` |
@@ -110,7 +110,7 @@
 
 | Component | Status | Details |
 |---|---|---|
-| **Live Key** | ✅ | `sk_live_51RMBRn...` in backend env |
+| **Live Key** | ✅ | `sk_live_•••• (redacted)` in backend env |
 | **Publishable Key** | ✅ | `pk_live_51RMBRn...` in frontend `.env.local` |
 | **Feature Flag** | ✅ | `NEXT_PUBLIC_STRIPE_ENABLED=true` in frontend env (set to production value) |
 | **Webhook Secret** | ✅ | `whsec_Xv8w9Ku...` in backend env |
@@ -706,8 +706,8 @@ From recent audit:
 | `EMAIL_VERIFICATION_ENABLED` | `true` | ✅ | Correct for production |
 | `SUPABASE_URL` | `https://nmrqdzikceakkhfhflja.supabase.co` | ✅ | Production URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | Set | ✅ | Verify not leaked |
-| `PAYSTACK_SECRET_KEY` | `sk_live_86e7...` | ✅ | Live key ready |
-| `STRIPE_SECRET_KEY` | `sk_live_51RMBRn...` | ✅ | Live key ready |
+| `PAYSTACK_SECRET_KEY` | `sk_live_•••• (redacted)` | ✅ | Live key ready |
+| `STRIPE_SECRET_KEY` | `sk_live_•••• (redacted)` | ✅ | Live key ready |
 | `STRIPE_WEBHOOK_SECRET` | Set | ✅ | Verify in Stripe dashboard |
 | `RESEND_API_KEY` | `re_EBiCS...` | ✅ | Live key ready |
 | `ADMIN_EMAIL` | `hilgoddev@gmail.com` | ✅ | OK; can change later |
