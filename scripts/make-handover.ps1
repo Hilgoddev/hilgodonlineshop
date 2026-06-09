@@ -1,9 +1,9 @@
 <#
-  make-handover.ps1 — produce a clean, shareable copy of the project for client handover.
+  make-handover.ps1 - produce a clean, shareable copy of the project for client handover.
 
-  WHAT IT DOES (non-destructive — your working repo is never modified):
+  WHAT IT DOES (non-destructive - your working repo is never modified):
     1. Exports only git-tracked files via `git archive` (so .env, node_modules, .next,
-       and anything git-ignored are excluded automatically — they were never committed).
+       and anything git-ignored are excluded automatically - they were never committed).
     2. Prunes a small list of internal/dev-only files (audit notes, probe/diagnostic
        scripts, this script itself).
     3. Adds HANDOVER.md (client setup guide) if present.
@@ -18,7 +18,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-# --- Resolve repo root (the parent of this script's folder) ---
+# --- Resolve repo root (top level of the git repo) ---
 $repoRoot = (git rev-parse --show-toplevel) 2>$null
 if (-not $repoRoot) { throw "Not inside a git repository. Run this from the project folder." }
 Set-Location $repoRoot
@@ -35,21 +35,26 @@ $prune = @(
   'scripts/make-handover.ps1',
   'scripts/checkSellerMetrics.js'
 )
-# Whole folders of dev probes (optional — comment out to include them).
+# Whole folders of dev probes (optional - comment out to include them).
 $prunePatterns = @('backend/scripts/*probe*.js')
 
 Write-Host "Repo:    $repoRoot"
 Write-Host "Staging: $staging"
-Write-Host "Output:  $zipPath`n"
+Write-Host "Output:  $zipPath"
+Write-Host ""
 
 if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
 New-Item -ItemType Directory -Path $staging | Out-Null
 
 # --- 1. Export tracked files at HEAD into staging ---
-# `git archive` emits a tar of exactly the committed tree; we pipe it through tar to extract.
+# Write the tar to a file first (PowerShell pipes corrupt binary streams), then extract.
 Write-Host "Exporting tracked files (git archive HEAD)..."
-git archive --format=tar HEAD | tar -x -C $staging
-if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
+$tarFile = Join-Path $env:TEMP "$name.tar"
+git archive --format=tar -o $tarFile HEAD
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path $tarFile)) { throw "git archive failed." }
+tar -x -f $tarFile -C $staging
+if ($LASTEXITCODE -ne 0) { throw "tar extract failed." }
+Remove-Item -Force $tarFile
 
 # --- 2. Prune internal/dev-only files ---
 foreach ($p in $prune) {
@@ -57,13 +62,15 @@ foreach ($p in $prune) {
   if (Test-Path $full) { Remove-Item -Force $full; Write-Host "  pruned: $p" }
 }
 foreach ($pat in $prunePatterns) {
+  $needle = $pat.Replace('\','/')
   Get-ChildItem -Path $staging -Recurse -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName.Replace('\','/') -like "*$($pat.Replace('\','/'))" } |
+    Where-Object { $_.FullName.Replace('\','/') -like "*$needle" } |
     ForEach-Object { Remove-Item -Force $_.FullName; Write-Host "  pruned: $($_.Name)" }
 }
 
 # --- 3. Safety scan: no .env (other than .example) and no real secret values ---
-Write-Host "`nRunning secret safety scan..."
+Write-Host ""
+Write-Host "Running secret safety scan..."
 $envLeaks = Get-ChildItem -Path $staging -Recurse -Force -File |
   Where-Object { $_.Name -match '^\.env' -and $_.Name -notmatch '\.example$' }
 if ($envLeaks) {
@@ -80,10 +87,11 @@ if ($secretHits) {
   $secretHits | ForEach-Object { Write-Host "  POSSIBLE SECRET: $($_.Path):$($_.LineNumber)" -ForegroundColor Red }
   throw "Aborting: a possible real secret was found in the export. Investigate before sharing."
 }
-Write-Host "  clean — no .env files, no full secret keys." -ForegroundColor Green
+Write-Host "  clean - no .env files, no full secret keys." -ForegroundColor Green
 
 # --- 4. Zip it ---
-Write-Host "`nZipping..."
+Write-Host ""
+Write-Host "Zipping..."
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
 Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $zipPath
 $fileCount = (Get-ChildItem -Path $staging -Recurse -File).Count
@@ -91,9 +99,11 @@ $sizeMB    = [math]::Round((Get-Item $zipPath).Length / 1MB, 2)
 
 Remove-Item -Recurse -Force $staging
 
-Write-Host "`n=== Handover package ready ===" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "=== Handover package ready ===" -ForegroundColor Cyan
 Write-Host "  Files: $fileCount"
 Write-Host "  Size:  $sizeMB MB"
 Write-Host "  Path:  $zipPath"
-Write-Host "`nThe client unzips, runs 'npm install' in backend/ and frontend/, adds their own"
+Write-Host ""
+Write-Host "The client unzips, runs 'npm install' in backend/ and frontend/, adds their own"
 Write-Host ".env values (see HANDOVER.md), applies the migrations, and runs the app."
