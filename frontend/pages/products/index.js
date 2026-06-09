@@ -8,9 +8,6 @@ import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 import { resolveServerApiBase } from '@/lib/env';
 
 const PAGE_SIZE = 20;
-// How many rows we pull per network round-trip. We page over this buffer
-// 20-at-a-time client-side, so one fetch covers three instant pages.
-const BATCH_SIZE = 60;
 
 const SORT_MAP = {
   'price-asc':  'price_asc',
@@ -20,20 +17,14 @@ const SORT_MAP = {
   'default':    '',
 };
 
-// Stable string for a filter/sort combo. When it changes we throw away the
-// buffer and fetch a fresh first batch; when it matches SSR we skip the refetch.
-const makeFilterKey = (cats, subs, sort, inStock, onSale) =>
-  [cats[0] || '', subs.length === 1 ? subs[0] : '', SORT_MAP[sort] || '', inStock ? '1' : '', onSale ? '1' : ''].join('|');
-
 export default function ProductsPage({ initialProducts = [], initialTotal = 0 }) {
   const router = useRouter();
-  // `products` is a client-side buffer of rows for the current filter/sort.
-  // We page over it 20-at-a-time instantly and only hit the network to fetch
-  // the next BATCH when the user pages past what's already loaded.
+  // `products` holds exactly the rows for the current page. Each page change (or
+  // filter/sort change) fetches that page from the server — simple and reliable,
+  // no client-side buffer to get out of sync.
   const [products, setProducts] = useState(initialProducts || []);
   const [total, setTotal] = useState(initialTotal || 0);
-  const [loading, setLoading] = useState(false);       // full reload (filter/sort change)
-  const [loadingMore, setLoadingMore] = useState(false); // appending the next batch
+  const [loading, setLoading] = useState(false);
 
   const initCategory = router.query.category ? [router.query.category] : [];
   const initSubs = router.query.subcategory ? router.query.subcategory.split(',') : [];
@@ -46,7 +37,9 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const filterKey = useRef(makeFilterKey(initCategory, initSubs, 'default', false, false));
+  // SSR already provided page 1 for the initial filters, so skip the very first
+  // client fetch (avoids a redundant round-trip / flash on mount).
+  const skipInitialFetch = useRef((initialProducts || []).length > 0);
 
   // Same-origin path: client fetches go through the Next.js /api rewrite (proxied
   // to the backend) so there's no cross-origin/CORS dependency on the API host.
@@ -79,64 +72,39 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     setCurrentPage(1);
   }, [router.isReady, router.query.category, router.query.subcategory]);
 
-  // Filter/sort changed → fetch a fresh first batch and replace the buffer.
+  // Reset to page 1 whenever the filter/sort changes (the page fetch below then
+  // loads page 1 for the new filters).
   useEffect(() => {
     if (!router.isReady) return;
-    const key = makeFilterKey(selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly);
-    if (key === filterKey.current) return; // unchanged (incl. the initial SSR payload)
-    filterKey.current = key;
+    if (skipInitialFetch.current) return; // don't fight the initial SSR state
+    setCurrentPage(1);
+  }, [selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly]);
+
+  // Fetch exactly the current page from the server whenever the page or filters
+  // change. No client buffer, so it can never get out of sync or hang.
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (skipInitialFetch.current) { skipInitialFetch.current = false; return; }
 
     let cancelled = false;
-    setCurrentPage(1);
     setLoading(true);
-    fetchJsonWithTimeout(`${apiBase}/products?${buildParams(BATCH_SIZE, 1).toString()}`, 15000)
+    fetchJsonWithTimeout(`${apiBase}/products?${buildParams(PAGE_SIZE, currentPage).toString()}`, 15000)
       .then((data) => {
-        if (cancelled || !data?.success || !Array.isArray(data.data)) return;
-        setProducts(data.data);
-        setTotal(data.pagination?.total ?? data.meta?.total ?? data.data.length);
+        if (cancelled) return;
+        if (data?.success && Array.isArray(data.data)) {
+          setProducts(data.data);
+          setTotal(data.pagination?.total ?? data.meta?.total ?? data.data.length);
+        } else {
+          setProducts([]); // failed/empty response — show the empty state, never hang
+        }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [router.isReady, selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly]);
+  }, [router.isReady, currentPage, selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly]);
 
-  // Lazy-load deeper batches as the user pages past what's buffered.
-  useEffect(() => {
-    if (!router.isReady || loading || loadingMore) return;
-    const needed = currentPage * PAGE_SIZE;
-    if (products.length >= needed || products.length >= total) return; // enough buffered
-
-    let cancelled = false;
-    const nextBatch = Math.floor(products.length / BATCH_SIZE) + 1;
-    setLoadingMore(true);
-    fetchJsonWithTimeout(`${apiBase}/products?${buildParams(BATCH_SIZE, nextBatch).toString()}`, 15000)
-      .then((data) => {
-        if (cancelled) return;
-        const batch = (data?.success && Array.isArray(data.data)) ? data.data : [];
-        // No rows — a genuine end, OR a failed/HTML response. Either way pin total
-        // to what we have so the loader STOPS instead of refetching forever (this
-        // was the "stuck on loading" hang).
-        if (batch.length === 0) {
-          setTotal(products.length);
-          return;
-        }
-        const newLen = products.length + batch.length;
-        setProducts((prev) => [...prev, ...batch]);
-        // A short batch (fewer than requested) also means we've reached the end.
-        if (batch.length < BATCH_SIZE) {
-          setTotal(newLen);
-        } else {
-          setTotal((t) => Math.max(t, data.pagination?.total ?? data.meta?.total ?? newLen));
-        }
-      })
-      .finally(() => { if (!cancelled) setLoadingMore(false); });
-
-    return () => { cancelled = true; };
-  }, [router.isReady, currentPage, products.length, total, loading, loadingMore]);
-
-  // Slice the buffer for the active page — instant, no network.
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const pageProducts = products.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageProducts = products;
 
   const goToPage = (p) => {
     setCurrentPage(p);
@@ -387,7 +355,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
             </div>
           </div>
 
-          {(loading || loadingMore) && pageProducts.length === 0 ? (
+          {loading && pageProducts.length === 0 ? (
             <div className="no-products" style={{ textAlign: 'center', padding: '40px' }}>
               <i className="fas fa-spinner fa-spin" style={{ fontSize: '3rem', color: 'var(--primary)' }}></i>
               <p style={{ marginTop: '16px', fontSize: '1.1rem', color: 'var(--gray-1)' }}>
@@ -420,7 +388,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
 
 export async function getServerSideProps({ query, req, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-  const BATCH_SIZE = 60;
+  const PAGE_SIZE = 20;
   const SORT_MAP = {
     'price-asc': 'price_asc',
     'price-desc': 'price_desc',
@@ -430,8 +398,8 @@ export async function getServerSideProps({ query, req, res }) {
   };
   try {
     const baseUrl = resolveServerApiBase(req);
-    // Always seed the first batch; the client pages over it and lazy-loads more.
-    const params = new URLSearchParams({ limit: String(BATCH_SIZE), page: '1' });
+    // Seed page 1 for instant first paint; the client fetches each page on demand.
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: '1' });
     if (query.category) params.set('category', query.category);
     if (query.subcategory && !String(query.subcategory).includes(',')) {
       params.set('subcategory', String(query.subcategory));
