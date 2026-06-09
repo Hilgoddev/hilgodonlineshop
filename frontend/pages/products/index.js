@@ -111,13 +111,18 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     setLoadingMore(true);
     fetchJsonWithTimeout(`${apiBase}/products?${buildParams(BATCH_SIZE, nextBatch).toString()}`, 15000)
       .then((data) => {
-        if (cancelled || !data?.success || !Array.isArray(data.data)) return;
-        const batch = data.data;
+        if (cancelled) return;
+        const batch = (data?.success && Array.isArray(data.data)) ? data.data : [];
+        // No rows — a genuine end, OR a failed/HTML response. Either way pin total
+        // to what we have so the loader STOPS instead of refetching forever (this
+        // was the "stuck on loading" hang).
+        if (batch.length === 0) {
+          setTotal(products.length);
+          return;
+        }
         const newLen = products.length + batch.length;
         setProducts((prev) => [...prev, ...batch]);
-        // A short batch (fewer than requested) means we've reached the end — pin
-        // total to what we actually have so the loader can't keep refetching empty
-        // pages and hang (guards against an over-estimated server count).
+        // A short batch (fewer than requested) also means we've reached the end.
         if (batch.length < BATCH_SIZE) {
           setTotal(newLen);
         } else {
