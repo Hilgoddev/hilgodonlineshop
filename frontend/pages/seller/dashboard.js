@@ -77,7 +77,7 @@ export default function SellerDashboard() {
                   <Link href="/seller/products" className="btn btn-primary btn-sm">
                     Upload Product
                   </Link>
-                  <Link href="/seller/store" className="btn btn-outline btn-sm">
+                  <Link href="/seller/store" className={`${styles.btn__outline} btn btn-outline btn-sm`}>
                     Manage Store
                   </Link>
                 </div>
