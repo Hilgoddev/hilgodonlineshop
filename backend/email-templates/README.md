@@ -11,6 +11,7 @@ into the matching template's **Message body**. Keep the `{{ ... }}` variables ex
 | `supabase-change-email.html` | Change Email Address | `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .ConfirmationURL }}` | Confirm your new email |
 | `supabase-reset-password.html` | Reset Password | `{{ .ConfirmationURL }}` | Reset your Hilgod password |
 | `supabase-reauthentication.html` | Reauthentication | `{{ .Token }}` | Your Hilgod verification code |
+| `supabase-password-changed.html` | Password changed (notification) | `{{ .Email }}` | Your Hilgod password was changed |
 
 All share the same brand: red `#E31C1C`, the email logo from `https://www.hilgod.com/email-logo.png`,
 a red CTA button, and a support footer — matching the transactional emails in `src/services/email.js`.
