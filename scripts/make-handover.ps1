@@ -35,6 +35,7 @@ $zipPath = Join-Path $outRoot "$name.zip"     # a zip of that copy
 $keepDocs = @(
   'README.md',
   'HANDOVER.md',
+  'HOW_IT_WORKS.md',
   'AUDIT_REPORT.md',
   'Docs/PROJECT_STRUCTURE.md'
 )
