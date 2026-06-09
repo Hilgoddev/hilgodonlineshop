@@ -120,13 +120,22 @@ approvals, orders, payouts, returns, riders, and platform settings.
 ## 8. Promotions — Flash Sales, Black Friday, Easter
 
 **What works:** Timed product discounts grouped under a campaign type (flash / black_friday /
-easter), each with its own storefront page.
+easter). Each type has its own storefront page **and** its own section + hero slide on the
+landing page. Admins manage all of them from one screen.
 
-**How:** A single `flash_sales`/campaigns table holds each discounted product, its sale price,
-and an expiry. An admin creates campaigns (choosing the type). The storefront filters by type
-(`/flash-sales`, `/black-friday`, `/easter`). During checkout, the order pricing engine looks
-up any **active, unexpired campaign** for each product and uses the sale price automatically —
-so discounts apply at the source of truth (the server), not the client.
+**How:**
+- **Data** — a single `flash_sales`/campaigns table holds each discounted product, its sale
+  price, an expiry, and a `type`. An admin creates campaigns from Admin → Flash Sales: the
+  **Add** button and header adapt to the selected type (Add Flash Sale / Black Friday / Easter),
+  a hint shows which page it will appear on, and the **All Campaigns** table lists every
+  campaign with a **Type** badge.
+- **Storefront pages** — `/flash-sales`, `/black-friday`, and `/easter` each fetch
+  `/api/campaigns?type=…` and render only that type (with a live countdown).
+- **Landing page** — fetches all active campaigns and renders **one section per active type**
+  (skipping types with none), plus **one hero slide per active type**, each linking to its page.
+- **Checkout** — the order pricing engine looks up any **active, unexpired campaign** for each
+  product and uses the sale price automatically, so discounts apply at the source of truth
+  (the server), not the client — regardless of campaign type.
 
 ## 9. Email notifications
 
