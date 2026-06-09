@@ -11,6 +11,15 @@ const { isUuid } = require('../lib/validate');
 const { REVENUE_STATUSES } = require('../lib/orderStatus');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
+// Effective per-item status for display. An item that's been individually
+// advanced (packed/shipped/delivered) or cancelled keeps its own status;
+// otherwise it mirrors the parent order's status so a paid/shipped/delivered
+// order never shows "Item status: pending".
+const effectiveItemStatus = (itemStatus, orderStatus) => {
+    if (itemStatus && itemStatus !== 'pending') return itemStatus;
+    return orderStatus || itemStatus || 'pending';
+};
+
 const mapOrder = (order, items = [], user = null) => ({
     _id: order.id,
     id: order.id,
@@ -28,7 +37,10 @@ const mapOrder = (order, items = [], user = null) => ({
         || (order.payment_reference?.startsWith('pi_') ? 'stripe'
             : order.payment_reference?.startsWith('ORD_') ? 'paystack'
             : null),
-    items,
+    items: (items || []).map((it) => ({
+        ...it,
+        fulfillmentStatus: effectiveItemStatus(it.fulfillmentStatus, order.status),
+    })),
     user   // { firstName, lastName, email, phone }
 });
 
