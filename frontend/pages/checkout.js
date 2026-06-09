@@ -15,8 +15,14 @@ const stripePublishableKey = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE
 // a misconfigured NEXT_PUBLIC_STRIPE_ENABLED doesn't silently hide Stripe).
 const stripeEnabled = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_ENABLED)?.toLowerCase() === 'true'
   || (!!stripePublishableKey && stripePublishableKey.startsWith('pk_'));
+// Catch a failed Stripe.js load (commonly blocked by ad-blockers / Firefox
+// tracking protection, or offline) so it degrades to "Stripe unavailable"
+// instead of throwing an uncaught promise rejection. Paystack/POD still work.
 const stripePromise = stripePublishableKey?.startsWith('pk_')
-  ? loadStripe(stripePublishableKey)
+  ? loadStripe(stripePublishableKey).catch((err) => {
+      console.warn('Stripe.js failed to load — Stripe payments unavailable:', err?.message || err);
+      return null;
+    })
   : null;
 
 const PAYMENT_METHODS = [

@@ -4,6 +4,7 @@ import Layout from '@/components/Layout';
 import SellerGuard from '@/components/SellerGuard';
 import { apiFetch } from '../../lib/apiClient';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import styles from '@/css/fix.module.css';
 
 export default function SellerDashboard() {
   const { formatPrice } = useCurrency();
