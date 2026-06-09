@@ -14,7 +14,22 @@ backend domain is used internally by that rewrite and for CORS.
 
 > Recommended domain layout
 > - `hilgod.com` and `www.hilgod.com` → **frontend**
-> - `api.hilgod.com` → **backend** (optional but cleaner than using the raw `*.vercel.app` URL)
+> - `api.hilgod.com` → **backend** (this project uses this)
+
+---
+
+## Current status (verified 2026-06-09)
+
+| Item | Status |
+|---|---|
+| `hilgod.com` / `www.hilgod.com` (frontend) | ✅ Live — apex 307-redirects to `www`, HTTPS valid, DNS → Vercel |
+| `api.hilgod.com` (backend) | ✅ Live — `/api/health` returns 200 over valid SSL, DNS → Vercel |
+| `https://www.hilgod.com/email-logo.png` (email logo) | ✅ Reachable (200, image/png) |
+| Frontend `NEXT_PUBLIC_API_URL` → `https://api.hilgod.com/api` | ⏳ Set on the frontend Vercel project + redeploy (Step 3) |
+| Backend `FRONTEND_URL` includes apex + www | ⏳ Confirm on the backend Vercel project + redeploy (Step 3) |
+| Supabase Auth Site URL / Redirect URLs → `hilgod.com` | ⏳ Confirm in the Supabase dashboard (Step 4) |
+| Resend domain `hilgod.com` verified (SPF/DKIM) | ⏳ Confirm in Resend (Step 6) |
+| Supabase vanity auth domain (e.g. `auth.hilgod.com`) | ➖ Not configured — optional; auth links use `…supabase.co` |
 
 ---
 
@@ -42,15 +57,21 @@ backend domain is used internally by that rewrite and for CORS.
 
 ---
 
-## Step 2 — Add the domain to the BACKEND Vercel project (optional but recommended)
+## Step 2 — Add the domain to the BACKEND Vercel project ✅ DONE
+
+> **Status: verified & live (2026-06-09).** `https://api.hilgod.com/api/health` returns
+> `200 {"status":"success",...}` over a valid SSL cert, served via Vercel to the backend.
+> DNS: `api.hilgod.com` → `CNAME` → Vercel (`a99e00ed8adeaef8.vercel-dns-017.com` →
+> `216.198.79.65`). The root path `/` returning 404 is expected — the API only serves `/api/*`.
 
 1. Vercel → **backend** project → **Settings → Domains**.
 2. Add `api.hilgod.com`.
 3. Add the DNS record Vercel shows — usually `api` → `CNAME` → `cname.vercel-dns.com`.
 4. Wait until it shows **Valid** with SSL issued.
 
-If you skip this, the backend keeps using its `*.vercel.app` URL — that still works; you
-just reference it in `NEXT_PUBLIC_API_URL` below.
+This project **uses** `api.hilgod.com` for the backend, so `NEXT_PUBLIC_API_URL` must point at
+it (see Step 3). If Vercel's dashboard ever shows it "pending" briefly, that's propagation lag
+— externally it already resolves with a valid cert.
 
 ---
 
@@ -61,12 +82,16 @@ just reference it in `NEXT_PUBLIC_API_URL` below.
 
 ### Frontend project env (Vercel → frontend → Settings → Environment Variables)
 
-| Variable | New value |
-|---|---|
-| `NEXT_PUBLIC_API_URL` | `https://api.hilgod.com/api` (or `https://<backend>.vercel.app/api` if you skipped Step 2) |
+| Variable | Value to set | Status |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `https://api.hilgod.com/api` | **Set this on the frontend Vercel project, then redeploy** |
 
 > Note the trailing `/api`. The rewrite is `source: /api/:path*` → `${NEXT_PUBLIC_API_URL}/:path*`,
 > and the Express routes are mounted under `/api`, so the value must end in `/api`.
+>
+> The browser only ever calls the same-origin `/api/*` path (Next.js then proxies it to
+> `NEXT_PUBLIC_API_URL`), so there is no cross-origin/CORS call from the browser to the API host.
+> Local dev keeps `http://127.0.0.1:5000/api` in `frontend/.env.local` — leave that as-is.
 
 ### Backend project env (Vercel → backend → Settings → Environment Variables)
 
