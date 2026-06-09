@@ -55,139 +55,179 @@ export default function AdminSellers() {
   const handleRemove = (userId, name) => {
     setModal({
       open: true,
-      title: 'Remove Seller',
-      message: `Permanently remove ${name}? This cannot be undone.`,
+      title: 'Remove User',
+      message: `Remove ${name} from the platform? This will delete their account and all associated data.`,
       danger: true,
       onConfirm: async () => {
         closeModal();
         setRemovingId(userId);
         try {
-          const res = await apiFetch(`/api/admin/customers/${userId}`, { method: 'DELETE' });
+          const res = await apiFetch('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ userId }) });
           const data = await res.json();
-          if (data.success) { setMessage({ type: 'success', text: 'Seller removed' }); fetchSellers(); }
-          else setMessage({ type: 'error', text: data.error || 'Failed to remove seller' });
+          if (data.success) { setMessage({ type: 'success', text: 'User removed' }); fetchSellers(); }
+          else setMessage({ type: 'error', text: data.error || 'Failed' });
         } catch { setMessage({ type: 'error', text: 'Network error' }); }
         finally { setRemovingId(null); setTimeout(() => setMessage({ type: '', text: '' }), 3000); }
       },
     });
   };
 
-  const filtered = sellers.filter(s => {
-    const name = `${s.firstName} ${s.lastName}`.toLowerCase();
-    const q = searchTerm.toLowerCase();
-    return name.includes(q) || s.email.toLowerCase().includes(q) || (s.store?.name || '').toLowerCase().includes(q);
-  });
+  const filteredSellers = sellers.filter(seller =>
+    (seller.firstName + ' ' + seller.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    seller.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (seller.store?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const storeStatusStyle = (status) => {
-    const map = {
-      active:   { bg: '#dcfce7', color: '#16a34a' },
-      approved: { bg: '#dcfce7', color: '#16a34a' },
-      pending:  { bg: '#fef3c7', color: '#d97706' },
-      rejected: { bg: '#fee2e2', color: '#ef4444' },
-      suspended:{ bg: '#fee2e2', color: '#ef4444' },
-    };
-    return map[status] || { bg: '#f1f5f9', color: '#64748b' };
-  };
+  const isSelf = (id) => session?.user?.id === id;
 
   return (
     <>
-      <div style={{ marginBottom: '20px' }}>
-        <p style={{ color: '#64748b', marginBottom: '16px' }}>
-          <strong>{filtered.length}</strong> seller{filtered.length !== 1 ? 's' : ''} registered.
-        </p>
+      <ConfirmModal
+        open={modal.open}
+        title={modal.title}
+        message={modal.message}
+        danger={modal.danger}
+        onConfirm={modal.onConfirm}
+        onCancel={closeModal}
+      />
 
-        {message.text && (
-          <div style={{ padding: '10px 16px', borderRadius: '8px', marginBottom: '16px', background: message.type === 'success' ? '#dcfce7' : '#fee2e2', color: message.type === 'success' ? '#16a34a' : '#ef4444', fontSize: '.9rem', fontWeight: '600' }}>
-            <i className={`fas ${message.type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}`}></i> {message.text}
+      {message.text ? (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: '8px',
+            marginBottom: '16px',
+            background: message.type === 'success' ? '#dcfce7' : '#fee2e2',
+            color: message.type === 'success' ? '#15803d' : '#b91c1c',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+          }}
+        >
+          {message.text}
+        </div>
+      ) : null}
+
+      <div className="card" style={{ padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontWeight: '700' }}>Sellers</h2>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search sellers..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: '8px 12px 8px 32px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                fontSize: '0.9rem',
+              }}
+            />
+            <i
+              className="fas fa-search"
+              style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#64748b',
+                fontSize: '0.9rem',
+              }}
+            ></i>
           </div>
-        )}
+        </div>
 
-        <input
-          type="text"
-          placeholder="Search by name, email or store..."
-          className="form-input"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          style={{ width: '100%', maxWidth: '400px' }}
-        />
-      </div>
-
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)' }}></i>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center' }}>
-            <i className="fas fa-shop-slash" style={{ fontSize: '3rem', color: 'var(--gray-3)', display: 'block', marginBottom: '16px' }}></i>
-            <h3 style={{ fontWeight: 700, marginBottom: '8px' }}>No sellers found</h3>
-            <p style={{ color: 'var(--gray-1)', fontSize: '.9rem' }}>Sellers appear here after their application is approved.</p>
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: '#38bdf8' }}></i>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '.88rem' }}>
+            <table className="admin-customers-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', color: '#64748b', fontSize: '0.82rem' }}>
-                  <th style={{ padding: '14px 16px', fontWeight: 600 }}>Seller</th>
-                  <th className="col-hide-sm" style={{ padding: '14px 16px', fontWeight: 600 }}>Email</th>
-                  <th style={{ padding: '14px 16px', fontWeight: 600 }}>Store</th>
-                  <th className="col-hide-md" style={{ padding: '14px 16px', fontWeight: 600 }}>Store Status</th>
-                  <th style={{ padding: '14px 16px', fontWeight: 600 }}>Products</th>
-                  <th className="col-hide-md" style={{ padding: '14px 16px', fontWeight: 600 }}>Joined</th>
-                  <th style={{ padding: '14px 16px', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                <tr style={{ background: '#f1f5f9' }}>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Seller</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Email</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Store</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Products</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Sales</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Units</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Revenue</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(seller => {
-                  const isSelf = seller._id === session?.user?.id;
-                  const ss = storeStatusStyle(seller.store?.status);
-                  return (
+                {filteredSellers.length > 0 ? (
+                  filteredSellers.map((seller) => (
                     <tr key={seller._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td style={{ padding: '14px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {seller.image ? (
-                            <img src={seller.image} alt="" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                          ) : (
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#dbeafe', color: '#1d4ed8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '.85rem', flexShrink: 0 }}>
-                              {seller.firstName?.charAt(0)}{seller.lastName?.charAt(0)}
-                            </div>
-                          )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div
+                            style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '50%',
+                              background: 'var(--primary-light)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: 'var(--primary)',
+                              fontWeight: 600,
+                              fontSize: '.875rem',
+                            }}
+                          >
+                            {(seller.firstName?.charAt(0) || '') + (seller.lastName?.charAt(0) || '')}
+                          </div>
                           <div>
-                            <div style={{ fontWeight: 600 }}>{seller.firstName} {seller.lastName}</div>
-                            <div className="col-show-sm" style={{ fontSize: '.76rem', color: '#64748b', marginTop: '2px' }}>{seller.email}</div>
+                            <div style={{ fontWeight: 600 }}>
+                              {seller.firstName} {seller.lastName}
+                            </div>
+                            <div style={{ fontSize: '.75rem', color: '#64748b', marginTop: '2px' }}>
+                              {seller.joinedAt ? `Joined ${new Date(seller.joinedAt).toLocaleDateString()}` : ''}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="col-hide-sm" style={{ padding: '14px 16px', color: '#64748b' }}>{seller.email}</td>
+                      <td style={{ padding: '14px 16px', fontSize: '.875rem', color: '#64748b' }}>
+                        {seller.email}
+                      </td>
                       <td style={{ padding: '14px 16px' }}>
                         {seller.store ? (
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: '.88rem' }}>{seller.store.name}</div>
-                            <div style={{ fontSize: '.75rem', color: '#94a3b8', marginTop: '2px' }}>/{seller.store.slug}</div>
-                          </div>
+                          <a
+                            href={`/stores/${seller.store.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: 'var(--primary)',
+                              textDecoration: 'none',
+                              fontSize: '.875rem',
+                              display: 'block',
+                            }}
+                          >
+                            {seller.store.name}
+                            <br />
+                            <span style={{ fontSize: '.75rem', color: '#64748b' }}>
+                              {seller.store.status}
+                            </span>
+                          </a>
                         ) : (
-                          <span style={{ fontSize: '.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No store yet</span>
+                          <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No store</span>
                         )}
                       </td>
-                      <td className="col-hide-md" style={{ padding: '14px 16px' }}>
-                        {seller.store ? (
-                          <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '.78rem', fontWeight: 700, background: ss.bg, color: ss.color, textTransform: 'capitalize' }}>
-                            {seller.store.status || 'pending'}
-                          </span>
-                        ) : (
-                          <span style={{ fontSize: '.8rem', color: '#94a3b8' }}>—</span>
-                        )}
+                      <td style={{ padding: '14px 16px' }}>
+                        {seller.product_count || 0}
                       </td>
-                      <td style={{ padding: '14px 16px', fontWeight: 700 }}>
-                        <span style={{ background: seller.productCount > 0 ? '#dbeafe' : '#f1f5f9', color: seller.productCount > 0 ? '#1d4ed8' : '#94a3b8', padding: '3px 10px', borderRadius: '20px', fontSize: '.78rem', fontWeight: 700 }}>
-                          {seller.productCount}
-                        </span>
-                      </td>
-                      <td className="col-hide-md" style={{ padding: '14px 16px', fontSize: '.82rem', color: '#64748b' }}>
-                        {new Date(seller.joinedAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <td style={{ padding: '14px 16px' }}>
+                        {seller.total_sales || 0}
                       </td>
                       <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                        {isSelf ? (
+                        {seller.total_units || 0}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600 }}>
+                        {new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(seller.total_revenue || 0)}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                        {isSelf(seller._id) ? (
                           <span style={{ fontSize: '.78rem', color: '#94a3b8' }}>You</span>
                         ) : (
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -222,22 +262,19 @@ export default function AdminSellers() {
                         )}
                       </td>
                     </tr>
-                  );
-                })}
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                      {searchTerm ? 'No sellers found' : 'No sellers available'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         )}
       </div>
-
-      <ConfirmModal
-        isOpen={modal.open}
-        title={modal.title}
-        message={modal.message}
-        danger={modal.danger}
-        onConfirm={modal.onConfirm}
-        onCancel={closeModal}
-      />
     </>
   );
 }

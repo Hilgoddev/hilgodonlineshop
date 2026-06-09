@@ -145,10 +145,21 @@ router.post('/webhook', async (req, res) => {
         throw new Error(`Amount mismatch on Stripe webhook for order ${order_id}: paid=${paidAmount}, expected=${orderAmount}`);
       }
 
-      await supabase
+      // Atomically claim the paid transition (matches the Paystack path): only
+      // the first caller to flip a not-yet-paid order to paid runs the one-time
+      // side-effects, so stock decrement + emails stay exactly-once even if a
+      // duplicate event slips past the idempotency barrier.
+      const { data: claimed, error: claimErr } = await supabase
         .from('orders')
         .update({ status: 'paid', payment_reference: pi.id })
-        .eq('id', order_id);
+        .eq('id', order_id)
+        .neq('status', 'paid')
+        .select('id');
+      if (claimErr) throw claimErr;
+      if (!claimed || !claimed.length) {
+        await supabase.from('payment_events').update({ processed_at: new Date().toISOString() }).eq('event_key', event.id);
+        return res.sendStatus(200);
+      }
 
       const userId = pi.metadata?.user_id || dbOrder.user_id;
       if (userId) {

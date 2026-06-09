@@ -39,7 +39,7 @@ const RESEND_API_KEY = cleanEnv(process.env.RESEND_API_KEY);
 const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const supabase = require('../config/supabase');
 
-const FROM_ORDERS = cleanEnv(process.env.EMAIL_FROM_ORDERS) || 'Order Notifications <contact@hilgod.com>';
+const FROM_ORDERS = cleanEnv(process.env.EMAIL_FROM_ORDERS) || 'Hilgod Orders <order@hilgod.com>';
 const FROM_NOREPLY = cleanEnv(process.env.EMAIL_FROM_NOREPLY) || 'Hilgod <noreply@hilgod.com>';
 
 // Email type to sender address mapping

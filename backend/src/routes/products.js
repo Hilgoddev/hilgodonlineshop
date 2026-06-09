@@ -5,6 +5,7 @@ const { verifyToken } = require('./auth');
 const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/pricing');
 const { withTimeout, makeCache } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
+const { getSetting } = require('../lib/settings');
 const allCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Short-lived in-memory cache for the public product list. Supabase (free tier)
@@ -414,7 +415,10 @@ const verifySellerOrAdmin = async (req, res, next) => {
 router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
     try {
         const { name, description, price, currency, category, subcategory, category_id, store_id, images, stock, brand, original_price, size_options, color_options } = req.body;
-        const status = req.userRole === 'admin' ? 'approved' : 'pending';
+        // Admin uploads always go live. Seller uploads go live only when the
+        // platform-wide auto-approve setting is on; otherwise they await approval.
+        const autoApprove = (await getSetting('auto_approve_products', false)) === true;
+        const status = (req.userRole === 'admin' || autoApprove) ? 'approved' : 'pending';
 
         const insertData = {
             seller_id: req.user.id,

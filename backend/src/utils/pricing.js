@@ -39,5 +39,8 @@ function getEffectiveProductPricing(product, flashSale = null) {
 
 module.exports = {
   getActiveFlashSaleMap,
+  // Campaigns (flash/black_friday/easter) all live in flash_sales and provide a
+  // sale_price, so the same lookup applies any active campaign's price at checkout.
+  getActiveCampaignMap: getActiveFlashSaleMap,
   getEffectiveProductPricing,
 };

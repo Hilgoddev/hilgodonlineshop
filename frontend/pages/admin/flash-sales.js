@@ -195,12 +195,13 @@ export default function AdminFlashSales() {
   // Flash sale fields (shared by both modes)
   const [flashPrice, setFlashPrice] = useState('');
   const [timerHours, setTimerHours] = useState('24');
+  const [campaignType, setCampaignType] = useState('flash');
 
   const subcategoryOptions = categoriesData.find(c => c.id === newForm.category)?.subs || [];
 
   const fetchSales = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
-    const { res, json } = await adminJson('/api/flash-sales/all');
+    const { res, json } = await adminJson('/api/campaigns/all');
     if (res.ok && json.success) setSales(json.data || []);
     else setMessage({ type: 'error', text: errorMessage(json, 'Could not load flash sales') });
     if (!silent) setLoading(false);
@@ -290,23 +291,25 @@ export default function AdminFlashSales() {
         productId = prodJson.data?.id || prodJson.data?._id;
       }
 
-      // Create flash sale
-      const fsRes = await apiFetch('/api/flash-sales', {
+      // Create campaign (flash / black_friday / easter)
+      const fsRes = await apiFetch('/api/campaigns', {
         method: 'POST',
         body: JSON.stringify({
           product_id: productId,
           sale_price: parseFloat(flashPrice),
           timer_hours: parseInt(timerHours),
+          type: campaignType,
         }),
       });
       const fsJson = await fsRes.json();
       if (fsRes.ok && fsJson.success) {
-        setMessage({ type: 'success', text: 'Flash sale added!' });
+        setMessage({ type: 'success', text: 'Campaign added!' });
         setSelectedProduct(null);
         setNewForm(EMPTY_NEW);
         setImagePreview('');
         setFlashPrice('');
         setTimerHours('24');
+        setCampaignType('flash');
         if (fileRef.current) fileRef.current.value = '';
         fetchSales();
         if (mode === 'new') fetchProducts();
@@ -321,7 +324,7 @@ export default function AdminFlashSales() {
   };
 
   const handleDelete = async (id) => {
-    const res = await apiFetch(`/api/flash-sales/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/campaigns/${id}`, { method: 'DELETE' });
     const text = await res.text();
     let json = {};
     try { json = text ? JSON.parse(text) : {}; } catch { }
@@ -570,7 +573,22 @@ export default function AdminFlashSales() {
             </div>
           )}
 
-          {/* ── Flash Sale Price + Timer (shared) ──────────────── */}
+          {/* ── Campaign type ──────────────────────────────────── */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px', color: '#374151' }}>
+              Campaign Type <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <select className="form-input" value={campaignType} onChange={e => setCampaignType(e.target.value)}>
+              <option value="flash">Flash Sale</option>
+              <option value="black_friday">Black Friday</option>
+              <option value="easter">Easter</option>
+            </select>
+            <div style={{ fontSize: '0.74rem', color: '#94a3b8', marginTop: '4px' }}>
+              Shows on {campaignType === 'flash' ? '/flash-sales' : campaignType === 'black_friday' ? '/black-friday' : '/easter'}.
+            </div>
+          </div>
+
+          {/* ── Sale Price + Timer (shared) ────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, marginBottom: '6px', color: '#374151' }}>

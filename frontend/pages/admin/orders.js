@@ -162,9 +162,9 @@ export default function AdminOrders() {
           <input type="text" placeholder="Search by order ID, customer name or email..." className="form-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ flex: 1 }} />
           <select className="form-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
+            <option value="pending">Awaiting payment</option>
             <option value="paid">Paid</option>
-            <option value="processing">Processing</option>
+            <option value="processing">Paid · Preparing</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
@@ -217,9 +217,9 @@ export default function AdminOrders() {
                           <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '120px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
-                                <option value="pending">Pending</option>
+                                <option value="pending">Awaiting payment</option>
                                 <option value="paid">Paid</option>
-                                <option value="processing">Processing</option>
+                                <option value="processing">Paid · Preparing</option>
                                 <option value="shipped">Shipped</option>
                                 <option value="delivered">Delivered</option>
                                 <option value="cancelled">Cancelled</option>

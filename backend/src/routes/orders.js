@@ -8,13 +8,14 @@ const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
+const { REVENUE_STATUSES } = require('../lib/orderStatus');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 const mapOrder = (order, items = [], user = null) => ({
     _id: order.id,
     id: order.id,
     status: order.status,
-    paymentStatus: ['paid', 'shipped', 'delivered'].includes(order.status) ? 'paid' : 'pending',
+    paymentStatus: REVENUE_STATUSES.includes(order.status) ? 'paid' : 'pending',
     totalAmount: Number(order.total_amount || 0),
     currency: order.currency,
     createdAt: order.created_at,
@@ -263,7 +264,10 @@ router.post('/', verifyToken, async (req, res, next) => {
         total_amount += deliveryFee;
 
         // Create order with server-computed total (products + delivery fee).
-        const initialStatus = paymentMethod === 'pod' ? 'processing' : 'pending';
+        // All new orders start 'pending' (awaiting payment). 'processing' now means
+        // "paid & being prepared", so a pay-on-delivery order must not jump there
+        // before money is received — it stays pending until paid/delivered.
+        const initialStatus = 'pending';
         const orderRow = {
             user_id: req.user.id,
             total_amount,
@@ -427,7 +431,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
         await attachSellerEmails([...itemMap.values()]);
 
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || [], userMap.get(o.user_id) || null));
-        const totalRevenue = data.reduce((sum, o) => sum + (['paid', 'shipped', 'delivered'].includes(o.status) ? o.totalAmount : 0), 0);
+        const totalRevenue = data.reduce((sum, o) => sum + (REVENUE_STATUSES.includes(o.status) ? o.totalAmount : 0), 0);
         const payload = { success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } };
         ordersAllCache.set(cacheKey, payload);
         return res.status(200).json(payload);

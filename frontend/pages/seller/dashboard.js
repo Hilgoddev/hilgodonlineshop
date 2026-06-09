@@ -60,8 +60,12 @@ export default function SellerDashboard() {
                 <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{data.metrics.totalUnits || 0}</div>
               </div>
               <div className="card" style={{ padding: '20px' }}>
+                <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Revenue</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{formatPrice(Number(data.metrics.totalRevenue || 0), 'NGN', false)}</div>
+              </div>
+              <div className="card" style={{ padding: '20px' }}>
                 <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Sales</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{formatPrice(Number(data.metrics.totalSales || 0), 'NGN', false)}</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{data.metrics.totalOrders || 0}</div>
               </div>
             </div>
 

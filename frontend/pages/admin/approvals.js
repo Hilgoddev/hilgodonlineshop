@@ -14,6 +14,8 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [autoApprove, setAutoApprove] = useState(false);
+  const [savingSetting, setSavingSetting] = useState(false);
 
   const fetchPendingData = async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -50,8 +52,29 @@ export default function ApprovalsPage() {
     }
   };
 
+  const fetchSettings = async () => {
+    try {
+      const { res, json } = await adminJson('/api/admin/settings');
+      if (res.ok && json.success) setAutoApprove(!!json.data.autoApproveProducts);
+    } catch (_) { /* non-fatal */ }
+  };
+
+  const toggleAutoApprove = async () => {
+    const next = !autoApprove;
+    setSavingSetting(true);
+    try {
+      const { res, json } = await adminJson('/api/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ autoApproveProducts: next }),
+      });
+      if (res.ok && json.success) setAutoApprove(!!json.data.autoApproveProducts);
+    } catch (_) { /* non-fatal */ }
+    finally { setSavingSetting(false); }
+  };
+
   useEffect(() => {
     fetchPendingData();
+    fetchSettings();
   }, []);
   useAutoRefresh(() => fetchPendingData({ silent: true }), { table: 'products' });
 
@@ -128,6 +151,34 @@ export default function ApprovalsPage() {
         </div>
       ) : (
         <>
+          <section style={{ marginBottom: '24px' }}>
+            <div className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontWeight: 700, color: '#0f172a' }}>Auto-approve seller products</div>
+                <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '2px' }}>
+                  {autoApprove
+                    ? 'Seller uploads go live immediately without review.'
+                    : 'Seller uploads require admin approval before going live.'}
+                </div>
+              </div>
+              <button
+                onClick={toggleAutoApprove}
+                disabled={savingSetting}
+                aria-pressed={autoApprove}
+                style={{
+                  position: 'relative', width: '52px', height: '28px', borderRadius: '999px', border: 'none',
+                  cursor: savingSetting ? 'wait' : 'pointer', background: autoApprove ? '#10b981' : '#cbd5e1',
+                  transition: 'background .2s', flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: '3px', left: autoApprove ? '27px' : '3px', width: '22px', height: '22px',
+                  borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                }} />
+              </button>
+            </div>
+          </section>
+
           {tableShell(
             'Seller applications',
             pendingSellerApplications.length,

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '../../lib/apiClient';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '../../lib/supabaseClient';
+import { orderStatusLabel } from '../../lib/orderStatus';
 
 const STATUS_STYLE = {
   pending: { bg: '#fef3c7', color: '#92400e' },
@@ -187,9 +188,10 @@ export default function SellerOrders() {
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.sellerTotal, order.currency || 'NGN', false)}</div>
                           <div style={{ fontSize: '.75rem', color: 'var(--gray-1)' }}>{order.buyer.name}</div>
+                          {order.buyer.phone && <div style={{ fontSize: '.72rem', color: 'var(--gray-1)' }}>{order.buyer.phone}</div>}
                         </div>
-                        <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '.75rem', fontWeight: 700, background: bg, color, textTransform: 'capitalize' }}>
-                          {order.status}
+                        <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '.75rem', fontWeight: 700, background: bg, color }}>
+                          {orderStatusLabel(order.status)}
                         </span>
                       </div>
                     </div>

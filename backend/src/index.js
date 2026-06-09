@@ -63,6 +63,7 @@ const uploadRoutes = require('./routes/upload');
 const stripeRoutes = require('./routes/stripe');
 const greyRoutes = require('./routes/grey');
 const flashSaleRoutes = require('./routes/flash-sales');
+const campaignRoutes = require('./routes/campaigns');
 const exchangeRatesRoutes = require('./routes/exchange-rates');
 const returnsRoutes = require('./routes/returns');
 const supabase = require('./config/supabase');
@@ -86,6 +87,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/grey', greyRoutes);
 app.use('/api/flash-sales', flashSaleRoutes);
+app.use('/api/campaigns', campaignRoutes);
 app.use('/api/exchange-rates', exchangeRatesRoutes);
 app.use('/api/returns', returnsRoutes);
 

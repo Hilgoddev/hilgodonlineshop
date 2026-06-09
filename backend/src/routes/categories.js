@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
+const requireAdmin = require('../middleware/requireAdmin');
 
 let categoriesCache = null;
 let cacheExpiry = 0;
@@ -21,19 +22,6 @@ const FALLBACK_CATEGORIES = [
     { name: 'Toys', slug: 'toys', icon: 'fa-child' },
     { name: 'Womenswear', slug: 'womenswear', icon: 'fa-person-dress' },
 ];
-
-// Middleware to verify admin role
-const requireAdmin = async (req, res, next) => {
-    try {
-        const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).single();
-        if (error || !profile || profile.role !== 'admin') {
-            return res.status(403).json({ success: false, error: 'Admin access required' });
-        }
-        next();
-    } catch (err) {
-        next(err);
-    }
-};
 
 // Get all categories (Public)
 router.get('/', async (req, res, next) => {

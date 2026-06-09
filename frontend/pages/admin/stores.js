@@ -2,63 +2,88 @@ import { useState, useEffect } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
-import { apiFetch } from '../../lib/apiClient';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 export default function AdminStores() {
+  const { formatPrice } = useCurrency();
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [updatingId, setUpdatingId] = useState(null);
 
-  const fetchStores = async ({ silent = false } = {}) => {
-    if (!silent) setLoading(true);
-    const { res, json } = await adminJson('/api/stores/all');
-    if (res.ok && json.success) {
-      setStores(json.data || []);
-    } else {
-      setMessage({ type: 'error', text: errorMessage(json, 'Could not load stores') });
-    }
-    if (!silent) setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchStores();
-  }, []);
-  useAutoRefresh(() => fetchStores({ silent: true }), { table: 'stores' });
-
-  const updateStatus = async (id, status) => {
-    setMessage({ type: '', text: '' });
-    const res = await apiFetch(`/api/stores/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    });
-    const text = await res.text();
-    let json = {};
+  const fetchStores = async () => {
     try {
-      json = text ? JSON.parse(text) : {};
+      const { res, json } = await adminJson('/api/stores/all');
+      if (res.ok && json.success) {
+        // Sort stores by creation date (newest first)
+        const sortedStores = (json.data || []).sort((a, b) => 
+          new Date(b.created_at) - new Date(a.created_at)
+        );
+        setStores(sortedStores);
+      } else {
+        setMessage({ type: 'error', text: errorMessage(json, 'Could not load stores') });
+      }
     } catch {
-      json = {};
-    }
-    if (res.ok) {
-      setMessage({ type: 'success', text: `Store marked as ${status}.` });
-      fetchStores();
-    } else {
-      setMessage({ type: 'error', text: errorMessage(json, 'Update failed') });
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const badge = (status) => {
+  useEffect(() => { fetchStores(); }, []);
+  useAutoRefresh(fetchStores, { table: 'stores' });
+
+  const updateStatus = async (storeId, newStatus) => {
+    setUpdatingId(storeId);
+    try {
+      const res = await fetch(`/api/stores/${storeId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+        credentials: 'include'
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setStores(prev => prev.map(store => 
+          store.id === storeId ? { ...store, status: newStatus } : store
+        ));
+        setMessage({ type: 'success', text: `Store ${newStatus} successfully` });
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update store' });
+      }
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setUpdatingId(null);
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    }
+  };
+
+  const filteredStores = stores.filter(store =>
+    store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    store.slug.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    store.owner_id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const getStatusBadge = (status) => {
     const styles = {
-      approved: { bg: '#dcfce7', color: '#15803d' },
-      pending: { bg: '#fef3c7', color: '#b45309' },
-      rejected: { bg: '#fee2e2', color: '#b91c1c' },
+      pending: { bg: '#fef3c7', color: '#d97706' },
+      approved: { bg: '#dcfce7', color: '#16a34a' },
+      rejected: { bg: '#fee2e2', color: '#ef4444' },
     };
     const s = styles[status] || styles.pending;
-    return (
-      <span style={{ background: s.bg, color: s.color, padding: '4px 10px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700 }}>
-        {status}
-      </span>
-    );
+    return {
+      padding: '4px 10px',
+      borderRadius: '20px',
+      fontSize: '0.78rem',
+      fontWeight: 600,
+      background: s.bg,
+      color: s.color,
+      textTransform: 'capitalize',
+    };
   };
 
   return (
@@ -79,61 +104,158 @@ export default function AdminStores() {
         </div>
       ) : null}
 
-      <p style={{ color: '#64748b', marginBottom: '16px' }}>Approve seller storefronts or return them to pending / rejected.</p>
-
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        {loading ? (
-          <div style={{ padding: '40px', textAlign: 'center' }}>
-            <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.5rem', color: 'var(--primary)' }} />
+      <div className="card" style={{ padding: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontWeight: '700' }}>Store Management</h2>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search stores..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                padding: '8px 12px 8px 32px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                fontSize: '0.9rem',
+              }}
+            />
+            <i
+              className="fas fa-search"
+              style={{
+                position: 'absolute',
+                left: '10px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#64748b',
+                fontSize: '0.9rem',
+              }}
+            ></i>
           </div>
-        ) : stores.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No stores yet.</div>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: '#38bdf8' }}></i>
+          </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem', minWidth: '500px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: '#f8fafc', color: '#64748b' }}>
-                  <th style={{ padding: '12px 16px' }}>Store</th>
-                  <th style={{ padding: '12px 16px' }}>Slug</th>
-                  <th style={{ padding: '12px 16px' }}>Products</th>
-                  <th style={{ padding: '12px 16px' }}>Status</th>
-                  <th style={{ padding: '12px 16px' }}>Actions</th>
+                <tr style={{ background: '#f1f5f9' }}>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Store</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Owner</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Products</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Sales</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Revenue</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left' }}>Status</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {stores.map((s) => (
-                  <tr key={s.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 700 }}>{s.name}</td>
-                    <td style={{ padding: '12px 16px', color: '#64748b' }}>{s.slug}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '4px 10px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700 }}>
-                        {s.product_count ?? 0}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>{badge(s.status)}</td>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <button type="button" className="btn btn-sm btn-primary" 
-                        // Small padding differing from the default of "btn-primary" (and the others follow as a side effect)
-                        style={{ padding: '7px 16px', width: '100%'}}
-                        onClick={() => updateStatus(s.id, 'approved')}>
-                          Approve
-                        </button>
-                        <button type="button" className="btn btn-sm btn-outline" onClick={() => updateStatus(s.id, 'pending')}>
-                          Pending
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline"
-                          style={{ color: '#b91c1c', borderColor: '#fecaca' }}
-                          onClick={() => updateStatus(s.id, 'rejected')}
-                        >
-                          Reject
-                        </button>
-                      </div>
+                {filteredStores.length > 0 ? (
+                  filteredStores.map((store) => (
+                    <tr key={store.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontWeight: 600 }}>{store.name}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{store.slug}</div>
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                          {store.owner_id.substring(0, 8)}...
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        {store.product_count || 0}
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        {store.total_sales || 0}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatPrice(store.total_revenue || 0, 'NGN')}
+                      </td>
+                      <td style={{ padding: '14px 16px' }}>
+                        <span style={getStatusBadge(store.status)}>
+                          {store.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          {store.status === 'pending' && (
+                            <>
+                              <button
+                                className="btn btn-sm"
+                                style={{
+                                  fontSize: '.75rem',
+                                  color: '#fff',
+                                  background: '#10b981',
+                                  border: 'none',
+                                  opacity: updatingId === store.id ? 0.7 : 1,
+                                }}
+                                disabled={!!updatingId}
+                                onClick={() => updateStatus(store.id, 'approved')}
+                              >
+                                {updatingId === store.id ? <i className="fas fa-spinner fa-spin" /> : 'Approve'}
+                              </button>
+                              <button
+                                className="btn btn-sm"
+                                style={{
+                                  fontSize: '.75rem',
+                                  color: '#fff',
+                                  background: '#ef4444',
+                                  border: 'none',
+                                  opacity: updatingId === store.id ? 0.7 : 1,
+                                }}
+                                disabled={!!updatingId}
+                                onClick={() => updateStatus(store.id, 'rejected')}
+                              >
+                                {updatingId === store.id ? <i className="fas fa-spinner fa-spin" /> : 'Reject'}
+                              </button>
+                            </>
+                          )}
+                          {store.status === 'approved' && (
+                            <button
+                              className="btn btn-sm"
+                              style={{
+                                fontSize: '.75rem',
+                                color: '#fff',
+                                background: '#ef4444',
+                                border: 'none',
+                                opacity: updatingId === store.id ? 0.7 : 1,
+                              }}
+                              disabled={!!updatingId}
+                              onClick={() => updateStatus(store.id, 'rejected')}
+                            >
+                              {updatingId === store.id ? <i className="fas fa-spinner fa-spin" /> : 'Reject'}
+                            </button>
+                          )}
+                          {store.status === 'rejected' && (
+                            <button
+                              className="btn btn-sm"
+                              style={{
+                                fontSize: '.75rem',
+                                color: '#fff',
+                                background: '#10b981',
+                                border: 'none',
+                                opacity: updatingId === store.id ? 0.7 : 1,
+                              }}
+                              disabled={!!updatingId}
+                              onClick={() => updateStatus(store.id, 'approved')}
+                            >
+                              {updatingId === store.id ? <i className="fas fa-spinner fa-spin" /> : 'Approve'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>
+                      {searchTerm ? 'No stores found' : 'No stores available'}
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

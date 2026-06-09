@@ -36,8 +36,20 @@ export default function SellerPayouts() {
     try {
       const res  = await apiFetch('/api/seller/earnings');
       const json = await safeJson(res);
-      if (json.success) setEarnings(json.data);
-      else setError(json.error || 'Could not load earnings');
+      if (json.success) {
+        setEarnings(json.data);
+        // Prefill the payout form with saved bank details so the seller doesn't
+        // have to re-enter their account number each time.
+        const bd = json.data.bankDetails;
+        if (bd) {
+          setForm(f => ({
+            ...f,
+            bankName: f.bankName || bd.bankName || '',
+            accountName: f.accountName || bd.accountName || '',
+            accountNumber: f.accountNumber || bd.accountNumber || '',
+          }));
+        }
+      } else setError(json.error || 'Could not load earnings');
     } catch { setError('Network error'); }
     finally { setLoading(false); }
   };

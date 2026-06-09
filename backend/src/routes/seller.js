@@ -3,9 +3,11 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
+const { getEmailMap } = require('../lib/resilience');
+const { REVENUE_STATUSES, PAYABLE_STATUSES } = require('../lib/orderStatus');
 
-// Statuses that count as real revenue for a seller (money actually received).
-const PAID_STATUSES = ['paid', 'shipped', 'delivered'];
+// Statuses that count as sales activity on dashboards (incl. 'processing').
+const PAID_STATUSES = REVENUE_STATUSES;
 
 // Given a list of order IDs, return a Set of those that are in a paid status.
 async function getPaidOrderIdSet(orderIds = []) {
@@ -101,28 +103,28 @@ router.get('/dashboard', verifyToken, requireSellerOrAdmin, async (req, res, nex
       .order('created_at', { ascending: false });
     if (pErr) throw pErr;
 
-    let totalSales = 0;
-    let totalUnits = 0;
-    {
-      const { data: orderItems, error: oiErr } = await supabase
-        .from('order_items')
-        .select('quantity, unit_price, order_id, seller_id')
-        .eq('seller_id', req.user.id);
-      if (oiErr) throw oiErr;
+    const { data: orderItems, error: oiErr } = await supabase
+      .from('order_items')
+      .select('order_id, quantity, unit_price')
+      .eq('seller_id', req.user.id);
+    if (oiErr) throw oiErr;
 
-      const paidOrderIds = await getPaidOrderIdSet((orderItems || []).map((i) => i.order_id));
-      const paidItems = (orderItems || []).filter((i) => paidOrderIds.has(i.order_id));
-      totalSales = paidItems.reduce((sum, it) => sum + Number(it.unit_price || 0) * Number(it.quantity || 0), 0);
-      totalUnits = paidItems.reduce((sum, it) => sum + Number(it.quantity || 0), 0);
-    }
+    const paidOrderIds = await getPaidOrderIdSet((orderItems || []).map((i) => i.order_id));
+    const paidItems = (orderItems || []).filter((i) => paidOrderIds.has(i.order_id));
 
+    const totalSales = paidItems.reduce((acc, i) => acc + (Number(i.unit_price) * Number(i.quantity)), 0);
+    const totalUnits = paidItems.reduce((acc, i) => acc + Number(i.quantity), 0);
+    const totalOrders = new Set(paidItems.map((i) => i.order_id)).size;
+    // Return metrics including totalOrders
     res.status(200).json({
       success: true,
       data: {
         metrics: {
           productCount: (products || []).length,
           totalSales,
-          totalUnits
+          totalRevenue: totalSales,
+          totalUnits,
+          totalOrders,
         },
         products: (products || []).map((p) => ({ ...p, _id: p.id, id: p.id, price: Number(p.price || 0) }))
       }
@@ -225,9 +227,12 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
     if (ordErr) throw ordErr;
 
     const buyerIds = [...new Set((orders || []).map((o) => o.user_id).filter(Boolean))];
-    const { data: buyers } = buyerIds.length
-      ? await supabase.from('profiles').select('id, full_name, username').in('id', buyerIds)
-      : { data: [] };
+    const [{ data: buyers }, emailMap] = buyerIds.length
+      ? await Promise.all([
+          supabase.from('profiles').select('id, full_name, username, phone_number').in('id', buyerIds),
+          getEmailMap(),
+        ])
+      : [{ data: [] }, new Map()];
     const buyerMap = new Map((buyers || []).map((b) => [b.id, b]));
     const itemsByOrder = (orderItems || []).reduce((map, oi) => {
       const list = map.get(oi.order_id) || [];
@@ -255,7 +260,8 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
         createdAt: o.created_at,
         buyer: {
           name: buyer?.full_name || buyer?.username || 'Customer',
-          email: buyer?.username || '',
+          email: emailMap.get(o.user_id) || buyer?.username || '',
+          phone: buyer?.phone_number || '',
         },
         items: sellerItems,
         sellerTotal: sellerItems.reduce((s, i) => s + i.price * i.quantity, 0),
@@ -360,7 +366,7 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
         .select('quantity, unit_price, order:orders(status)')
         .in('product_id', productIds);
       grossEarnings = (items || [])
-        .filter(i => ['paid','shipped','delivered'].includes(i.order?.status))
+        .filter(i => PAYABLE_STATUSES.includes(i.order?.status))
         .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     }
 
@@ -377,6 +383,24 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
       .eq('seller_id', req.user.id)
       .order('requested_at', { ascending: false });
 
+    // Saved bank details (reused to prefill the payout form). Tolerates the
+    // columns not existing yet (before migration 009 is applied).
+    let bankDetails = null;
+    try {
+      const { data: prof, error: profErr } = await supabase
+        .from('profiles')
+        .select('bank_name, bank_account_name, bank_account_number')
+        .eq('id', req.user.id)
+        .maybeSingle();
+      if (!profErr && prof && (prof.bank_name || prof.bank_account_number)) {
+        bankDetails = {
+          bankName: prof.bank_name || '',
+          accountName: prof.bank_account_name || '',
+          accountNumber: prof.bank_account_number || '',
+        };
+      }
+    } catch (_) { /* columns may not exist yet — non-fatal */ }
+
     res.json({
       success: true,
       data: {
@@ -384,6 +408,7 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
         withdrawn,
         available: Math.max(0, grossEarnings - withdrawn),
         payouts: allPayouts || [],
+        bankDetails,
       },
     });
   } catch (err) { next(err); }
@@ -409,7 +434,7 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
         .select('quantity, unit_price, order:orders(status)')
         .in('product_id', productIds);
       grossEarnings = (items || [])
-        .filter(i => ['paid','shipped','delivered'].includes(i.order?.status))
+        .filter(i => PAYABLE_STATUSES.includes(i.order?.status))
         .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     }
     const { data: prevPayouts } = await supabase
@@ -427,6 +452,21 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
       .insert({ seller_id: req.user.id, amount: amt, payment_method, payment_details: payment_details || null })
       .select().single();
     if (error) throw error;
+
+    // Persist bank details on the profile so future requests can reuse them.
+    // Best-effort: tolerates the columns not existing yet (migration 009).
+    if (payment_details && (payment_details.bankName || payment_details.accountNumber)) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            bank_name: payment_details.bankName || null,
+            bank_account_name: payment_details.accountName || null,
+            bank_account_number: payment_details.accountNumber || null,
+          })
+          .eq('id', req.user.id);
+      } catch (_) { /* columns may not exist yet — non-fatal */ }
+    }
 
     res.status(201).json({ success: true, data });
   } catch (err) { next(err); }

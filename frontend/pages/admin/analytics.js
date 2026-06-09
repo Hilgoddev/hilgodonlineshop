@@ -59,6 +59,7 @@ export default function AdminAnalytics() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <StatCard icon="fa-naira-sign"    label="Total Revenue"   value={formatPrice(Number(stats?.revenue || 0), 'NGN', false)} accent="#10b981" />
         <StatCard icon="fa-shopping-cart" label="Total Orders"    value={(stats?.orders    || 0).toLocaleString()} accent="#3b82f6" />
+        <StatCard icon="fa-cubes"         label="Units Sold"      value={(stats?.unitsSold || 0).toLocaleString()} accent="#ec4899" />
         <StatCard icon="fa-users"         label="Customers"       value={(stats?.customers || 0).toLocaleString()} accent="#8b5cf6" />
         <StatCard icon="fa-store"         label="Sellers"         value={(stats?.sellers   || 0).toLocaleString()} accent="#f59e0b" />
         <StatCard icon="fa-box"           label="Total Products"  value={(stats?.products  || 0).toLocaleString()} accent="#0ea5e9" />
@@ -155,7 +156,7 @@ export default function AdminAnalytics() {
           <i className="fas fa-chart-line" style={{ color: '#10b981', marginRight: '8px' }}></i>
           Revenue Trend
         </h3>
-        <p style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginBottom: '20px' }}>Last 6 months · paid & delivered orders only</p>
+        <p style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginBottom: '20px' }}>Last 6 months · paid, processing, shipped &amp; delivered orders</p>
         {monthlyTrend.length === 0 ? (
           <p style={{ color: 'var(--gray-1)', fontSize: '.9rem' }}>No revenue data yet.</p>
         ) : (

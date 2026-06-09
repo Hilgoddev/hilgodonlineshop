@@ -5,6 +5,8 @@ const { verifyToken } = require('./auth');
 const requireAdmin = require('../middleware/requireAdmin');
 const { sendEmail, escapeHtml, sellerApprovedHtml } = require('../services/email');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
+const { getSetting, setSetting } = require('../lib/settings');
+const { REVENUE_STATUSES } = require('../lib/orderStatus');
 const statsCache = makeCache({ ttlMs: 30 * 1000 });
 const listCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -45,10 +47,10 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             // Total revenue: all orders that represent received money. MUST include
             // 'shipped' — a paid order that's been shipped is still revenue (otherwise
             // shipping an order makes its money vanish from the dashboard).
-            supabase.from('orders').select('total_amount').in('status', ['paid', 'shipped', 'delivered']),
+            supabase.from('orders').select('id, total_amount').in('status', REVENUE_STATUSES),
             // Monthly revenue trend: last 6 months
             supabase.from('orders').select('total_amount, created_at')
-                .in('status', ['paid', 'shipped', 'delivered'])
+                .in('status', REVENUE_STATUSES)
                 .gte('created_at', sixMonthsAgoISO),
             // ALL registered users (profiles) — covers every role including unsynced
             supabase.from('profiles').select('id', { count: 'exact', head: true }),
@@ -90,6 +92,17 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
 
         // ── Totals ───────────────────────────────────────────────────────────
         const totalRevenue = revenueOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+
+        // ── Units sold across the platform (paid/processing/shipped/delivered) ─
+        let unitsSold = 0;
+        const revenueOrderIds = revenueOrders.map((o) => o.id).filter(Boolean);
+        if (revenueOrderIds.length) {
+            const { data: soldItems } = await supabase
+                .from('order_items')
+                .select('quantity')
+                .in('order_id', revenueOrderIds);
+            unitsSold = (soldItems || []).reduce((s, i) => s + Number(i.quantity || 0), 0);
+        }
 
         // ── Order status breakdown (ALL orders) ──────────────────────────────
         const ordersByStatus = allOrders.reduce((acc, o) => {
@@ -156,6 +169,7 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                 storesApproved,
                 storesPending,
                 revenue:         totalRevenue,
+                unitsSold,
                 ordersByStatus,
                 monthlyTrend,
                 recentOrders: recentOrders.map((o) => {
@@ -167,7 +181,7 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                         status:      o.status,
                         // Same derivation as GET /api/orders/all so the dashboard
                         // and the orders page agree: shipped/delivered imply paid.
-                        paymentStatus: ['paid', 'shipped', 'delivered'].includes(o.status) ? 'paid' : 'pending',
+                        paymentStatus: REVENUE_STATUSES.includes(o.status) ? 'paid' : 'pending',
                         totalAmount: Number(o.total_amount || 0),
                         createdAt:   o.created_at,
                         user: {
@@ -221,7 +235,7 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
 
         const userIds = (profiles || []).map((p) => p.id);
         const { data: orders } = userIds.length
-            ? await supabase.from('orders').select('id, user_id, total_amount').in('status', ['paid', 'shipped', 'delivered'])
+            ? await supabase.from('orders').select('id, user_id, total_amount').in('status', REVENUE_STATUSES)
             : { data: [] };
 
         // Fetch real emails in one batch (cached/shared across admin routes)
@@ -289,6 +303,37 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
         const sellerIds = (profiles || []).map((p) => p.id);
         let stores   = [];
         let products = [];
+        // Compute total sales, revenue, and orders per seller
+        let sellerSalesMap = new Map();
+        let sellerOrdersMap = new Map();
+        if (sellerIds.length) {
+          // fetch order items for these sellers
+          const { data: orderItems, error: oiErr } = await supabase
+            .from('order_items')
+            .select('order_id, quantity, unit_price, seller_id')
+            .in('seller_id', sellerIds);
+          if (oiErr) throw oiErr;
+          const orderIds = [...new Set((orderItems || []).map((i) => i.order_id))];
+          const { data: paidOrders, error: poErr } = await supabase
+            .from('orders')
+            .select('id')
+            .in('id', orderIds)
+            .in('status', REVENUE_STATUSES);
+          if (poErr) throw poErr;
+          const paidSet = new Set((paidOrders || []).map((o) => o.id));
+          const paidItems = (orderItems || []).filter(i => paidSet.has(i.order_id));
+          for (const item of paidItems) {
+            const sid = item.seller_id;
+            const cur = sellerSalesMap.get(sid) || { total_sales: 0, total_revenue: 0 };
+            cur.total_sales += Number(item.quantity);
+            cur.total_revenue += Number(item.unit_price) * Number(item.quantity);
+            sellerSalesMap.set(sid, cur);
+            // Track orders per seller
+            let orderSet = sellerOrdersMap.get(sid);
+            if (!orderSet) { orderSet = new Set(); sellerOrdersMap.set(sid, orderSet); }
+            orderSet.add(item.order_id);
+          }
+        }
 
         if (sellerIds.length) {
             const [storesRes, productsRes] = await Promise.all([
@@ -321,7 +366,10 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
                 email:        emailMap.get(p.id) || p.username || '',
                 image:        p.avatar_url || '',
                 store,
-                productCount: productCountMap.get(p.id) || 0,
+                product_count: productCountMap.get(p.id) || 0,
+                total_sales: (sellerOrdersMap.get(p.id) || new Set()).size || 0,
+                total_units: (sellerSalesMap.get(p.id) || {}).total_sales || 0,
+                total_revenue: (sellerSalesMap.get(p.id) || {}).total_revenue || 0,
                 joinedAt:     p.created_at,
             };
         });
@@ -672,6 +720,27 @@ router.put('/payouts/:id', verifyToken, requireAdmin, async (req, res, next) => 
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Payout not found' });
     res.json({ success: true, data });
+  } catch (err) { next(err); }
+});
+
+// ── Platform settings ──────────────────────────────────────────────────────────
+
+// GET /api/admin/settings — current platform settings (admins).
+router.get('/settings', verifyToken, requireAdmin, async (req, res, next) => {
+  try {
+    const autoApproveProducts = (await getSetting('auto_approve_products', false)) === true;
+    res.json({ success: true, data: { autoApproveProducts } });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/admin/settings — update platform settings (admins).
+router.put('/settings', verifyToken, requireAdmin, async (req, res, next) => {
+  try {
+    if (typeof req.body.autoApproveProducts === 'boolean') {
+      await setSetting('auto_approve_products', req.body.autoApproveProducts);
+    }
+    const autoApproveProducts = (await getSetting('auto_approve_products', false)) === true;
+    res.json({ success: true, data: { autoApproveProducts } });
   } catch (err) { next(err); }
 });
 
