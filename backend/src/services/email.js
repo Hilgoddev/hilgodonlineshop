@@ -35,8 +35,16 @@ const { cleanEnv } = require('../lib/env');
 const RESEND_API_KEY = cleanEnv(process.env.RESEND_API_KEY);
 // Used to build links inside emails (Track Order, View Orders, etc). MUST be
 // the live site in production — a stale/localhost value makes email buttons
-// point at localhost. Defaults to the production domain, not an old host.
-const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
+// point at localhost. FRONTEND_URL may be a comma-separated list (used for CORS),
+// so take the first usable origin; in production skip any localhost entry and
+// fall back to the live domain so email buttons are never broken.
+const isLocalUrl = (u) => /localhost|127\.0\.0\.1|\[::1\]/i.test(u || '');
+const FRONTEND_URLS = (cleanEnv(process.env.FRONTEND_URL) || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+const BASE_URL = (
+  FRONTEND_URLS.find((u) => !(process.env.NODE_ENV === 'production' && isLocalUrl(u)))
+  || 'https://www.hilgod.com'
+).replace(/\/$/, '');
 const supabase = require('../config/supabase');
 
 const FROM_ORDERS = cleanEnv(process.env.EMAIL_FROM_ORDERS) || 'Hilgod Orders <order@hilgod.com>';
@@ -239,13 +247,14 @@ function paymentConfirmedHtml(orderId, items, total, buyerName, currency = 'NGN'
   </div>`;
 }
 
-function newOrderSellerHtml(orderId, items, currency = 'NGN') {
+function newOrderSellerHtml(orderId, items, currency = 'NGN', buyerName = '', orderDate = '') {
   const rows = items.map(i =>
     `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Order Received!</h2>
     <p>A customer has placed and paid for an order containing your product(s). Order ID: <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong></p>
+    ${(buyerName || orderDate) ? `<p style="color:#444">${buyerName ? `<strong>Customer:</strong> ${escapeHtml(buyerName)}` : ''}${(buyerName && orderDate) ? ' &nbsp;·&nbsp; ' : ''}${orderDate ? `<strong>Date:</strong> ${escapeHtml(orderDate)}` : ''}</p>` : ''}
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
       <thead><tr style="background:#f8f8f8"><th style="padding:8px;text-align:left">Product</th><th style="padding:8px;text-align:center">Qty</th><th style="padding:8px;text-align:right">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -255,13 +264,14 @@ function newOrderSellerHtml(orderId, items, currency = 'NGN') {
   </div>`;
 }
 
-function newOrderAdminHtml(orderId, items, total, buyerUserId, currency = 'NGN') {
+function newOrderAdminHtml(orderId, items, total, buyerName, orderDate = '', currency = 'NGN') {
   const rows = items.map(i =>
     `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Paid Order</h2>
-    <p>Order <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong> has been paid. Buyer user ID: <strong>${buyerUserId}</strong></p>
+    <p>Order <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong> has been paid.</p>
+    <p style="color:#444"><strong>Customer:</strong> ${escapeHtml(buyerName || 'Customer')}${orderDate ? ` &nbsp;·&nbsp; <strong>Date:</strong> ${escapeHtml(orderDate)}` : ''}</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0">
       <thead><tr style="background:#f8f8f8"><th style="padding:8px;text-align:left">Product</th><th style="padding:8px;text-align:center">Qty</th><th style="padding:8px;text-align:right">Amount</th></tr></thead>
       <tbody>${rows}</tbody>

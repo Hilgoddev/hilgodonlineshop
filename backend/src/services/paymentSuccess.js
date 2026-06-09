@@ -6,7 +6,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     // Fetch order and verify it hasn't been processed already (guard against duplicate webhook calls)
     const { data: order, error: orderCheckErr } = await supabase
       .from('orders')
-      .select('total_amount, status, currency')
+      .select('total_amount, status, currency, created_at')
       .eq('id', order_id)
       .single();
 
@@ -51,21 +51,36 @@ async function handlePaymentSuccess(order_id, user_id) {
       image: productMap[i.product_id]?.images?.[0] || null,
     }));
 
-    // Send payment confirmation to buyer
+    // Resolve the buyer's identity once — reused for the buyer, seller and admin
+    // emails so they all show a human name + date instead of a raw user ID.
+    let buyerName = 'Customer';
+    let buyerEmail = null;
     if (user_id) {
       try {
         const { data: { user } } = await supabase.auth.admin.getUserById(user_id);
-        if (user?.email) {
-          const buyerName = user.user_metadata?.full_name || user.user_metadata?.name || user.email;
-          sendEmail({
-            to: user.email,
-            subject: `Payment Confirmed — Order #${String(order_id).slice(0, 8).toUpperCase()}`,
-            html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName, order?.currency),
-            emailType: 'payment_confirmed',
-            orderId: order_id,
-            userId: user_id,
-          }).catch(() => {});
+        if (user) {
+          buyerEmail = user.email || null;
+          buyerName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || 'Customer';
         }
+      } catch {}
+    }
+
+    // Human-readable order date for emails (e.g. "9 Jun 2026, 11:30").
+    const orderDate = new Date(order?.created_at || Date.now()).toLocaleString('en-NG', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+
+    // Send payment confirmation to buyer
+    if (buyerEmail) {
+      try {
+        sendEmail({
+          to: buyerEmail,
+          subject: `Payment Confirmed — Order #${String(order_id).slice(0, 8).toUpperCase()}`,
+          html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName, order?.currency),
+          emailType: 'payment_confirmed',
+          orderId: order_id,
+          userId: user_id,
+        }).catch(() => {});
       } catch {}
     }
 
@@ -90,7 +105,7 @@ async function handlePaymentSuccess(order_id, user_id) {
         sendEmail({
           to: seller.email,
           subject: `New Order Received — #${String(order_id).slice(0, 8).toUpperCase()}`,
-          html: newOrderSellerHtml(order_id, sellerEmailItems, order?.currency),
+          html: newOrderSellerHtml(order_id, sellerEmailItems, order?.currency, buyerName, orderDate),
           emailType: 'new_order_seller',
           orderId: order_id,
           userId: sellerId,
@@ -104,7 +119,7 @@ async function handlePaymentSuccess(order_id, user_id) {
       sendEmail({
         to: adminEmail,
         subject: `New Paid Order — #${String(order_id).slice(0, 8).toUpperCase()}`,
-        html: newOrderAdminHtml(order_id, emailItems, order?.total_amount || 0, user_id || 'Unknown', order?.currency),
+        html: newOrderAdminHtml(order_id, emailItems, order?.total_amount || 0, buyerName, orderDate, order?.currency),
         emailType: 'new_order_admin',
         orderId: order_id,
       }).catch(() => {});
