@@ -1,6 +1,6 @@
-# Hilgod Marketplace — System Audit Report
+# Hilgod Marketplace — Full System Audit Report (End-to-End Tested)
 
-_Date: 2026-06-09 · Scope: backend (Express/Supabase) + frontend (Next.js)_
+_Date: 2026-06-09 · Scope: backend (Express/Supabase) + frontend (Next.js) · Method: code review + live E2E testing_
 
 ## Summary
 
@@ -10,8 +10,47 @@ Admin Dashboard, Security & Performance, and Infrastructure.
 
 **Overall the system is well-built and security-conscious.** The authentication,
 authorization, payment, and access-control layers are strong. The remaining risks are
-systemic/operational (RLS reliance, serverless rate-limiting, unapplied migrations)
-rather than broken endpoints. Several best-practice fixes were applied during the audit.
+systemic/operational (RLS reliance, serverless rate-limiting) rather than broken
+endpoints. Several best-practice fixes were applied during the audit.
+
+This pass was **tested end-to-end**, not just read: the frontend was built, the API was
+booted and probed live, auth enforcement was exercised with/without tokens, and the core
+business flows (metrics, payouts, campaigns, auto-approve, store page) were run against
+the live database. Evidence below.
+
+---
+
+## End-to-end test evidence (2026-06-09)
+
+| Test | Method | Result |
+|------|--------|--------|
+| Frontend build | `npm run build` | ✅ Compiled, 45/45 pages generated |
+| Backend syntax | `node --check` ×36 files | ✅ 36/36 pass |
+| API boot | `node src/index.js` | ✅ Server starts clean |
+| Public endpoints | `curl` health, products, stores, categories, campaigns, flash-sales, exchange-rates | ✅ All HTTP 200 |
+| Auth enforcement (no token) | `curl` seller/dashboard, admin/stats, orders, seller/earnings, user/profile | ✅ All 401 |
+| Auth enforcement (writes) | `curl POST` campaigns, products | ✅ All 401 |
+| Forged token | `curl` admin/stats with fake bearer | ✅ 401 rejected |
+| Frontend secret exposure | grep for service-role / secret keys in `frontend/` | ✅ None found |
+| Role guards | `AdminGuard`/`SellerGuard` resolve role via `/api/auth/me` (DB) | ✅ Redirect non-matching roles |
+| Seller metrics | live recompute per seller | ✅ Populate (sales/units/revenue) |
+| Payout vs activity split | live recompute | ✅ `processing` counts as sales but is excluded from withdrawable balance |
+| Campaign pricing engine | `getActiveFlashSaleMap()` | ✅ Callable, returns override Map |
+| Auto-approve setting | `getSetting('auto_approve_products')` | ✅ Reads live value (currently **ON**) |
+| Store page data | live store + product count | ✅ Approved store resolves to its products |
+| Migrations 009/010/011 | live schema probe | ✅ Applied & seeded |
+
+---
+
+## Git history & secret scan
+
+- **Co-authored-by / "Claude" lines:** none across all 144 commits.
+- **`.env` files:** never committed; `.gitignore` excludes all `.env*`. Only `frontend/.env.example` (placeholder) is tracked.
+- **Secret keys:** no full/usable key, service-role JWT, or Resend key was ever committed.
+  Truncated, non-usable fragments (`sk_live_86e7...`) existed only in `HANDOVER_AUDIT.md`
+  and were **redacted** (commit `b538d7a`). Per the client's decision, history was **not**
+  rewritten (fragments are non-usable; a 144-commit force-push to the shared repo was judged
+  not worth the disruption). Client will rotate live keys themselves as a precaution.
 
 ---
 
