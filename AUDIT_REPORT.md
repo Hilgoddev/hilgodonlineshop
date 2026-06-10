@@ -2,6 +2,44 @@
 
 _Date: 2026-06-09 · Scope: backend (Express/Supabase) + frontend (Next.js) · Method: code review + live E2E testing_
 
+## Cross-app feature audit (2026-06-09, second pass)
+
+Every feature was traced from data → API → all UI surfaces. Live check: all public
+endpoints return 200, all auth-guarded endpoints return 401 without a token.
+
+| Feature | Works | Consistent across app | Notes |
+|---------|-------|------------------------|-------|
+| Auth & role guards | ✅ | ✅ | seller/admin/buyer endpoints all 401 without token |
+| Products + pagination | ✅ | ✅ | server-side per-page; list + detail load |
+| Per-product reviews | ✅ | ✅ | product page fetches/renders real reviews; tab count live; testimonials on home |
+| Project-wide /reviews page | ⏸️ | n/a | **unlinked on purpose** (FUTURE UPGRADE) — page route still reachable by direct URL only |
+| Campaigns (flash/black_friday/easter) | ✅ | ✅ | 3 type endpoints 200; storefront pages + homepage sections + hero slides + admin manager |
+| Variant options (size/color) | ✅ | ✅ | product → cart → checkout review → order; shown in **buyer account, seller orders, admin modal**; stored on `order_items.selected_options` |
+| Color names (not just hex) | ✅ | ✅ | product page, specs, cart, checkout, all order views, and product add/edit chips |
+| 10% admin commission | ✅ | ✅* | seller payout net = 90%; admin analytics shows commission. *Dashboard "Revenue" is **gross sales** by design (see note) |
+| Unique store name | ✅ | ✅ | enforced (case-insensitive) on create AND rename |
+| Order emails | ✅ | ✅ | product names in body (all 3 emails) + lead name in confirmation subject; buyer name + date, never raw IDs |
+| Manual payouts + saved bank details | ✅ | ✅ | net balance; bank details prefill from profile |
+| Auto-approve products | ✅ | ✅ | global `platform_settings` toggle in admin |
+| Order status (pending/processing) | ✅ | ✅ | revenue counts `processing`; withdrawable excludes it |
+| Admin sidebar attention badges | ✅ | ✅ | pending approvals + payouts counts |
+| Public store page `/stores/[slug]` | ✅ | ✅ | resolves store + its products |
+
+### Gap found & fixed during this audit
+- The **seller orders** endpoint/page didn't return or show the buyer's selected
+  variant — a seller couldn't see which size/color to ship. Fixed: `selected_options`
+  now flows to the seller view too, so all three order views (buyer/seller/admin) match.
+
+### Known design trade-offs (not bugs — documented so they aren't mistaken for issues)
+- **Seller "Revenue" (dashboard) vs "Net Earnings" (payouts) differ.** Dashboard Revenue is
+  gross sales activity and includes `processing` orders; payout Net Earnings is 90% of money
+  actually received (`paid/shipped/delivered`, excludes `processing`). So dashboard revenue
+  can exceed available payout — by design.
+- **Variant options are held in a per-browser map** (the server cart stores only
+  product+quantity). Selections persist across reloads and flow into the order, but don't
+  sync across devices before checkout; one product = one variant per cart line.
+- **Migrations 009–012 must be applied** (012 confirmed applied on the live DB).
+
 ## Summary
 
 A full audit was performed across nine areas: Authentication & Authorization, Product
