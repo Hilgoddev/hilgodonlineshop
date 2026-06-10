@@ -508,7 +508,7 @@ export default function ProductDetail({ product, relatedProducts }) {
                 )}
                 <tr>
                   <td>Rating</td>
-                  <td>{product.ratings?.average?.toFixed(1) || '0.0'} / 5.0</td>
+                  <td>{(avgRating || 0).toFixed(1)} / 5.0 {reviewCount ? `(${reviewCount})` : ''}</td>
                 </tr>
               </tbody>
             </table>

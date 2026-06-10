@@ -303,11 +303,11 @@ export default function ShopProvider({ children }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <div style={{ color: '#fbbf24', fontSize: '0.9rem' }}>
                       {[...Array(5)].map((_, i) => (
-                        <i key={i} className={`fas ${i < Math.floor(quickViewProduct.ratings?.average || 0) ? 'fa-star' : i < (quickViewProduct.ratings?.average || 0) ? 'fa-star-half-alt' : 'far fa-star'}`}></i>
+                        <i key={i} className={`fas ${i < Math.floor(quickViewProduct.rating || 0) ? 'fa-star' : i < (quickViewProduct.rating || 0) ? 'fa-star-half-alt' : 'far fa-star'}`}></i>
                       ))}
                     </div>
                     <span style={{ fontSize: '.8rem', color: 'var(--gray-1)' }}>
-                      ({(quickViewProduct.ratings?.count || 0).toLocaleString()} reviews)
+                      ({(quickViewProduct.review_count || 0).toLocaleString()} review{quickViewProduct.review_count === 1 ? '' : 's'})
                     </span>
                   </div>
                   <div style={{ marginBottom: '14px' }}>

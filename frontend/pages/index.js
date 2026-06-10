@@ -185,7 +185,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
   useEffect(() => {
     if (catalogProducts && catalogProducts.length > 0) {
       setBestsellers([...catalogProducts]
-        .sort((a, b) => (b.ratings?.count || 0) - (a.ratings?.count || 0))
+        .sort((a, b) => (b.review_count || 0) - (a.review_count || 0))
         .slice(0, 10));
       setNewArrivals([...catalogProducts]
         .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at))
