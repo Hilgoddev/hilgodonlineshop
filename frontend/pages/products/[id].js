@@ -438,7 +438,7 @@ export default function ProductDetail({ product, relatedProducts }) {
               className={`tab-head ${activeTab === 'reviews' ? 'active' : ''}`}
               onClick={() => setActiveTab('reviews')}
             >
-              Reviews ({product.ratings?.count || 0})
+              Reviews ({reviewCount})
             </div>
           </div>
 
