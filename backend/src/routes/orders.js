@@ -267,7 +267,14 @@ router.post('/', verifyToken, async (req, res, next) => {
                     serverUnitPrice,
                     clientUnitPrice,
                 });
-                return res.status(400).json({ success: false, error: 'Price mismatch detected' });
+                // Almost always a stale cart (e.g. a flash sale ended) rather than
+                // tampering — tell the buyer clearly so they refresh instead of being
+                // confused, and signal the client to reload current prices.
+                return res.status(409).json({
+                    success: false,
+                    error: 'Some prices changed since you added these items (a sale may have ended). Please review your cart and try again.',
+                    code: 'PRICE_CHANGED',
+                });
             }
 
             total_amount += serverUnitPrice * quantity;
