@@ -97,8 +97,8 @@ export default function HomeCampaignSection({ campaigns = [], theme }) {
           <Link href={href} className="section-link">View All Deals <i className="fas fa-arrow-right"></i></Link>
         </div>
       </div>
-      <div className="product-grid-5">
-        {cards.slice(0, 5).map((product) => (
+      <div className="product-grid-5 section-products">
+        {cards.slice(0, 10).map((product) => (
           <ProductCard key={product._id} product={product} />
         ))}
       </div>

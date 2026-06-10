@@ -627,6 +627,17 @@
   gap: var(--space-2);
 }
 
+/* Landing product rows show up to 10 cards on extra-large (5 cols x 2 rows),
+   8 on large (4 cols x 2), and 6 below (3 or 2 cols). We always render 10 and
+   hide the extras per breakpoint. Scoped to .section-products so full listings
+   (store page, search, /products) are never truncated. */
+@media (max-width: 1199px) {
+  .section-products > *:nth-child(n + 9) { display: none; }
+}
+@media (max-width: 991px) {
+  .section-products > *:nth-child(n + 7) { display: none; }
+}
+
 /* ---- HORIZONTAL SCROLL ROW ---- */
 .horizontal-scroll-wrap {
   overflow-x: auto;

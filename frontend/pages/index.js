@@ -186,10 +186,10 @@ export default function Home({ products, categories = [], campaigns = [], catego
     if (catalogProducts && catalogProducts.length > 0) {
       setBestsellers([...catalogProducts]
         .sort((a, b) => (b.ratings?.count || 0) - (a.ratings?.count || 0))
-        .slice(0, 8));
+        .slice(0, 10));
       setNewArrivals([...catalogProducts]
         .sort((a, b) => new Date(b.createdAt || b.created_at) - new Date(a.createdAt || a.created_at))
-        .slice(0, 8));
+        .slice(0, 10));
     } else if (!catalogLoading) {
       setBestsellers([]);
       setNewArrivals([]);
@@ -208,9 +208,9 @@ export default function Home({ products, categories = [], campaigns = [], catego
       if (seeded && seeded.length) return; // already populated from SSR
       for (const slug of slugs) {
         try {
-          const data = await fetchJsonWithTimeout(`${apiBase}/products?category=${encodeURIComponent(slug)}&limit=8`, 8000);
+          const data = await fetchJsonWithTimeout(`${apiBase}/products?category=${encodeURIComponent(slug)}&limit=10`, 8000);
           if (!cancelled && data?.success && Array.isArray(data.data) && data.data.length) {
-            setter(data.data.slice(0, 8));
+            setter(data.data.slice(0, 10));
             return;
           }
         } catch { /* try the next fallback slug */ }
@@ -524,7 +524,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           <h2 className="section-title"><span className="bar"></span>Best Sellers</h2>
           <a href="/products" className="section-link">View All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="bestsellers-grid">
+        <div className="product-grid-5 section-products" id="bestsellers-grid">
           {bestsellers.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -564,7 +564,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           </h2>
           <a href="/products?category=electronics" className="section-link">See All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="electronics-grid">
+        <div className="product-grid-5 section-products" id="electronics-grid">
           {electronics.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -579,7 +579,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           <h2 className="section-title"><span className="bar"></span>Beauty & Personal Care</h2>
           <a href="/products?category=beauty" className="section-link">See All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="beauty-grid">
+        <div className="product-grid-5 section-products" id="beauty-grid">
           {beauty.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -596,7 +596,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           </h2>
           <a href="/products" className="section-link">View All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="new-arrivals-grid">
+        <div className="product-grid-5 section-products" id="new-arrivals-grid">
           {newArrivals.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -610,7 +610,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           <h2 className="section-title"><span className="bar"></span>Menswear & Shoes</h2>
           <a href="/products?category=menswear" className="section-link">See All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="menswear-grid">
+        <div className="product-grid-5 section-products" id="menswear-grid">
           {menswear.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -625,7 +625,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           <h2 className="section-title"><span className="bar"></span>Womenswear & Fashion</h2>
           <a href="/products?category=womenswear" className="section-link">See All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="womenswear-grid">
+        <div className="product-grid-5 section-products" id="womenswear-grid">
           {womenswear.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -640,7 +640,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
           <h2 className="section-title"><span className="bar"></span>Home & Kitchen</h2>
           <a href="/products?category=home" className="section-link">See All <i className="fas fa-arrow-right"></i></a>
         </div>
-        <div className="product-grid-5" id="home-grid">
+        <div className="product-grid-5 section-products" id="home-grid">
           {homeKitchen.map(product => (
             <ProductCard key={product._id} product={product} />
           ))}
@@ -740,8 +740,8 @@ export async function getServerSideProps({ req }) {
   const fetchCat = async (slugs) => {
     for (const slug of slugs) {
       try {
-        const d = await fetchJsonWithTimeout(`${baseUrl}/products?category=${encodeURIComponent(slug)}&limit=8`, 8000);
-        if (d?.success && Array.isArray(d.data) && d.data.length) return d.data.slice(0, 8);
+        const d = await fetchJsonWithTimeout(`${baseUrl}/products?category=${encodeURIComponent(slug)}&limit=10`, 8000);
+        if (d?.success && Array.isArray(d.data) && d.data.length) return d.data.slice(0, 10);
       } catch { /* try next slug */ }
     }
     return [];
