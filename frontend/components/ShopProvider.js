@@ -254,6 +254,16 @@ export default function ShopProvider({ children }) {
     return Object.keys(o).length ? o : null;
   };
 
+  // Carry the quick-view variant selection to the product page so it isn't reset
+  // (a buyer who doesn't recheck won't end up with the wrong variant).
+  const quickViewQuery = () => {
+    const p = new URLSearchParams();
+    if (quickViewProduct?.size_options?.length && qvSelection.size) p.set('size', qvSelection.size);
+    if (quickViewProduct?.color_options?.length && qvSelection.color) p.set('color', qvSelection.color);
+    const s = p.toString();
+    return s ? `?${s}` : '';
+  };
+
   const quickViewPricing = normalizePricing(quickViewProduct || {});
   const discount = quickViewPricing.discountPercent;
 
@@ -374,7 +384,7 @@ export default function ShopProvider({ children }) {
                     <button className="btn btn-primary btn-full" onClick={() => { addToCart(quickViewProduct, 1, quickViewOptions()); closeQuickView(); }} disabled={quickViewProduct.stock === 0}>
                       <i className="fas fa-cart-plus"></i> {quickViewProduct.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                     </button>
-                    <Link href={`/products/${quickViewProduct._id}`} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }} onClick={closeQuickView}>
+                    <Link href={`/products/${quickViewProduct._id}${quickViewQuery()}`} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }} onClick={closeQuickView}>
                       <i className="fas fa-eye"></i> View
                     </Link>
                   </div>

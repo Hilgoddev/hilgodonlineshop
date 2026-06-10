@@ -16,8 +16,21 @@ export default function ProductDetail({ product, relatedProducts }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
-  const [selectedSize, setSelectedSize] = useState(product?.size_options?.[0] || '');
-  const [selectedColor, setSelectedColor] = useState(product?.color_options?.[0] || '');
+  // Pre-select the variant from the URL (?size=&color=) when present and valid —
+  // this carries a Quick View selection through to the product page instead of
+  // resetting it (so a buyer can't accidentally check out the wrong variant).
+  const qSize = typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size) ? router.query.size : '';
+  const qColor = typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color) ? router.query.color : '';
+  const [selectedSize, setSelectedSize] = useState(qSize || product?.size_options?.[0] || '');
+  const [selectedColor, setSelectedColor] = useState(qColor || product?.color_options?.[0] || '');
+
+  // If the query carries a variant (e.g. arriving from Quick View after hydration), apply it.
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size)) setSelectedSize(router.query.size);
+    if (typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color)) setSelectedColor(router.query.color);
+    // eslint-disable-next-line
+  }, [router.isReady, router.query.size, router.query.color]);
   
   // Review form state
   const [reviewForm, setReviewForm] = useState({
