@@ -54,6 +54,18 @@ router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
         const { cleanEnv: _clean } = require('../lib/env');
         const frontendUrl   = _clean(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 
+        // Include the product name(s) so the email isn't just an opaque order ID.
+        let safeItems = '';
+        try {
+            const { data: oi } = await supabase
+                .from('order_items')
+                .select('product:products(name)')
+                .eq('order_id', orderId.trim());
+            const names = (oi || []).map((r) => r.product?.name).filter(Boolean);
+            if (names.length) safeItems = escapeHtml(names.join(', '));
+        } catch { /* non-fatal */ }
+        const itemsLine = safeItems ? `<p><strong>Item(s):</strong> ${safeItems}</p>` : '';
+
         // Notify admin
         if (process.env.ADMIN_EMAIL) {
             sendEmail({
@@ -62,6 +74,7 @@ router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
                 html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
                   <h2 style="color:#E31C1C">New Return Request</h2>
                   <p><strong>Order ID:</strong> ${safeOrderId}</p>
+                  ${itemsLine}
                   <p><strong>Customer Email:</strong> ${safeEmail}</p>
                   <p><strong>Reason:</strong> ${safeReason}</p>
                   ${safeDetails ? `<p><strong>Details:</strong> ${safeDetails}</p>` : ''}
@@ -78,6 +91,7 @@ router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
             html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
               <h2 style="color:#E31C1C">We've received your return request</h2>
               <p>Hi, your return request for order <strong>#${safeOrderId}</strong> has been submitted.</p>
+              ${itemsLine}
               <p><strong>Reason:</strong> ${safeReason}</p>
               <p>Our support team will review your request and get back to you within 24 hours.</p>
               <p style="color:#666;font-size:.88rem">Questions? Email us at <a href="mailto:hilgodonline@gmail.com" style="color:#E31C1C">hilgodonline@gmail.com</a></p>

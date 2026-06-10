@@ -191,7 +191,7 @@ function orderConfirmationHtml(orderId, items, total, currency = 'NGN') {
   </div>`;
 }
 
-function orderStatusHtml(orderId, status) {
+function orderStatusHtml(orderId, status, items = []) {
   const messages = {
     paid: 'Your payment has been confirmed! We are preparing your order.',
     processing: 'Your order is being picked and packed.',
@@ -199,9 +199,14 @@ function orderStatusHtml(orderId, status) {
     delivered: 'Your order has been delivered. Enjoy your purchase!',
     cancelled: 'Your order has been cancelled. If this was unexpected, please contact support.',
   };
+  const names = (items || []).map((i) => escapeHtml(i.name)).filter(Boolean);
+  const itemsLine = names.length
+    ? `<p style="color:#475569;font-size:.92rem">Item${names.length > 1 ? 's' : ''}: <strong>${names.join(', ')}</strong></p>`
+    : '';
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Order Update</h2>
     <p>${messages[status] || `Your order status has been updated to: <strong>${status}</strong>.`}</p>
+    ${itemsLine}
     <p>Order ID: <strong>#${String(orderId).slice(0,8).toUpperCase()}</strong></p>
     <a href="${BASE_URL}/account?tab=orders" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Orders</a>
   </div>`;

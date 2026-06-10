@@ -622,13 +622,18 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const orderId = updatedOrder.id;
         const newStatus = updatedOrder.status;
         if (updatedOrder.user_id) {
-            supabase.auth.admin.getUserById(updatedOrder.user_id)
-                .then(({ data: { user } }) => {
+            Promise.all([
+                supabase.auth.admin.getUserById(updatedOrder.user_id),
+                supabase.from('order_items').select('quantity, product:products(name)').eq('order_id', orderId),
+            ])
+                .then(([{ data: { user } }, { data: oi }]) => {
                     if (user?.email) {
+                        const statusItems = (oi || []).map((r) => ({ name: r.product?.name || 'Product', quantity: r.quantity }));
+                        const lead = statusItems[0]?.name || 'your order';
                         sendEmail({
                             to: user.email,
-                            subject: `Order Update — Hilgod`,
-            html: orderStatusHtml(orderId, newStatus),
+                            subject: `Order Update — ${lead}${statusItems.length > 1 ? ' +more' : ''} (Hilgod #${String(orderId).slice(0,8).toUpperCase()})`,
+                            html: orderStatusHtml(orderId, newStatus, statusItems),
                             emailType: 'order_status',
                             orderId,
                             userId: updatedOrder.user_id,
