@@ -9,6 +9,9 @@ const { REVENUE_STATUSES, PAYABLE_STATUSES } = require('../lib/orderStatus');
 // Statuses that count as sales activity on dashboards (incl. 'processing').
 const PAID_STATUSES = REVENUE_STATUSES;
 
+// The platform (admin) takes this cut of every sale; the seller nets the rest.
+const PLATFORM_COMMISSION_RATE = 0.10;
+
 // Given a list of order IDs, return a Set of those that are in a paid status.
 async function getPaidOrderIdSet(orderIds = []) {
   const ids = [...new Set((orderIds || []).filter(Boolean))];
@@ -359,16 +362,19 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
       .from('products').select('id').eq('seller_id', req.user.id);
     const productIds = (products || []).map(p => p.id);
 
-    let grossEarnings = 0;
+    let grossSales = 0;
     if (productIds.length) {
       const { data: items } = await supabase
         .from('order_items')
         .select('quantity, unit_price, order:orders(status)')
         .in('product_id', productIds);
-      grossEarnings = (items || [])
+      grossSales = (items || [])
         .filter(i => PAYABLE_STATUSES.includes(i.order?.status))
         .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     }
+    // Platform takes 10% per sale; the seller's earnings are the net 90%.
+    const commission = grossSales * PLATFORM_COMMISSION_RATE;
+    const netEarnings = grossSales - commission;
 
     const { data: payouts } = await supabase
       .from('seller_payouts')
@@ -404,9 +410,14 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
     res.json({
       success: true,
       data: {
-        grossEarnings,
+        // grossEarnings is the seller's NET (after the 10% platform commission),
+        // kept under this name for backward-compat with the payouts page.
+        grossEarnings: netEarnings,
+        grossSales,
+        commission,
+        commissionRate: PLATFORM_COMMISSION_RATE,
         withdrawn,
-        available: Math.max(0, grossEarnings - withdrawn),
+        available: Math.max(0, netEarnings - withdrawn),
         payouts: allPayouts || [],
         bankDetails,
       },
@@ -427,21 +438,23 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
     const { data: products } = await supabase
       .from('products').select('id').eq('seller_id', req.user.id);
     const productIds = (products || []).map(p => p.id);
-    let grossEarnings = 0;
+    let grossSales = 0;
     if (productIds.length) {
       const { data: items } = await supabase
         .from('order_items')
         .select('quantity, unit_price, order:orders(status)')
         .in('product_id', productIds);
-      grossEarnings = (items || [])
+      grossSales = (items || [])
         .filter(i => PAYABLE_STATUSES.includes(i.order?.status))
         .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     }
+    // Withdrawable balance is the net (after the 10% platform commission).
+    const netEarnings = grossSales * (1 - PLATFORM_COMMISSION_RATE);
     const { data: prevPayouts } = await supabase
       .from('seller_payouts').select('amount')
       .eq('seller_id', req.user.id).in('status', ['approved','paid']);
     const withdrawn = (prevPayouts || []).reduce((s, p) => s + Number(p.amount), 0);
-    const available = Math.max(0, grossEarnings - withdrawn);
+    const available = Math.max(0, netEarnings - withdrawn);
 
     if (amt > available) {
       return res.status(400).json({ success: false, error: `Requested amount exceeds available balance (₦${available.toLocaleString()})` });

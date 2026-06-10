@@ -8,6 +8,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { normalizePricing } from '@/lib/pricing';
 import { resolveServerApiBase } from '@/lib/env';
 import { apiFetch } from '@/lib/apiClient';
+import { colorName } from '@/lib/colorName';
 
 export default function ProductDetail({ product, relatedProducts }) {
   const router = useRouter();
@@ -283,7 +284,7 @@ export default function ProductDetail({ product, relatedProducts }) {
             {product.color_options?.length > 0 && (
               <div className="pdp-variants">
                 <div className="variant-label">
-                  Color: <strong>{selectedColor || 'Select color'}</strong>
+                  Color: <strong>{selectedColor ? colorName(selectedColor) : 'Select color'}</strong>
                 </div>
                 <div className="variant-options">
                   {product.color_options.map(color => (
@@ -293,7 +294,8 @@ export default function ProductDetail({ product, relatedProducts }) {
                       className={`variant-btn color-variant ${selectedColor === color ? 'selected' : ''}`}
                       onClick={() => setSelectedColor(color)}
                       style={{ background: color, border: selectedColor === color ? '2px solid var(--dark)' : '2px solid var(--gray-3)' }}
-                      title={color}
+                      title={colorName(color)}
+                      aria-label={colorName(color)}
                     />
                   ))}
                 </div>
@@ -493,9 +495,12 @@ export default function ProductDetail({ product, relatedProducts }) {
                   <tr>
                     <td>Available Colors</td>
                     <td>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                         {product.color_options.map(c => (
-                          <span key={c} style={{ display: 'inline-block', width: '18px', height: '18px', borderRadius: '50%', background: c, border: '1px solid var(--gray-3)' }} title={c} />
+                          <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ display: 'inline-block', width: '18px', height: '18px', borderRadius: '50%', background: c, border: '1px solid var(--gray-3)' }} title={colorName(c)} />
+                            <span style={{ fontSize: '.85rem' }}>{colorName(c)}</span>
+                          </span>
                         ))}
                       </div>
                     </td>

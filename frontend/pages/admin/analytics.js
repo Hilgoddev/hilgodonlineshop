@@ -60,6 +60,7 @@ export default function AdminAnalytics() {
         <StatCard icon="fa-naira-sign"    label="Total Revenue"   value={formatPrice(Number(stats?.revenue || 0), 'NGN', false)} accent="#10b981" />
         <StatCard icon="fa-shopping-cart" label="Total Orders"    value={(stats?.orders    || 0).toLocaleString()} accent="#3b82f6" />
         <StatCard icon="fa-cubes"         label="Units Sold"      value={(stats?.unitsSold || 0).toLocaleString()} accent="#ec4899" />
+        <StatCard icon="fa-percent"       label="Commission (10%)" value={formatPrice(Number(stats?.platformCommission || 0), 'NGN', false)} accent="#f59e0b" />
         <StatCard icon="fa-users"         label="Customers"       value={(stats?.customers || 0).toLocaleString()} accent="#8b5cf6" />
         <StatCard icon="fa-store"         label="Sellers"         value={(stats?.sellers   || 0).toLocaleString()} accent="#f59e0b" />
         <StatCard icon="fa-box"           label="Total Products"  value={(stats?.products  || 0).toLocaleString()} accent="#0ea5e9" />

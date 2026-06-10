@@ -6,6 +6,7 @@ import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiFetch, safeJson } from '../lib/apiClient';
 import { normalizePricing } from '../lib/pricing';
+import { formatOptionValue } from '../lib/colorName';
 import { cleanEnv } from '../lib/env';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -707,7 +708,7 @@ export default function Checkout() {
                         if (!opts || !Object.keys(opts).length) return null;
                         return (
                           <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>
-                            {Object.entries(opts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                            {Object.entries(opts).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
                           </div>
                         );
                       })()}

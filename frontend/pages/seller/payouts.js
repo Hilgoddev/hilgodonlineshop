@@ -112,7 +112,9 @@ export default function SellerPayouts() {
             {/* Balance cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
               {[
-                { label: 'Gross Earnings', value: earnings?.grossEarnings || 0, icon: 'fa-chart-line', color: '#10b981' },
+                { label: 'Total Sales', value: earnings?.grossSales ?? earnings?.grossEarnings ?? 0, icon: 'fa-chart-line', color: '#0ea5e9' },
+                { label: `Commission (${Math.round((earnings?.commissionRate ?? 0.1) * 100)}%)`, value: earnings?.commission || 0, icon: 'fa-percent', color: '#f59e0b' },
+                { label: 'Net Earnings', value: earnings?.grossEarnings || 0, icon: 'fa-coins', color: '#10b981' },
                 { label: 'Withdrawn', value: earnings?.withdrawn || 0, icon: 'fa-arrow-up-from-bracket', color: '#8b5cf6' },
                 { label: 'Available', value: earnings?.available || 0, icon: 'fa-wallet', color: '#E31C1C' },
               ].map(({ label, value, icon, color }) => (

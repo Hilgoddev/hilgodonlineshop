@@ -733,7 +733,10 @@ export default function Home({ products, categories = [], campaigns = [], catego
 }
 
 // Fetch products data on the server side
-export async function getServerSideProps({ req }) {
+export async function getServerSideProps({ req, res }) {
+  // Cache the rendered homepage at the edge for a short window (stale-while-revalidate)
+  // so repeat visits are fast without serving very stale data.
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   const baseUrl = resolveServerApiBase(req);
 
   // Fetch one category section (8 products), trying each fallback slug in turn.

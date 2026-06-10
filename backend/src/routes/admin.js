@@ -93,16 +93,21 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         // ── Totals ───────────────────────────────────────────────────────────
         const totalRevenue = revenueOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
-        // ── Units sold across the platform (paid/processing/shipped/delivered) ─
+        // ── Units sold + platform commission (paid/processing/shipped/delivered) ─
+        // Commission is the admin's 10% cut of sellers' product sales.
+        const PLATFORM_COMMISSION_RATE = 0.10;
         let unitsSold = 0;
+        let productSales = 0; // Σ(unit_price × qty) across revenue orders (excludes delivery fee)
         const revenueOrderIds = revenueOrders.map((o) => o.id).filter(Boolean);
         if (revenueOrderIds.length) {
             const { data: soldItems } = await supabase
                 .from('order_items')
-                .select('quantity')
+                .select('quantity, unit_price')
                 .in('order_id', revenueOrderIds);
             unitsSold = (soldItems || []).reduce((s, i) => s + Number(i.quantity || 0), 0);
+            productSales = (soldItems || []).reduce((s, i) => s + Number(i.unit_price || 0) * Number(i.quantity || 0), 0);
         }
+        const platformCommission = productSales * PLATFORM_COMMISSION_RATE;
 
         // ── Order status breakdown (ALL orders) ──────────────────────────────
         const ordersByStatus = allOrders.reduce((acc, o) => {
@@ -170,6 +175,8 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                 storesPending,
                 revenue:         totalRevenue,
                 unitsSold,
+                productSales,
+                platformCommission,
                 ordersByStatus,
                 monthlyTrend,
                 recentOrders: recentOrders.map((o) => {

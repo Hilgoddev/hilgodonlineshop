@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { formatOptionValue } from '@/lib/colorName';
 
 const FALLBACK_IMG = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=80&auto=format';
 
@@ -108,7 +109,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
                   </div>
                   {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
                     <div style={{ fontSize: '.78rem', color: '#475569', marginTop: '2px', textTransform: 'capitalize' }}>
-                      {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                      {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
                     </div>
                   )}
                   {item.fulfillmentStatus && (

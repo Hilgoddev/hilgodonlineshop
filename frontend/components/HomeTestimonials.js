@@ -25,7 +25,9 @@ export default function HomeTestimonials() {
           <i className="fas fa-quote-left" style={{ color: '#f59e0b', marginRight: '6px' }} />
           What Our Customers Say
         </h2>
+        {/* FUTURE UPGRADE: link to the site-wide /reviews page — disabled for now.
         <Link href="/reviews" className="section-link">Read All Reviews <i className="fas fa-arrow-right"></i></Link>
+        */}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
         {reviews.map((r) => {

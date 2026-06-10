@@ -6,6 +6,7 @@ import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import ConfirmModal from '@/components/ConfirmModal';
 import { normalizePricing } from '@/lib/pricing';
+import { formatOptionValue } from '@/lib/colorName';
 
 export default function Cart() {
   const { cart, cartOptions = {}, removeFromCart, updateCartQty, clearCart, showToast } = useShop();
@@ -147,7 +148,7 @@ export default function Cart() {
                           if (!opts || !Object.keys(opts).length) return null;
                           return (
                             <div style={{ fontSize: '.78rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>
-                              {Object.entries(opts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                              {Object.entries(opts).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
                             </div>
                           );
                         })()}

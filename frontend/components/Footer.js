@@ -141,6 +141,7 @@ export default function Footer() {
             <p className="footer-about">
               Hilgod Online Store — Africa's trusted destination for Electronics, Phones, Appliances, Fashion and everything in between. Shop smart, live better.
             </p>
+            {/* FUTURE UPGRADE: site-wide reviews page (/reviews) link — disabled for now.
             {storeRating && (
               <Link href="/reviews" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: '999px', padding: '6px 14px', textDecoration: 'none', color: '#fff', marginBottom: 'var(--space-3)' }}>
                 <span style={{ color: '#f59e0b', letterSpacing: '1px' }}>
@@ -152,6 +153,7 @@ export default function Footer() {
                 <span style={{ fontSize: '.78rem', color: 'rgba(255,255,255,.7)' }}>· {storeRating.count.toLocaleString()} review{storeRating.count !== 1 ? 's' : ''}</span>
               </Link>
             )}
+            */}
             <div className="footer-contact-item">
               <i className="fas fa-map-marker-alt"></i>
               <span>21 Agbor Road, Oredo Benin City Edo Statea</span>

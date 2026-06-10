@@ -363,9 +363,11 @@ router.post('/', verifyToken, async (req, res, next) => {
         res.status(201).json({ success: true, data: response });
 
         // Fire-and-forget — don't await, don't block the response
+        const leadName = responseItems[0]?.name || 'your items';
+        const itemSummary = responseItems.length > 1 ? `${leadName} +${responseItems.length - 1} more` : leadName;
         sendEmail({
             to: req.user.email,
-            subject: `Order Confirmed — Hilgod #${order.id.slice(0,8).toUpperCase()}`,
+            subject: `Order Confirmed — ${itemSummary} (Hilgod #${order.id.slice(0,8).toUpperCase()})`,
             html: orderConfirmationHtml(order.id, responseItems, total_amount, order.currency),
             emailType: 'order_confirmation',
             orderId: order.id,

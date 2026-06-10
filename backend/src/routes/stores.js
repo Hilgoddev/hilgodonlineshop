@@ -211,15 +211,28 @@ router.post('/', verifyToken, requireSeller, async (req, res, next) => {
             .single();
 
         if (existingStore) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'You already have a store. Please update it instead.' 
+            return res.status(400).json({
+                success: false,
+                error: 'You already have a store. Please update it instead.'
             });
+        }
+
+        if (!name || !String(name).trim()) {
+            return res.status(400).json({ success: false, error: 'Store name is required' });
+        }
+        // Enforce unique store name (case-insensitive) — two stores can't share a name.
+        const { data: nameClash } = await supabase
+            .from('stores')
+            .select('id')
+            .ilike('name', String(name).trim())
+            .maybeSingle();
+        if (nameClash) {
+            return res.status(409).json({ success: false, error: 'A store with this name already exists. Please choose another name.' });
         }
 
         const { data, error } = await supabase
             .from('stores')
-            .insert([{ 
+            .insert([{
                 owner_id: req.user.id, 
                 name, 
                 slug, 
@@ -248,6 +261,19 @@ router.put('/:id', verifyToken, requireSeller, async (req, res, next) => {
         if (slug        !== undefined) updateData.slug        = slug;
         if (description !== undefined) updateData.description = description;
         if (logo_url    !== undefined) updateData.logo_url    = logo_url;
+
+        // If renaming, ensure no OTHER store already uses the name (case-insensitive).
+        if (name !== undefined && String(name).trim()) {
+            const { data: nameClash } = await supabase
+                .from('stores')
+                .select('id')
+                .ilike('name', String(name).trim())
+                .neq('id', req.params.id)
+                .maybeSingle();
+            if (nameClash) {
+                return res.status(409).json({ success: false, error: 'A store with this name already exists. Please choose another name.' });
+            }
+        }
 
         let query = supabase.from('stores').update(updateData).eq('id', req.params.id);
 
