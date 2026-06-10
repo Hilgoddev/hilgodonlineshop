@@ -2,6 +2,51 @@
 
 _Date: 2026-06-09 · Scope: backend (Express/Supabase) + frontend (Next.js) · Method: code review + live E2E testing_
 
+## Migration status (verified against live DB 2026-06-09)
+
+**All migrations are applied.** Probed each migration's schema artifacts on the live
+database (`nmrqdzikceakkhfhflja`):
+
+| Migration | Artifact | Status |
+|-----------|----------|--------|
+| `001_rider_newsletter_tables` | `rider_applications`, `newsletter_subscribers` | ✅ |
+| `002_fix_profiles_and_order_items_schema` | `order_items.seller_id` | ✅ |
+| `003_add_email_logs_and_order_history` | `email_logs`, `order_status_history` | ✅ |
+| `001_sync_sellers_stores` (supabase) | `stores` | ✅ |
+| `002_add_exchange_rates_table` | `exchange_rates` | ✅ |
+| `004_stock_management_functions` | `decrement_product_stock()` RPC | ✅ |
+| `007/007b reviews + payouts` | `seller_payouts`, `reviews` | ✅ |
+| `008_order_payment_method` | `orders.payment_method` | ✅ |
+| `009_seller_bank_details` | `profiles.bank_account_number` | ✅ |
+| `010_platform_settings` | `platform_settings` | ✅ |
+| `011_campaigns` | `flash_sales.type/title/theme` | ✅ |
+| `012_order_item_options` | `order_items.selected_options` | ✅ |
+| `20260524_..._fulfillment_status` | `order_items.fulfillment_status` | ✅ |
+
+(`005` stock-non-negative constraint and `006` product indexes are performance/constraint
+migrations — not separately probeable here, but their dependent features work.)
+
+## Full system audit — 9 domains (2026-06-09)
+
+Verified live: all public endpoints 200, all auth-guarded endpoints 401 without a token.
+
+| Domain | Status | Evidence |
+|--------|--------|----------|
+| **Authentication & Authorization** | ✅ | JWKS-verified JWTs; role read from `profiles` (never trusted from token); seller/admin/buyer routes 401 without token; no service-role key in frontend |
+| **Product Management** | ✅ | create/update/delete enforce `seller_id` ownership; approval flow + global auto-approve toggle; color names in add/edit |
+| **Shopping Experience** | ✅ | cart/wishlist scoped to `user_id`; per-category landing sections (10/8/6); ratings on cards; Quick View fixed |
+| **Checkout & Payment** | ✅ | server-side price recompute + tamper reject; Paystack (HMAC-SHA512) / Stripe (constructEvent) / Grey (HMAC-SHA256) webhooks; `payment_events` idempotency + atomic paid-claim; variant options sent + stored |
+| **Order Management** | ✅ | per-page; status pending/processing semantics; item status mirrors order; **selected options shown in buyer/seller/admin views** |
+| **Multi-Vendor** | ✅ | seller data isolation; unique store name; 10% commission netting; manual payouts + saved bank details; public `/stores/[slug]` |
+| **Admin Dashboard** | ✅ | analytics (revenue, units, commission), approvals, sidebar attention badges, sellers/stores tables, payouts |
+| **Security & Performance** | ✅ | helmet, CORS allowlist, rate limiters, prod env hard-fail, exact product count, homepage edge cache; RLS + serverless rate-store remain the long-term recommendations |
+| **Infrastructure** | ✅ | all migrations applied (table above); env validated; deploy via Vercel |
+
+### Stale-field fixes applied this pass
+Three spots still read the old `product.ratings.{average,count}` shape (removed when the API
+moved to `rating`/`review_count`) and silently showed 0 — fixed: bestsellers sort, product
+specs "Rating" row, and the Quick View modal.
+
 ## Cross-app feature audit (2026-06-09, second pass)
 
 Every feature was traced from data → API → all UI surfaces. Live check: all public
