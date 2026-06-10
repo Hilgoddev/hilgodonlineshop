@@ -15,11 +15,16 @@ export function useShop() {
 
 const GUEST_CART_KEY = 'hilgod_cart';
 const GUEST_WISHLIST_KEY = 'hilgod_wishlist';
+const CART_OPTIONS_KEY = 'hilgod_cart_options';
 
 export default function ShopProvider({ children }) {
   const { formatPrice } = useCurrency();
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
+  // Selected variant options (size/color/...) per product id. Kept client-side
+  // (the server cart only stores product + quantity) and persisted so they
+  // survive reloads; sent with each item at checkout and stored on the order.
+  const [cartOptions, setCartOptions] = useState({});
   const [toasts, setToasts] = useState([]);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const { data: session, status } = useSession();
@@ -30,6 +35,17 @@ export default function ShopProvider({ children }) {
     setToasts((prev) => [...prev, { id, message, type, duration }]);
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
   };
+
+  // Load persisted cart options once on mount, and persist on every change.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CART_OPTIONS_KEY);
+      if (saved) setCartOptions(JSON.parse(saved) || {});
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(CART_OPTIONS_KEY, JSON.stringify(cartOptions)); } catch { /* ignore */ }
+  }, [cartOptions]);
 
   const loadGuestData = useCallback(() => {
     try {
@@ -112,7 +128,14 @@ export default function ShopProvider({ children }) {
     }
   }, [wishlist, isAuthenticated]);
 
-  const addToCart = async (product, quantity = 1) => {
+  const addToCart = async (product, quantity = 1, options = null) => {
+    // Remember the selected variant (size/color/...) for this product.
+    const cleanOpts = options && typeof options === 'object'
+      ? Object.fromEntries(Object.entries(options).filter(([, v]) => v != null && String(v).trim()))
+      : null;
+    if (cleanOpts && Object.keys(cleanOpts).length) {
+      setCartOptions((prev) => ({ ...prev, [product._id]: cleanOpts }));
+    }
     if (isAuthenticated) {
       try {
         await apiFetch('/api/cart', {
@@ -138,6 +161,7 @@ export default function ShopProvider({ children }) {
   };
 
   const removeFromCart = async (productId) => {
+    setCartOptions((prev) => { const next = { ...prev }; delete next[productId]; return next; });
     if (isAuthenticated) {
       await apiFetch(`/api/cart?productId=${productId}`, { method: 'DELETE' });
       await loadServerData();
@@ -162,6 +186,7 @@ export default function ShopProvider({ children }) {
   };
 
   const clearCart = async () => {
+    setCartOptions({});
     if (isAuthenticated) {
       await apiFetch('/api/cart/clear', { method: 'DELETE' });
       setCart([]);
@@ -221,6 +246,7 @@ export default function ShopProvider({ children }) {
     <ShopContext.Provider
       value={{
         cart,
+        cartOptions,
         addToCart,
         removeFromCart,
         updateCartQty,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
@@ -26,6 +26,29 @@ export default function ProductDetail({ product, relatedProducts }) {
     message: ''
   });
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviews, setReviews] = useState([]);
+
+  // Load this product's reviews from the API (and refresh after a new submission).
+  const loadReviews = async () => {
+    if (!product?._id) return;
+    try {
+      const res = await fetch(`/api/reviews/${product._id}`);
+      const json = await res.json();
+      if (json?.success && Array.isArray(json.data)) setReviews(json.data);
+    } catch { /* ignore */ }
+  };
+  useEffect(() => { loadReviews(); /* eslint-disable-next-line */ }, [product?._id]);
+
+  // Live rating summary from the fetched reviews (falls back to server aggregate).
+  const reviewCount = reviews.length || product?.review_count || 0;
+  const avgRating = reviews.length
+    ? reviews.reduce((a, r) => a + Number(r.rating || 0), 0) / reviews.length
+    : Number(product?.rating || 0);
+
+  const openReviewsTab = () => {
+    setActiveTab('reviews');
+    setTimeout(() => document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth' }), 60);
+  };
 
   if (!product) {
     return (
@@ -45,12 +68,20 @@ export default function ProductDetail({ product, relatedProducts }) {
   const { addToCart, toggleWishlist, isInWishlist, showToast } = useShop();
   const { formatPrice } = useCurrency();
 
+  // Collect the buyer's chosen variant (only keys the product actually offers).
+  const buildSelectedOptions = () => {
+    const o = {};
+    if (product.size_options?.length && selectedSize) o.size = selectedSize;
+    if (product.color_options?.length && selectedColor) o.color = selectedColor;
+    return Object.keys(o).length ? o : null;
+  };
+
   const handleAddToCart = () => {
-    addToCart(product, quantity);
+    addToCart(product, quantity, buildSelectedOptions());
   };
 
   const handleBuyNow = () => {
-    addToCart(product, quantity);
+    addToCart(product, quantity, buildSelectedOptions());
     router.push('/checkout');
   };
 
@@ -205,15 +236,15 @@ export default function ProductDetail({ product, relatedProducts }) {
             <div className="pdp-rating">
               <div className="stars">
                 {[...Array(5)].map((_, i) => (
-                  <i 
-                    key={i} 
-                    className={`${i < Math.floor(product.ratings?.average || 0) ? 'fas fa-star' : i < (product.ratings?.average || 0) ? 'fas fa-star-half-alt' : 'far fa-star'}`}
+                  <i
+                    key={i}
+                    className={`${i < Math.floor(avgRating) ? 'fas fa-star' : i < avgRating ? 'fas fa-star-half-alt' : 'far fa-star'}`}
                     style={{ color: '#f59e0b', fontSize: '.9rem' }}
                   ></i>
                 ))}
               </div>
-              <span className="rating-count">({product.ratings?.count || 0} reviews)</span>
-              <a href="#reviews" className="review-link">Write a Review</a>
+              <span className="rating-count">({reviewCount} review{reviewCount === 1 ? '' : 's'})</span>
+              <button type="button" className="review-link" onClick={openReviewsTab} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--primary)' }}>Write a Review</button>
             </div>
 
             {/* Stock Status */}
@@ -480,24 +511,23 @@ export default function ProductDetail({ product, relatedProducts }) {
 
           {/* Reviews Tab */}
           <div className={`tab-body ${activeTab === 'reviews' ? 'active' : ''}`} id="reviews">
-            {/* Sample Reviews */}
-            {(product.ratings?.count > 0) ? (
-              <div>
-                <div className="review-card">
-                  <div className="review-header">
-                    <div>
-                      <span className="reviewer-name">Verified Customer</span>
-                      <span className="verified-badge"><i className="fas fa-check-circle"></i> Verified Purchase</span>
+            {reviews.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {reviews.map((r) => (
+                  <div key={r.id} className="review-card">
+                    <div className="review-header">
+                      <span className="reviewer-name">{r.user_name || 'Customer'}</span>
+                      <span className="review-date">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
                     </div>
-                    <span className="review-date">Recently</span>
+                    <div className="stars" style={{ margin: '8px 0', color: '#f59e0b' }}>
+                      {[...Array(5)].map((_, i) => (
+                        <i key={i} className={`${i < Math.round(r.rating || 0) ? 'fas fa-star' : 'far fa-star'}`}></i>
+                      ))}
+                    </div>
+                    {r.title && <div style={{ fontWeight: 700, marginBottom: '4px' }}>{r.title}</div>}
+                    <p className="review-body">{r.message}</p>
                   </div>
-                  <div className="stars" style={{ margin: '8px 0' }}>
-                    {[...Array(5)].map((_, i) => (
-                      <i key={i} className={`${i < Math.floor(product.ratings?.average || 0) ? 'fas fa-star' : 'far fa-star'}`}></i>
-                    ))}
-                  </div>
-                  <p className="review-body">Great product! Works exactly as described and arrived quickly.</p>
-                </div>
+                ))}
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: 'var(--space-6)', color: 'var(--gray-2)' }}>

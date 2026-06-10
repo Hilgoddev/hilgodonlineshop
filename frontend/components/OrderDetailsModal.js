@@ -106,6 +106,11 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
                   <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>
                     Qty: {item.quantity} · {formatPrice(item.price || 0, item.currency || orderCurrency, false)}
                   </div>
+                  {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                    <div style={{ fontSize: '.78rem', color: '#475569', marginTop: '2px', textTransform: 'capitalize' }}>
+                      {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                    </div>
+                  )}
                   {item.fulfillmentStatus && (
                     <div style={{ fontSize: '.75rem', color: '#475569', textTransform: 'capitalize' }}>
                       Item status: {item.fulfillmentStatus}

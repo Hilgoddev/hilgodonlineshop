@@ -84,9 +84,9 @@ router.get('/', verifyToken, async (req, res, next) => {
         if (orderIds.length) {
             let { data: items, error: itemErr } = await supabase
                 .from('order_items')
-                .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
                 .in('order_id', orderIds);
-            if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
+            if (itemErr && (String(itemErr.message || '').includes('fulfillment_status') || String(itemErr.message || '').includes('selected_options'))) {
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
                     .select('id, order_id, quantity, unit_price, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
@@ -104,6 +104,7 @@ router.get('/', verifyToken, async (req, res, next) => {
                     price: Number(it.unit_price || 0),
                     quantity: it.quantity,
                     fulfillmentStatus: it.fulfillment_status || 'pending',
+                selectedOptions: it.selected_options || null,
                     seller: it.seller ? {
                         id: it.seller.id,
                         name: it.seller.full_name || it.store?.name || 'Seller',
@@ -149,6 +150,21 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         const productQuantityMap = new Map(); // productId -> quantity (aggregated)
         const productClientPriceMap = new Map(); // productId -> price provided by client (major units)
+        const productOptionsMap = new Map(); // productId -> { size, color, ... } selected variant
+
+        // Keep only short string values for known/option keys, so a client can't
+        // stuff arbitrary large data onto the order line.
+        const sanitizeOptions = (raw) => {
+            if (!raw || typeof raw !== 'object') return null;
+            const clean = {};
+            for (const [k, v] of Object.entries(raw)) {
+                if (v == null) continue;
+                const key = String(k).slice(0, 30);
+                const val = String(v).trim().slice(0, 60);
+                if (val) clean[key] = val;
+            }
+            return Object.keys(clean).length ? clean : null;
+        };
 
         for (const it of items) {
             const productId = it?.productId || it?.product_id;
@@ -176,6 +192,9 @@ router.post('/', verifyToken, async (req, res, next) => {
                 return res.status(400).json({ success: false, error: 'Client price mismatch for duplicate item' });
             }
             productClientPriceMap.set(productId, clientPrice);
+
+            const opts = sanitizeOptions(it?.selectedOptions || it?.selected_options);
+            if (opts && !productOptionsMap.has(productId)) productOptionsMap.set(productId, opts);
         }
 
         if (productQuantityMap.size > maxDistinctItems) {
@@ -258,6 +277,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 quantity,
                 unit_price: serverUnitPrice,
                 seller_id: p.seller_id || null, // Include seller_id from product
+                selected_options: productOptionsMap.get(productId) || null,
             });
 
             responseItems.push({
@@ -267,6 +287,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 price: serverUnitPrice,
                 quantity,
                 sellerId: p.seller_id || null,
+                selectedOptions: productOptionsMap.get(productId) || null,
             });
         }
 
@@ -312,17 +333,21 @@ router.post('/', verifyToken, async (req, res, next) => {
         const order = orderRows[0];
 
         // Insert order items — clean up order if this fails
-        const { error: itemErr } = await supabase
-            .from('order_items')
-            .insert(
-                orderItems.map((it) => ({
-                    order_id:   order.id,
-                    product_id: it.product_id,
-                    quantity:   it.quantity,
-                    unit_price: it.unit_price,
-                    seller_id:  it.seller_id,
-                })),
-            );
+        const baseRows = orderItems.map((it) => ({
+            order_id:   order.id,
+            product_id: it.product_id,
+            quantity:   it.quantity,
+            unit_price: it.unit_price,
+            seller_id:  it.seller_id,
+        }));
+        const rowsWithOptions = orderItems.map((it, i) => ({ ...baseRows[i], selected_options: it.selected_options }));
+
+        let { error: itemErr } = await supabase.from('order_items').insert(rowsWithOptions);
+        // Backward-compat: if the selected_options column hasn't been added yet
+        // (migration 012), retry without it so order creation never breaks.
+        if (itemErr && String(itemErr.message || '').includes('selected_options')) {
+            ({ error: itemErr } = await supabase.from('order_items').insert(baseRows));
+        }
         if (itemErr) {
             await supabase.from('orders').delete().eq('id', order.id);
             throw itemErr;
@@ -398,9 +423,9 @@ router.get('/all', verifyToken, async (req, res, next) => {
                 let itemErr;
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
-                    .select('id, order_id, quantity, unit_price, fulfillment_status, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
+                    .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
                     .in('order_id', orderIds));
-                if (itemErr && String(itemErr.message || '').includes('fulfillment_status')) {
+                if (itemErr && (String(itemErr.message || '').includes('fulfillment_status') || String(itemErr.message || '').includes('selected_options'))) {
                     ({ data: items, error: itemErr } = await supabase
                         .from('order_items')
                         .select('id, order_id, quantity, unit_price, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
@@ -428,6 +453,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
                 price: Number(it.unit_price || 0),
                 quantity: it.quantity,
                 fulfillmentStatus: it.fulfillment_status || 'pending',
+                selectedOptions: it.selected_options || null,
                 seller: it.product?.seller ? {
                     id: it.product.seller.id,
                     name: it.product.seller.full_name || it.product.store?.name || 'Seller',
@@ -489,9 +515,9 @@ router.get('/:id', verifyToken, async (req, res, next) => {
 
         let { data: items, error: itemsErr } = await supabase
             .from('order_items')
-            .select('id, quantity, unit_price, fulfillment_status, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
+            .select('id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
             .eq('order_id', order.id);
-        if (itemsErr && String(itemsErr.message || '').includes('fulfillment_status')) {
+        if (itemsErr && (String(itemsErr.message || '').includes('fulfillment_status') || String(itemsErr.message || '').includes('selected_options'))) {
             ({ data: items, error: itemsErr } = await supabase
                 .from('order_items')
                 .select('id, quantity, unit_price, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
@@ -507,6 +533,7 @@ router.get('/:id', verifyToken, async (req, res, next) => {
             price: Number(it.unit_price || 0),
             quantity: it.quantity,
             fulfillmentStatus: it.fulfillment_status || 'pending',
+            selectedOptions: it.selected_options || null,
             seller: it.product?.seller ? {
                 id: it.product?.seller?.id,
                 name: it.product?.seller?.full_name || it.product?.store?.name || 'Seller',

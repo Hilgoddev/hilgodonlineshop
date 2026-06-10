@@ -8,7 +8,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { normalizePricing } from '@/lib/pricing';
 
 export default function Cart() {
-  const { cart, removeFromCart, updateCartQty, clearCart, showToast } = useShop();
+  const { cart, cartOptions = {}, removeFromCart, updateCartQty, clearCart, showToast } = useShop();
   const [promoCode, setPromoCode] = useState('');
   const [modal, setModal] = useState({ open: false });
   const closeModal = () => setModal(m => ({ ...m, open: false }));
@@ -142,6 +142,15 @@ export default function Cart() {
                           {item.product.name}
                         </Link>
                         <div className="cart-item-brand">{item.product.brand || item.product.category}</div>
+                        {(() => {
+                          const opts = item.options || cartOptions[item.product._id];
+                          if (!opts || !Object.keys(opts).length) return null;
+                          return (
+                            <div style={{ fontSize: '.78rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>
+                              {Object.entries(opts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                            </div>
+                          );
+                        })()}
                         <div className="cart-save-later" onClick={() => {
                           showToast('Saved for later!', 'info');
                         }}>

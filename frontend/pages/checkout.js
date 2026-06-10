@@ -101,7 +101,7 @@ function StripePaymentForm({ amount, onSuccess }) {
 }
 
 export default function Checkout() {
-  const { cart, clearCart, showToast } = useShop();
+  const { cart, cartOptions = {}, clearCart, showToast } = useShop();
   const { formatPrice } = useCurrency();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -218,7 +218,12 @@ export default function Checkout() {
         body: JSON.stringify({
           items: cart.map(i => {
             const itemPricing = normalizePricing(i.product || {});
-            return { productId: i.product._id, quantity: i.quantity, price: itemPricing.price };
+            return {
+              productId: i.product._id,
+              quantity: i.quantity,
+              price: itemPricing.price,
+              selectedOptions: i.options || cartOptions[i.product._id] || null,
+            };
           }),
           shippingAddress: { ...formData },
           paymentMethod: selectedPayment,
@@ -697,6 +702,15 @@ export default function Checkout() {
                     <div className="order-summary-details">
                       <div className="order-summary-name">{item.product.name}</div>
                       <div className="order-summary-qty">Qty: {item.quantity || 1}</div>
+                      {(() => {
+                        const opts = item.options || cartOptions[item.product._id];
+                        if (!opts || !Object.keys(opts).length) return null;
+                        return (
+                          <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>
+                            {Object.entries(opts).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="order-summary-price">
                       {formatPrice(itemPricing.price * (item.quantity || 1), item.product.currency || 'NGN', false)}
