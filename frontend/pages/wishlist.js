@@ -28,7 +28,14 @@ export default function Wishlist() {
       message: `Move all ${wishlist.length} items to your cart?`,
       onConfirm: () => {
         closeModal();
-        wishlist.forEach(product => addToCart(product, 1));
+        wishlist.forEach(product => {
+          // Bulk move: default variant products to their first size/color so the
+          // order still records a variant (buyer can change it on the product page).
+          const opts = {};
+          if (product.size_options?.length) opts.size = product.size_options[0];
+          if (product.color_options?.length) opts.color = product.color_options[0];
+          addToCart(product, 1, Object.keys(opts).length ? opts : undefined);
+        });
         showToast('All items moved to cart successfully!', 'success');
       },
     });
