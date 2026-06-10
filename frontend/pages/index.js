@@ -43,18 +43,20 @@ const CATEGORY_IMAGES = {
   toys: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?w=300&auto=format&fit=crop&q=60',
 };
 
-export default function Home({ products, categories = [], campaigns = [] }) {
+export default function Home({ products, categories = [], campaigns = [], categorySections = {} }) {
   const { formatPrice } = useCurrency();
   const [catalogProducts, setCatalogProducts] = useState(products || []);
   const [catalogLoading, setCatalogLoading] = useState(!products || products.length === 0);
   const [categoryList, setCategoryList] = useState(categories || []);
   const [flashProducts, setFlashProducts] = useState([]);
   const [bestsellers, setBestsellers] = useState([]);
-  const [electronics, setElectronics] = useState([]);
-  const [menswear, setMenswear] = useState([]);
-  const [womenswear, setWomenswear] = useState([]);
-  const [beauty, setBeauty] = useState([]);
-  const [homeKitchen, setHomeKitchen] = useState([]);
+  // Category sections are seeded from SSR (reliable first paint) and only re-fetched
+  // client-side as a fallback for any that came back empty.
+  const [electronics, setElectronics] = useState(categorySections.electronics || []);
+  const [menswear, setMenswear] = useState(categorySections.menswear || []);
+  const [womenswear, setWomenswear] = useState(categorySections.womenswear || []);
+  const [beauty, setBeauty] = useState(categorySections.beauty || []);
+  const [homeKitchen, setHomeKitchen] = useState(categorySections.homeKitchen || []);
   const [newArrivals, setNewArrivals] = useState([]);
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -199,10 +201,11 @@ export default function Home({ products, categories = [], campaigns = [] }) {
   // the others out, leaving sections like Womenswear empty even though stock exists.
   useEffect(() => {
     let cancelled = false;
-    // Same-origin /api (Next.js rewrite → backend) so category fetches don't depend
-    // on the API host's CORS allowlist.
+    // Same-origin /api (Next.js rewrite → backend). Only runs for sections SSR left
+    // empty (e.g. its server-side fetch timed out) — SSR-seeded sections are kept.
     const apiBase = '/api';
-    const loadCat = async (slugs, setter) => {
+    const loadCat = async (slugs, setter, seeded) => {
+      if (seeded && seeded.length) return; // already populated from SSR
       for (const slug of slugs) {
         try {
           const data = await fetchJsonWithTimeout(`${apiBase}/products?category=${encodeURIComponent(slug)}&limit=8`, 8000);
@@ -212,13 +215,12 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           }
         } catch { /* try the next fallback slug */ }
       }
-      if (!cancelled) setter([]);
     };
-    loadCat(['electronics', 'accessories'], setElectronics);
-    loadCat(['menswear', 'shoes'], setMenswear);
-    loadCat(['womenswear'], setWomenswear);
-    loadCat(['beauty'], setBeauty);
-    loadCat(['home', 'kitchen'], setHomeKitchen);
+    loadCat(['electronics', 'accessories'], setElectronics, categorySections.electronics);
+    loadCat(['menswear', 'shoes'], setMenswear, categorySections.menswear);
+    loadCat(['womenswear'], setWomenswear, categorySections.womenswear);
+    loadCat(['beauty'], setBeauty, categorySections.beauty);
+    loadCat(['home', 'kitchen'], setHomeKitchen, categorySections.homeKitchen);
     return () => { cancelled = true; };
   }, []);
 
@@ -553,6 +555,7 @@ export default function Home({ products, categories = [], campaigns = [] }) {
       )}
 
       {/* Electronics Section */}
+      {electronics.length > 0 && (
       <div className="products-section">
         <div className="section-header">
           <h2 className="section-title">
@@ -567,8 +570,10 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Beauty Section */}
+      {beauty.length > 0 && (
       <div className="products-section">
         <div className="section-header">
           <h2 className="section-title"><span className="bar"></span>Beauty & Personal Care</h2>
@@ -580,6 +585,7 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* New Arrivals */}
       <div className="products-section">
@@ -598,6 +604,7 @@ export default function Home({ products, categories = [], campaigns = [] }) {
       </div>
 
       {/* Menswear & Shoes Section */}
+      {menswear.length > 0 && (
       <div className="products-section">
         <div className="section-header">
           <h2 className="section-title"><span className="bar"></span>Menswear & Shoes</h2>
@@ -609,8 +616,10 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Womenswear Section */}
+      {womenswear.length > 0 && (
       <div className="products-section">
         <div className="section-header">
           <h2 className="section-title"><span className="bar"></span>Womenswear & Fashion</h2>
@@ -622,8 +631,10 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Home & Kitchen Section */}
+      {homeKitchen.length > 0 && (
       <div className="products-section">
         <div className="section-header">
           <h2 className="section-title"><span className="bar"></span>Home & Kitchen</h2>
@@ -635,6 +646,7 @@ export default function Home({ products, categories = [], campaigns = [] }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Customer Testimonials — recent reviews across the store */}
       <HomeTestimonials />
@@ -722,47 +734,45 @@ export default function Home({ products, categories = [], campaigns = [] }) {
 
 // Fetch products data on the server side
 export async function getServerSideProps({ req }) {
-  try {
-    const baseUrl = resolveServerApiBase(req);
+  const baseUrl = resolveServerApiBase(req);
 
-    // Fetch products, categories and ALL active campaigns (any type) in parallel
-    const [prodData, catData, campaignData] = await Promise.all([
+  // Fetch one category section (8 products), trying each fallback slug in turn.
+  const fetchCat = async (slugs) => {
+    for (const slug of slugs) {
+      try {
+        const d = await fetchJsonWithTimeout(`${baseUrl}/products?category=${encodeURIComponent(slug)}&limit=8`, 8000);
+        if (d?.success && Array.isArray(d.data) && d.data.length) return d.data.slice(0, 8);
+      } catch { /* try next slug */ }
+    }
+    return [];
+  };
+
+  try {
+    // Everything in parallel: catalog sample, categories, campaigns, and each
+    // category section — so every section is populated server-side on first paint.
+    const [prodData, catData, campaignData, electronics, menswear, womenswear, beauty, homeKitchen] = await Promise.all([
       fetchJsonWithTimeout(`${baseUrl}/products?limit=20`, 12000),
       fetchJsonWithTimeout(`${baseUrl}/categories`, 8000),
       fetchJsonWithTimeout(`${baseUrl}/campaigns`, 8000),
+      fetchCat(['electronics', 'accessories']),
+      fetchCat(['menswear', 'shoes']),
+      fetchCat(['womenswear']),
+      fetchCat(['beauty']),
+      fetchCat(['home', 'kitchen']),
     ]);
-
-    let products = [];
-    let categories = [];
-    let campaigns = [];
-
-    if (prodData?.success && prodData.data) {
-      products = prodData.data;
-    }
-
-    if (catData?.success && catData.data) {
-      categories = catData.data;
-    }
-
-    if (campaignData?.success && campaignData.data) {
-      campaigns = campaignData.data;
-    }
 
     return {
       props: {
-        products,
-        categories,
-        campaigns,
+        products: (prodData?.success && prodData.data) ? prodData.data : [],
+        categories: (catData?.success && catData.data) ? catData.data : [],
+        campaigns: (campaignData?.success && campaignData.data) ? campaignData.data : [],
+        categorySections: { electronics, menswear, womenswear, beauty, homeKitchen },
       },
     };
   } catch (error) {
     console.error('Error fetching data, using fallback:', error);
     return {
-      props: {
-        products: [],
-        categories: [],
-        campaigns: [],
-      },
+      props: { products: [], categories: [], campaigns: [], categorySections: {} },
     };
   }
 }
