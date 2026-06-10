@@ -4,6 +4,7 @@ import { useSession } from '../contexts/AuthContext';
 import { apiFetch } from '../lib/apiClient';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalizePricing } from '../lib/pricing';
+import { colorName } from '../lib/colorName';
 
 import styles from '../css/fix.module.css';
 
@@ -27,6 +28,7 @@ export default function ShopProvider({ children }) {
   const [cartOptions, setCartOptions] = useState({});
   const [toasts, setToasts] = useState([]);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
+  const [qvSelection, setQvSelection] = useState({ size: '', color: '' });
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated' && !!session?.user?.id;
 
@@ -231,12 +233,25 @@ export default function ShopProvider({ children }) {
 
   const openQuickView = (product) => {
     setQuickViewProduct(product);
+    // Default the variant selection to the first available option, if any.
+    setQvSelection({
+      size: product?.size_options?.[0] || '',
+      color: product?.color_options?.[0] || '',
+    });
     document.body.style.overflow = 'hidden';
   };
 
   const closeQuickView = () => {
     setQuickViewProduct(null);
     document.body.style.overflow = '';
+  };
+
+  // Build the {size,color} options object for the quick-view product (only keys it offers).
+  const quickViewOptions = () => {
+    const o = {};
+    if (quickViewProduct?.size_options?.length && qvSelection.size) o.size = qvSelection.size;
+    if (quickViewProduct?.color_options?.length && qvSelection.color) o.color = qvSelection.color;
+    return Object.keys(o).length ? o : null;
   };
 
   const quickViewPricing = normalizePricing(quickViewProduct || {});
@@ -328,8 +343,35 @@ export default function ShopProvider({ children }) {
                   <p style={{ fontSize: '.88rem', color: 'var(--gray-1)', lineHeight: '1.6', marginBottom: '16px' }}>
                     {quickViewProduct.description?.substring(0, 150)}{quickViewProduct.description?.length > 150 ? '...' : ''}
                   </p>
+
+                  {quickViewProduct.size_options?.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: '6px' }}>Size: <strong>{qvSelection.size || 'Select'}</strong></div>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {quickViewProduct.size_options.map((size) => (
+                          <button key={size} type="button" onClick={() => setQvSelection((s) => ({ ...s, size }))}
+                            style={{ padding: '5px 12px', borderRadius: '6px', border: qvSelection.size === size ? '2px solid var(--primary)' : '1px solid var(--gray-3)', background: qvSelection.size === size ? 'var(--primary-light)' : '#fff', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600 }}>
+                            {size}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {quickViewProduct.color_options?.length > 0 && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <div style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: '6px' }}>Color: <strong>{qvSelection.color ? colorName(qvSelection.color) : 'Select'}</strong></div>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {quickViewProduct.color_options.map((color) => (
+                          <button key={color} type="button" onClick={() => setQvSelection((s) => ({ ...s, color }))}
+                            title={colorName(color)} aria-label={colorName(color)}
+                            style={{ width: '28px', height: '28px', borderRadius: '50%', background: color, cursor: 'pointer', border: qvSelection.color === color ? '2px solid var(--dark)' : '2px solid var(--gray-3)' }} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="btn btn-primary btn-full" onClick={() => { addToCart(quickViewProduct, 1); closeQuickView(); }} disabled={quickViewProduct.stock === 0}>
+                    <button className="btn btn-primary btn-full" onClick={() => { addToCart(quickViewProduct, 1, quickViewOptions()); closeQuickView(); }} disabled={quickViewProduct.stock === 0}>
                       <i className="fas fa-cart-plus"></i> {quickViewProduct.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                     </button>
                     <Link href={`/products/${quickViewProduct._id}`} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }} onClick={closeQuickView}>

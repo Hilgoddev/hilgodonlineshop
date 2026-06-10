@@ -15,8 +15,15 @@ export default function ProductCard({ product, showAddToCart = true }) {
   const sellerName = store?.name || seller?.full_name || null;
   const sellerAvatar = store?.logo_url || seller?.avatar_url || null;
 
+  const hasVariants = (product.size_options?.length || 0) > 0 || (product.color_options?.length || 0) > 0;
   const handleAddToCart = (e) => {
     e.preventDefault();
+    // Products with size/color options open Quick View so the buyer can pick a
+    // variant before adding — the order then carries the chosen size/color.
+    if (hasVariants) {
+      openQuickView(product);
+      return;
+    }
     addToCart(product, 1);
   };
 

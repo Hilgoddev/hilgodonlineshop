@@ -13,6 +13,7 @@ import { colorName } from '@/lib/colorName';
 export default function ProductDetail({ product, relatedProducts }) {
   const router = useRouter();
   const [selectedImage, setSelectedImage] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   const [selectedSize, setSelectedSize] = useState(product?.size_options?.[0] || '');
@@ -194,7 +195,8 @@ export default function ProductDetail({ product, relatedProducts }) {
                 <img
                   src={productImages[selectedImage]}
                   alt={product.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'zoom-in' }}
+                  onClick={() => setLightboxOpen(true)}
                   onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&q=80&auto=format'; }}
                 />
               ) : (
@@ -211,8 +213,36 @@ export default function ProductDetail({ product, relatedProducts }) {
                   -{discount}% OFF
                 </div>
               )}
-              <div className="gallery-zoom"><i className="fas fa-search-plus"></i> Zoom</div>
+              <div className="gallery-zoom" style={{ cursor: 'zoom-in' }} onClick={() => setLightboxOpen(true)}><i className="fas fa-search-plus"></i> Zoom</div>
             </div>
+
+            {lightboxOpen && productImages[selectedImage] && (
+              <div
+                onClick={() => setLightboxOpen(false)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.88)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', padding: '24px' }}
+              >
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={(e) => { e.stopPropagation(); setLightboxOpen(false); }}
+                  style={{ position: 'absolute', top: '18px', right: '22px', background: 'rgba(255,255,255,.15)', color: '#fff', border: 'none', width: '42px', height: '42px', borderRadius: '50%', fontSize: '1.3rem', cursor: 'pointer', lineHeight: 1 }}
+                >×</button>
+                <img
+                  src={productImages[selectedImage]}
+                  alt={product.name}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
+                />
+                {productImages.length > 1 && (
+                  <div style={{ position: 'absolute', bottom: '18px', left: 0, right: 0, display: 'flex', gap: '8px', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
+                    {productImages.map((img, i) => (
+                      <button key={i} type="button" onClick={() => setSelectedImage(i)}
+                        style={{ width: '10px', height: '10px', borderRadius: '50%', border: 'none', cursor: 'pointer', background: i === selectedImage ? '#fff' : 'rgba(255,255,255,.4)' }} aria-label={`Image ${i + 1}`} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {productImages.length > 1 && (
               <div className="gallery-thumbnails">
                 {productImages.map((img, index) => (
