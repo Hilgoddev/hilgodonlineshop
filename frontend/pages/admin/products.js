@@ -7,6 +7,7 @@ import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
+import { colorName } from '../../lib/colorName';
 import styles from '@/css/fix.module.css';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
@@ -336,7 +337,7 @@ export default function AdminProducts() {
                     <button
                       key={i}
                       type="button"
-                      title={`Remove ${color}`}
+                      title={`Remove ${colorName(color)} (${color})`}
                       onClick={() => setForm(f => ({ ...f, colors: f.colors.filter((_, ci) => ci !== i) }))}
                       style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid var(--gray-3)', background: color, cursor: 'pointer', position: 'relative', flexShrink: 0 }}
                     >

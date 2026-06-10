@@ -9,6 +9,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '../../lib/supabaseClient';
 import { orderStatusLabel } from '../../lib/orderStatus';
+import { formatOptionValue } from '../../lib/colorName';
 
 export default function Account() {
   const { formatPrice } = useCurrency();
@@ -500,6 +501,11 @@ export default function Account() {
                                       <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>
                                         Qty: {item.quantity} · {formatPrice(item.price || 0, item.currency || orderCurrency, false)}
                                       </div>
+                                      {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                                        <div style={{ fontSize: '.74rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>
+                                          {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
+                                        </div>
+                                      )}
                                       {item.seller && (
                                         <div style={{ fontSize: '.72rem', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                           <i className="fas fa-store" style={{ fontSize: '.6rem' }}></i>

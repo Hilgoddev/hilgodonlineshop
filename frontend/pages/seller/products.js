@@ -6,6 +6,7 @@ import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { colorName } from '../../lib/colorName';
 
 const EMPTY_FORM = {
   name: '',
@@ -275,7 +276,7 @@ export default function SellerProducts() {
                     <button
                       key={i}
                       type="button"
-                      title={`Remove ${color}`}
+                      title={`Remove ${colorName(color)} (${color})`}
                       onClick={() => setForm(f => ({ ...f, colors: f.colors.filter((_, ci) => ci !== i) }))}
                       style={{ width: '30px', height: '30px', borderRadius: '50%', border: '2px solid var(--gray-3)', background: color, cursor: 'pointer', position: 'relative', flexShrink: 0 }}
                     >

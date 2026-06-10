@@ -6,6 +6,7 @@ import { apiFetch } from '../../lib/apiClient';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '../../lib/supabaseClient';
 import { orderStatusLabel } from '../../lib/orderStatus';
+import { formatOptionValue } from '../../lib/colorName';
 
 const STATUS_STYLE = {
   pending: { bg: '#fef3c7', color: '#92400e' },
@@ -208,6 +209,11 @@ export default function SellerOrders() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: '.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
                             <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(Number(item.price), item.currency || 'NGN', false)} each</div>
+                            {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                              <div style={{ fontSize: '.74rem', color: 'var(--primary)', marginTop: '2px', textTransform: 'capitalize', fontWeight: 600 }}>
+                                {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
+                              </div>
+                            )}
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                             <select

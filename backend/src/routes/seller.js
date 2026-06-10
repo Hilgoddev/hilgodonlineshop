@@ -209,9 +209,9 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
   try {
     let { data: orderItems, error: oiErr } = await supabase
       .from('order_items')
-      .select('id, order_id, product_id, seller_id, quantity, unit_price, fulfillment_status, product:products(name, images)')
+      .select('id, order_id, product_id, seller_id, quantity, unit_price, fulfillment_status, selected_options, product:products(name, images)')
       .eq('seller_id', req.user.id);
-    if (oiErr && String(oiErr.message || '').includes('fulfillment_status')) {
+    if (oiErr && (String(oiErr.message || '').includes('fulfillment_status') || String(oiErr.message || '').includes('selected_options'))) {
       ({ data: orderItems, error: oiErr } = await supabase
         .from('order_items')
         .select('id, order_id, product_id, seller_id, quantity, unit_price, product:products(name, images)')
@@ -247,6 +247,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
         quantity: Number(oi.quantity),
         price: Number(oi.unit_price),
         fulfillmentStatus: oi.fulfillment_status || 'pending',
+        selectedOptions: oi.selected_options || null,
       });
       map.set(oi.order_id, list);
       return map;
