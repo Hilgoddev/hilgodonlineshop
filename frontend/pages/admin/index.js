@@ -5,6 +5,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { orderStatusLabel } from '../../lib/orderStatus';
 
 export default function AdminDashboard() {
   const { formatPrice } = useCurrency();
@@ -225,7 +226,7 @@ export default function AdminDashboard() {
                         <span style={getPayBadge(order.paymentStatus)}>{order.paymentStatus || 'pending'}</span>
                       </td>
                       <td style={{ padding: '12px' }}>
-                        <span style={getStatusBadge(order.status)}>{order.status || 'pending'}</span>
+                        <span style={getStatusBadge(order.status)}>{orderStatusLabel(order.status, order.paymentMethod)}</span>
                       </td>
                       <td style={{ padding: '12px', fontSize: '0.8rem', color: '#64748b' }}>
                         {new Date(order.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}

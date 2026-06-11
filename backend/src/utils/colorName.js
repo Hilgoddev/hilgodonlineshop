@@ -1,6 +1,6 @@
-// Map a color value to a human-friendly name. Product color options are stored
-// as hex (e.g. "#1560bd"); shoppers should see "Denim", not the hex code.
-// If the value is already a name (no leading '#'), it's returned as-is.
+// Backend mirror of frontend/lib/colorName.js — keep the two in sync.
+// Product color options are stored as hex (e.g. "#1560bd"); buyers (and emails)
+// should see "Denim", not the hex code. Values that are already names pass through.
 
 const NAMED_COLORS = {
   // Neutrals
@@ -42,7 +42,7 @@ function hexToRgb(hex) {
   return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
 }
 
-export function colorName(value) {
+function colorName(value) {
   if (value == null) return '';
   const v = String(value).trim();
   if (!v.startsWith('#')) return v; // already a name like "Red"
@@ -58,6 +58,17 @@ export function colorName(value) {
 }
 
 // Format a selected-option value for display: color keys get a name, others pass through.
-export function formatOptionValue(key, value) {
+function formatOptionValue(key, value) {
   return String(key).toLowerCase() === 'color' ? colorName(value) : value;
 }
+
+// Build a compact " · Color: Denim · Size: M" string from a selectedOptions object.
+function optionsSummary(selectedOptions) {
+  if (!selectedOptions || typeof selectedOptions !== 'object') return '';
+  const parts = Object.entries(selectedOptions)
+    .filter(([, v]) => v != null && String(v).trim() !== '')
+    .map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`);
+  return parts.join(' · ');
+}
+
+module.exports = { colorName, formatOptionValue, optionsSummary };

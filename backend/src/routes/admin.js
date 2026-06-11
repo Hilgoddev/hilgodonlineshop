@@ -38,7 +38,7 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             // Products (active only, for low-stock + pending approvals)
             supabase.from('products').select('id, name, stock, status').eq('is_active', true),
             // Last 10 orders for the recent-orders table
-            supabase.from('orders').select('id, status, total_amount, created_at, user_id')
+            supabase.from('orders').select('id, status, total_amount, created_at, user_id, payment_method')
                 .order('created_at', { ascending: false }).limit(10),
             // Total order count
             supabase.from('orders').select('id', { count: 'exact', head: true }),
@@ -186,6 +186,7 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                         _id:         o.id,
                         id:          o.id,
                         status:      o.status,
+                        paymentMethod: o.payment_method || null,
                         // Same derivation as GET /api/orders/all so the dashboard
                         // and the orders page agree: shipped/delivered imply paid.
                         paymentStatus: REVENUE_STATUSES.includes(o.status) ? 'paid' : 'pending',

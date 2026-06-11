@@ -16,10 +16,17 @@ async function handlePaymentSuccess(order_id, user_id) {
     // Selecting a non-existent column makes PostgREST error, which previously
     // made this whole function abort — so stock was never decremented and no
     // confirmation emails were ever sent. Always select real columns.
-    const { data: items, error: itemsErr } = await supabase
+    let { data: items, error: itemsErr } = await supabase
       .from('order_items')
-      .select('product_id, quantity, unit_price')
+      .select('product_id, quantity, unit_price, selected_options')
       .eq('order_id', order_id);
+    // Backward-compat: retry without selected_options if that column is absent.
+    if (itemsErr && String(itemsErr.message || '').includes('selected_options')) {
+      ({ data: items, error: itemsErr } = await supabase
+        .from('order_items')
+        .select('product_id, quantity, unit_price')
+        .eq('order_id', order_id));
+    }
 
     if (itemsErr || !items?.length) return;
 
@@ -49,6 +56,7 @@ async function handlePaymentSuccess(order_id, user_id) {
       quantity: i.quantity,
       price: Number(i.unit_price) || 0,
       image: productMap[i.product_id]?.images?.[0] || null,
+      selectedOptions: i.selected_options || null,
     }));
 
     // Resolve the buyer's identity once — reused for the buyer, seller and admin
@@ -101,6 +109,7 @@ async function handlePaymentSuccess(order_id, user_id) {
           name: productMap[i.product_id]?.name || 'Product',
           quantity: i.quantity,
           price: Number(i.unit_price) || 0,
+          selectedOptions: i.selected_options || null,
         }));
         sendEmail({
           to: seller.email,

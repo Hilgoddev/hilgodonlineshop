@@ -3,6 +3,7 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { orderStatusLabel } from '../../lib/orderStatus';
 
 const STATUS_COLORS = {
   pending:    '#f59e0b',
@@ -229,7 +230,7 @@ export default function AdminAnalytics() {
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 700 }}>{formatPrice(o.totalAmount || 0, 'NGN', false)}</td>
                       <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                        <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '.72rem', fontWeight: 700, background: `${sc}18`, color: sc, textTransform: 'capitalize' }}>{o.status}</span>
+                        <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '.72rem', fontWeight: 700, background: `${sc}18`, color: sc }}>{orderStatusLabel(o.status, o.paymentMethod)}</span>
                       </td>
                       <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--gray-1)', fontSize: '.78rem' }}>
                         {new Date(o.createdAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}

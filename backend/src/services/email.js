@@ -1,4 +1,12 @@
 const crypto = require('crypto');
+const { optionsSummary } = require('../utils/colorName');
+
+// A small grey line under a product name showing its chosen variant options
+// (e.g. "Color: Denim · Size: M"). Colors are rendered as names, never hex.
+function optionsHtml(selectedOptions) {
+  const summary = optionsSummary(selectedOptions);
+  return summary ? `<div style="font-size:.78rem;color:#64748b;margin-top:2px">${escapeHtml(summary)}</div>` : '';
+}
 
 function escapeHtml(str) {
   return String(str == null ? '' : str)
@@ -177,7 +185,7 @@ async function sendEmail({ to, subject, html, emailType = 'general', orderId = n
 
 function orderConfirmationHtml(orderId, items, total, currency = 'NGN') {
   const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}${optionsHtml(i.selectedOptions)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Order Confirmed!</h2>
@@ -199,9 +207,12 @@ function orderStatusHtml(orderId, status, items = []) {
     delivered: 'Your order has been delivered. Enjoy your purchase!',
     cancelled: 'Your order has been cancelled. If this was unexpected, please contact support.',
   };
-  const names = (items || []).map((i) => escapeHtml(i.name)).filter(Boolean);
-  const itemsLine = names.length
-    ? `<p style="color:#475569;font-size:.92rem">Item${names.length > 1 ? 's' : ''}: <strong>${names.join(', ')}</strong></p>`
+  const valid = (items || []).filter((i) => i && i.name);
+  const itemsLine = valid.length
+    ? `<p style="color:#475569;font-size:.92rem">Item${valid.length > 1 ? 's' : ''}: <strong>${valid.map((i) => {
+        const opts = optionsSummary(i.selectedOptions);
+        return escapeHtml(i.name) + (opts ? ` (${escapeHtml(opts)})` : '');
+      }).join(', ')}</strong></p>`
     : '';
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Order Update</h2>
@@ -237,7 +248,7 @@ function paymentConfirmedHtml(orderId, items, total, buyerName, currency = 'NGN'
     const safeName = escapeHtml(i.name);
     const safeImg  = i.image ? escapeHtml(i.image) : '';
     const img = safeImg ? `<img src="${safeImg}" alt="${safeName}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:8px" />` : '';
-    return `<tr><td style="padding:8px;border-bottom:1px solid #eee">${img}${safeName}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`;
+    return `<tr><td style="padding:8px;border-bottom:1px solid #eee">${img}${safeName}${optionsHtml(i.selectedOptions)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`;
   }).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">Payment Confirmed!</h2>
@@ -254,7 +265,7 @@ function paymentConfirmedHtml(orderId, items, total, buyerName, currency = 'NGN'
 
 function newOrderSellerHtml(orderId, items, currency = 'NGN', buyerName = '', orderDate = '') {
   const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}${optionsHtml(i.selectedOptions)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Order Received!</h2>
@@ -271,7 +282,7 @@ function newOrderSellerHtml(orderId, items, currency = 'NGN', buyerName = '', or
 
 function newOrderAdminHtml(orderId, items, total, buyerName, orderDate = '', currency = 'NGN') {
   const rows = items.map(i =>
-    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
+    `<tr><td style="padding:8px;border-bottom:1px solid #eee">${escapeHtml(i.name)}${optionsHtml(i.selectedOptions)}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:center">${i.quantity}</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right">${formatMoney(Number(i.price * i.quantity), currency)}</td></tr>`
   ).join('');
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Paid Order</h2>

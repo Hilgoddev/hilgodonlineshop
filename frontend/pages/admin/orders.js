@@ -6,6 +6,9 @@ import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { supabase } from '../../lib/supabaseClient';
+import { orderStatusLabel } from '../../lib/orderStatus';
+
+const ORDER_STATUSES = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
 
 // Quick-fill templates shown in the email compose modal
 const EMAIL_TEMPLATES = [
@@ -162,9 +165,9 @@ export default function AdminOrders() {
           <input type="text" placeholder="Search by order ID, customer name or email..." className="form-input" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ flex: 1 }} />
           <select className="form-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All Statuses</option>
-            <option value="pending">Awaiting payment</option>
+            <option value="pending">Pending</option>
             <option value="paid">Paid</option>
-            <option value="processing">Paid · Preparing</option>
+            <option value="processing">Processing</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
@@ -216,13 +219,10 @@ export default function AdminOrders() {
                           </td>
                           <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '120px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
-                                <option value="pending">Awaiting payment</option>
-                                <option value="paid">Paid</option>
-                                <option value="processing">Paid · Preparing</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
+                              <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '150px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
+                                {ORDER_STATUSES.map((s) => (
+                                  <option key={s} value={s}>{orderStatusLabel(s, order.paymentMethod)}</option>
+                                ))}
                               </select>
                               {isChanged && (<button className="btn btn-primary btn-sm" onClick={() => handleSaveStatus(order._id)} disabled={updatingId === order._id} style={{ padding: '4px 10px', fontSize: '.78rem' }}>{updatingId === order._id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}</button>)}
                             </div>

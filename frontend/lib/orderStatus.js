@@ -15,7 +15,7 @@ const ORDER_STATUS_LABELS = {
 const POD_STATUS_LABELS = {
   pending: 'Order placed',
   processing: 'Preparing',
-  paid: 'Preparing',
+  paid: 'Payment received',
   shipped: 'Out for delivery',
   delivered: 'Delivered & paid',
   cancelled: 'Cancelled',

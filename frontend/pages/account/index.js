@@ -340,7 +340,7 @@ export default function Account() {
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '.88rem' }}>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</div>
-                            <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', textTransform: 'capitalize', background: order.status === 'delivered' ? '#dcfce7' : order.status === 'shipped' ? '#ede9fe' : '#fef3c7', color: order.status === 'delivered' ? '#15803d' : order.status === 'shipped' ? '#6d28d9' : '#92400e' }}>{order.status || 'pending'}</span>
+                            <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', textTransform: 'capitalize', background: order.status === 'delivered' ? '#dcfce7' : order.status === 'shipped' ? '#ede9fe' : '#fef3c7', color: order.status === 'delivered' ? '#15803d' : order.status === 'shipped' ? '#6d28d9' : '#92400e' }}>{orderStatusLabel(order.status, order.paymentMethod)}</span>
                           </div>
                         </div>
                       );

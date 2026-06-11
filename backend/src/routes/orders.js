@@ -9,6 +9,7 @@ const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
 const { REVENUE_STATUSES } = require('../lib/orderStatus');
+const { optionsSummary } = require('../utils/colorName');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Effective per-item status for display. An item that's been individually
@@ -624,11 +625,11 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         if (updatedOrder.user_id) {
             Promise.all([
                 supabase.auth.admin.getUserById(updatedOrder.user_id),
-                supabase.from('order_items').select('quantity, product:products(name)').eq('order_id', orderId),
+                supabase.from('order_items').select('quantity, selected_options, product:products(name)').eq('order_id', orderId),
             ])
                 .then(([{ data: { user } }, { data: oi }]) => {
                     if (user?.email) {
-                        const statusItems = (oi || []).map((r) => ({ name: r.product?.name || 'Product', quantity: r.quantity }));
+                        const statusItems = (oi || []).map((r) => ({ name: r.product?.name || 'Product', quantity: r.quantity, selectedOptions: r.selected_options || null }));
                         const lead = statusItems[0]?.name || 'your order';
                         sendEmail({
                             to: user.email,
@@ -666,7 +667,7 @@ router.post('/:id/notify', verifyToken, async (req, res, next) => {
                 .select('id, user_id, status, total_amount, currency, shipping_address, created_at')
                 .eq('id', req.params.id).single(),
             supabase.from('order_items')
-                .select('quantity, unit_price, product:products(name, images)')
+                .select('quantity, unit_price, selected_options, product:products(name, images)')
                 .eq('order_id', req.params.id),
         ]);
         if (orderErr || !order) return res.status(404).json({ success: false, error: 'Order not found' });
@@ -697,9 +698,11 @@ router.post('/:id/notify', verifyToken, async (req, res, next) => {
             const price = formatMoney(Number(it.unit_price || 0), orderCurrency);
             const line  = Number(it.unit_price || 0) * Number(it.quantity || 1);
             const lineF = formatMoney(line, orderCurrency);
+            const opts  = optionsSummary(it.selected_options);
+            const optsTag = opts ? `<div style="font-size:.78rem;color:#64748b;margin-top:2px">${escapeHtml(opts)}</div>` : '';
             const imgTag = img ? `<img src="${escapeHtml(img)}" alt="${name}" style="width:40px;height:40px;object-fit:cover;border-radius:6px;vertical-align:middle;margin-right:10px">` : '';
             return `<tr>
-              <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle">${imgTag}${name}</td>
+              <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;vertical-align:middle">${imgTag}${name}${optsTag}</td>
               <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:center;color:#64748b">${it.quantity}</td>
               <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:right;color:#64748b">${price}</td>
               <td style="padding:10px 8px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:700">${lineF}</td>
