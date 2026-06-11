@@ -1,9 +1,9 @@
 # Hilgod Online Store — System Flows & How Everything Works
-**Last updated:** 2026-06-04
+**Last updated:** 2026-06-11
 
 A multi-vendor, multi-currency e-commerce platform.
 - **Frontend:** Next.js (Pages Router), React, deployed on Vercel (`hilgod.com` / `www.hilgod.com`)
-- **Backend:** Express API on Vercel serverless (`hilgod-api-two.vercel.app`, soon `api.hilgod.com`)
+- **Backend:** Express API on Vercel serverless (`api.hilgod.com` — live, verified)
 - **Database/Auth/Storage:** Supabase (PostgreSQL + GoTrue auth + Storage)
 - **Payments:** Paystack (primary, NGN), Stripe (secondary), Bank transfer, Pay on Delivery
 - **Email:** Resend
@@ -241,3 +241,54 @@ Runs **once** per order when it becomes paid (from any path above):
 - **Manual ops still required:** set the Paystack webhook URL to
   `https://<api-domain>/api/payment/webhook` (event `charge.success`); point `api.hilgod.com`
   at the backend; enable Supabase Realtime on `orders`/`order_items`.
+
+---
+
+## 17. Recent features & flows (2026-06)
+
+### Campaigns & Deals
+- One `flash_sales`/campaigns table powers three **types**: `flash`, `black_friday`, `easter`
+  (`backend/src/routes/campaigns.js`; legacy `/api/flash-sales` aliases type=flash).
+- Storefront pages `/flash-sales`, `/black-friday`, `/easter` (filtered by type) + a unified
+  **`/deals`** hub. Homepage renders one section + one hero slide per active type.
+- **`on_sale` filter** (`GET /api/products?on_sale=true`): a product is on sale if it's in an
+  active campaign OR `original_price > price` (markdown). `/deals` and the products "On Sale"
+  filter both use it.
+- Order pricing applies the active campaign sale price server-side at checkout (tamper-proof).
+
+### Reviews (project-wide)
+- `reviews` table; `GET /api/reviews/:productId`, `/recent`, `/overall` (the last two defined
+  BEFORE `/:productId`). Products list/detail are enriched with `rating` + `review_count`.
+- Surfaces: star ratings on product cards everywhere, the product page Reviews tab (+ live count),
+  a homepage testimonials section, and a footer rating badge. The standalone `/reviews` page is
+  built but **intentionally unlinked** (FUTURE UPGRADE).
+
+### Product variants (size/color)
+- `order_items.selected_options` (JSONB) stores the chosen size/color. Captured on the product
+  page, Quick View (selection carries to the product page via `?size=&color=`), and bulk
+  wishlist→cart. Shown in cart, checkout, and all three order views (buyer/seller/admin).
+- Colors display as **names** (e.g. "Denim"), not hex, via `frontend/lib/colorName.js`.
+
+### Money: commission, metrics, payouts
+- Each sale: seller nets **90%**, platform (admin) takes **10%**. Admin analytics shows
+  `revenue` (incl. delivery), `productSales` (excl. delivery), `platformCommission` (10%), `unitsSold`.
+- Metric status sets (`backend/src/lib/orderStatus.js`): `REVENUE_STATUSES`
+  (`paid,processing,shipped,delivered`) for dashboards; `PAYABLE_STATUSES`
+  (`paid,shipped,delivered`, excludes processing) for withdrawable balance.
+- **Payouts** are manual: seller requests → bank details saved on the profile + the request,
+  shown in admin, and **emailed to `contact@hilgod.com`** (`PAYOUT_NOTIFY_EMAIL`).
+
+### Store/seller & contact
+- Store names link to `/stores/[slug]` from product cards and the product page. The store page
+  shows seller details + a **WhatsApp "Contact Seller"** button; the product page has a WhatsApp
+  contact too (uses `seller.phone_number`). Store names are unique (case-insensitive, enforced).
+
+### Auto-approve & order status
+- Global `platform_settings.auto_approve_products` toggle (admin) decides if seller uploads go
+  live immediately or wait for approval.
+- `pending` = awaiting payment; `processing` = paid & being prepared (POD orders start `pending`).
+
+### Emails
+- All order emails (confirmation, payment, status update, seller/admin new-order, returns) include
+  **product names + customer name** with the order ID; sent from `order@hilgod.com` via Resend;
+  links always resolve to the live domain in production.

@@ -1,294 +1,86 @@
 # Project Structure Overview
 
+_Last updated: 2026-06-11. Stack: **Next.js** (frontend) + **Express/Supabase** (backend) +
+Resend (email) + Paystack/Stripe/Grey (payments). Supabase project `nmrqdzikceakkhfhflja`._
+
 ```
 hilgodonlineshop/
 │
-├── 📁 Backend (NEW - Next.js API Server)
-│   ├── 📁 lib/
-│   │   └── mongodb.js                 # Database connection handler
-│   │
-│   ├── 📁 models/                     # MongoDB Schemas
-│   │   ├── User.js                    # User model (with cart & wishlist)
-│   │   ├── Product.js                 # Product model (with reviews)
-│   │   └── Order.js                   # Order model (with tracking)
-│   │
-│   ├── 📁 pages/
-│   │   └── 📁 api/                    # API Routes
-│   │       ├── 📁 auth/
-│   │       │   └── [...nextauth].js   # Google OAuth + Sessions
-│   │       │
-│   │       ├── 📁 products/
-│   │       │   ├── index.js           # GET all, POST new product
-│   │       │   └── [id].js            # GET/PUT/DELETE single product
-│   │       │
-│   │       ├── 📁 cart/
-│   │       │   ├── index.js           # GET cart, POST add item
-│   │       │   └── [productId].js     # DELETE remove item
-│   │       │
-│   │       ├── 📁 wishlist/
-│   │       │   ├── index.js           # GET wishlist, POST add item
-│   │       │   └── [productId].js     # DELETE remove item
-│   │       │
-│   │       ├── 📁 orders/
-│   │       │   ├── index.js           # GET orders, POST new order
-│   │       │   └── [id].js            # GET single order
-│   │       │
-│   │       ├── 📁 users/
-│   │       │   ├── register.js        # POST register new user
-│   │       │   └── profile.js         # GET/PUT user profile
-│   │       │
-│   │       └── health.js              # GET health check
-│   │
-│   ├── 📁 public/
-│   │   └── api-test.html              # Interactive API testing page
-│   │
-│   ├── 📁 scripts/
-│   │   └── seed-products.js           # Database seeding script
-│   │
-│   ├── .env.example                   # Environment variables template
-│   ├── .env.local                     # Your secrets (create this!)
-│   ├── package.json                   # Dependencies & scripts
-│   ├── next.config.js                 # Next.js configuration
-│   ├── tsconfig.json                  # TypeScript configuration
-│   └── .gitignore                     # Git ignore rules
+├── backend/                          # Express API (Vercel serverless) -> api.hilgod.com
+│   ├── src/
+│   │   ├── index.js                  # App entry: middleware, CORS, route mounting, raw-body webhooks
+│   │   ├── config/
+│   │   │   ├── supabase.js            # Supabase client (service-role key — bypasses RLS)
+│   │   │   ├── paystack.js  stripe.js  grey.js   # Payment provider clients
+│   │   ├── middleware/
+│   │   │   ├── requireAdmin.js         # Shared admin-role guard (DB-backed)
+│   │   │   └── rateLimit.js            # Per-action limiters (review/upload/password/write/payment)
+│   │   ├── lib/
+│   │   │   ├── orderStatus.js          # REVENUE_STATUSES (dashboards) + PAYABLE_STATUSES (withdrawable)
+│   │   │   ├── settings.js             # platform_settings key/value accessor (auto-approve)
+│   │   │   ├── resilience.js           # withTimeout, makeCache, singleFlight, getEmailMap
+│   │   │   ├── env.js  validate.js
+│   │   ├── routes/                     # All business logic + access control
+│   │   │   ├── auth.js                 # verifyToken (JWKS), sync-profile
+│   │   │   ├── products.js             # list/detail (ratings + on_sale filter), CRUD, approve
+│   │   │   ├── orders.js               # order creation (server-side pricing), admin list, status
+│   │   │   ├── payment.js  stripe.js  grey.js   # init + signed webhooks (idempotent, atomic claim)
+│   │   │   ├── seller.js               # dashboard metrics, orders, earnings, payouts (+admin notify)
+│   │   │   ├── admin.js                # stats, sellers, customers, payouts, badge-counts, settings
+│   │   │   ├── stores.js               # public store + owner; create/update (unique name)
+│   │   │   ├── campaigns.js            # flash/black_friday/easter; flash-sales.js = alias
+│   │   │   ├── reviews.js              # /:productId, /recent, /overall
+│   │   │   ├── cart.js  wishlist.js  categories.js  returns.js  user.js  upload.js  exchange-rates.js
+│   │   ├── services/
+│   │   │   ├── email.js                # Resend send + all HTML templates (order, payout, etc.)
+│   │   │   └── paymentSuccess.js       # one-time post-payment: stock decrement + emails
+│   │   ├── utils/ (pricing.js, cache.js)  scripts/ (validateEnv.js)
+│   ├── supabase/migrations/            # 001..012 SQL (schema, payouts, settings, campaigns, options)
+│   └── email-templates/                # Hilgod-branded Supabase auth email HTML
 │
-├── 📁 Frontend (EXISTING - HTML/CSS/JS)
-│   ├── index.html                     # Home page
-│   ├── products.html                  # Products listing
-│   ├── product-detail.html            # Single product page
-│   ├── cart.html                      # Shopping cart
-│   ├── wishlist.html                  # Wishlist page
-│   ├── checkout.html                  # Checkout page
-│   ├── account.html                   # User account
-│   ├── login.html                     # Login page
-│   ├── signup.html                    # Registration page
-│   ├── categories.html                # Categories page
-│   ├── delivery.html                  # Delivery info
-│   ├── track-order.html               # Order tracking
-│   ├── seller-zone.html               # Seller dashboard
-│   │
-│   ├── 📁 css/
-│   │   ├── main.css                   # Main styles
-│   │   ├── header.css                 # Header styles
-│   │   ├── footer.css                 # Footer styles
-│   │   ├── home.css                   # Home page styles
-│   │   ├── products.css               # Products styles
-│   │   └── pages.css                  # Other pages styles
-│   │
-│   ├── 📁 js/
-│   │   ├── main.js                    # Main JavaScript
-│   │   ├── auth.js                    # Authentication logic
-│   │   ├── cart.js                    # Cart functionality
-│   │   ├── wishlist.js                # Wishlist functionality
-│   │   ├── products-data.js           # Product data
-│   │   ├── slider.js                  # Slider functionality
-│   │   └── ui.js                      # UI components
-│   │
-│   └── 📁 assets/
-│       ├── 📁 icons/                  # Icon files
-│       ├── 📁 images/                 # Image files
-│       └── favicon.svg                # Site favicon
+├── frontend/                         # Next.js (Pages Router) -> hilgod.com / www
+│   ├── pages/
+│   │   ├── index.js                   # Home: hero, categories, campaign sections, testimonials
+│   │   ├── deals.js                   # unified deals hub (on_sale products)
+│   │   ├── flash-sales.js  black-friday.js  easter.js   # per-type campaign storefronts
+│   │   ├── products/index.js [id].js  # listing (server-paginated) + detail (variants, zoom, reviews)
+│   │   ├── cart.js  checkout.js  wishlist.js  track-order.js  return-request.js
+│   │   ├── stores/[slug].js           # public store page (seller details + WhatsApp contact)
+│   │   ├── reviews.js                 # site-wide reviews page (built; currently unlinked — future)
+│   │   ├── account/index.js           # buyer profile + orders
+│   │   ├── seller/                    # dashboard, products, orders, store, payouts, analytics
+│   │   ├── admin/                     # index, analytics, orders, products, approvals, sellers,
+│   │   │                              #   stores, customers, categories, payouts, riders, flash-sales
+│   │   ├── auth/ (login, signup, callback, forgot/reset-password)
+│   │   ├── about, careers, delivery, blog, privacy, terms, seller-zone, categories
+│   │   └── api/location-currency.js   # tiny geo helper (the only Next API route)
+│   ├── components/
+│   │   ├── Navbar.js  Footer.js  Layout.js  ShopProvider.js (cart/wishlist/quick-view ctx)
+│   │   ├── ProductCard.js (ratings, store link, variant-aware add)  OrderDetailsModal.js
+│   │   ├── HomeCampaignSection.js  HomeTestimonials.js  CampaignView.js  SellerInfo.js
+│   │   ├── AuthGuard.js  AdminGuard.js  SellerGuard.js  ConfirmModal.js
+│   │   └── admin/AdminLayout.js        # admin shell + attention badges
+│   ├── contexts/ (AuthContext.js, CurrencyContext.js)
+│   ├── lib/
+│   │   ├── apiClient.js (apiFetch + token)  adminApi.js  catalogApi.js
+│   │   ├── pricing.js (normalizePricing)  colorName.js (hex->name)  orderStatus.js (labels)
+│   │   ├── env.js (resolveServerApiBase)  supabaseClient.js  blogPosts.js
+│   ├── hooks/useAutoRefresh.js
+│   └── css/ (main, header, footer, home, products, pages, fix.module.css)
 │
-└── 📄 Documentation
-    ├── README_BACKEND.md              # Complete backend guide
-    ├── BACKEND_SETUP.md               # Setup instructions
-    ├── QUICKSTART.md                  # Quick start guide
-    └── PROJECT_STRUCTURE.md           # This file
+└── Docs/                             # SYSTEM-FLOWS.md, PROJECT_STRUCTURE.md, API docs, guides
+    (root also has HOW_IT_WORKS.md, HANDOVER.md, AUDIT_REPORT.md, AUTH_AND_OAUTH_SETUP.md,
+     CUSTOM_DOMAIN_SETUP.md, scripts/make-handover.ps1)
 ```
 
----
-
-## 🔄 How Frontend & Backend Connect
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    USER'S BROWSER                            │
-│                                                              │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │         EXISTING HTML PAGES (Frontend)             │    │
-│  │  (index.html, products.html, cart.html, etc.)      │    │
-│  └────────────────────────────────────────────────────┘    │
-│                          ↓                                   │
-│                   JavaScript Fetch                           │
-│                          ↓                                   │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│              NEXT.JS API SERVER (Backend)                    │
-│                   localhost:3000/api                         │
-│                                                              │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │              API ROUTES                             │    │
-│  │  /api/products  /api/cart  /api/orders  etc.       │    │
-│  └────────────────────────────────────────────────────┘    │
-│                          ↓                                   │
-│                   Business Logic                             │
-│                          ↓                                   │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │           AUTHENTICATION (NextAuth)                 │    │
-│  │        Google OAuth + JWT Sessions                  │    │
-│  └────────────────────────────────────────────────────┘    │
-│                          ↓                                   │
-│                   Database Queries                           │
-│                          ↓                                   │
-└─────────────────────────────────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│                  MONGODB DATABASE                            │
-│                                                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
-│  │  Users   │  │ Products │  │  Orders  │                 │
-│  └──────────┘  └──────────┘  └──────────┘                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔑 Key Integration Points
-
-### 1. Authentication Flow
-```
-User clicks "Login with Google"
-    ↓
-Redirects to Google
-    ↓
-User authorizes
-    ↓
-Back to /api/auth/callback/google
-    ↓
-NextAuth creates session
-    ↓
-JWT token stored in cookie
-    ↓
-Frontend can access user session
-```
-
-### 2. Product Listing Flow
-```
-User visits products.html
-    ↓
-JavaScript fetches /api/products
-    ↓
-API queries MongoDB
-    ↓
-Returns JSON product data
-    ↓
-JavaScript renders products on page
-```
-
-### 3. Add to Cart Flow
-```
-User clicks "Add to Cart"
-    ↓
-JavaScript sends POST /api/cart
-    ↓
-API verifies authentication
-    ↓
-Adds product to user's cart in DB
-    ↓
-Returns updated cart
-    ↓
-Frontend updates cart UI
-```
-
-### 4. Checkout Flow
-```
-User proceeds to checkout
-    ↓
-JavaScript sends POST /api/orders
-    ↓
-API creates order in MongoDB
-    ↓
-Clears user's cart
-    ↓
-Returns order confirmation
-    ↓
-Frontend shows success message
-```
-
----
-
-## 📊 Data Flow Diagram
-
-```
-┌─────────┐      ┌──────────┐      ┌─────────┐      ┌──────────┐
-│  User   │ ←──→ │ Frontend │ ←──→ │  API    │ ←──→ │ MongoDB  │
-│ Browser │      │  (HTML)  │      │ Routes  │      │ Database │
-└─────────┘      └──────────┘      └─────────┘      └──────────┘
-                      ↓                  ↓                  ↓
-                 Display UI         Process Logic      Store Data
-                 Handle Events      Validate Input     Query Data
-                 Fetch API          Auth Check         Update Records
-                 Update DOM         Return JSON        Index/Search
-```
-
----
-
-## 🎯 Migration Strategy
-
-### Phase 1: Backend Setup ✅ (COMPLETE)
-- [x] Next.js server created
-- [x] MongoDB connected
-- [x] API routes built
-- [x] Authentication configured
-
-### Phase 2: Integration (NEXT)
-- [ ] Connect existing HTML pages to API
-- [ ] Replace static data with API calls
-- [ ] Add Google login button
-- [ ] Implement dynamic cart/wishlist
-
-### Phase 3: Enhancement
-- [ ] Add payment processing
-- [ ] Implement email notifications
-- [ ] Create admin dashboard
-- [ ] Add product image upload
-
-### Phase 4: Deployment
-- [ ] Deploy backend to cloud
-- [ ] Set up production database
-- [ ] Configure domain & SSL
-- [ ] Performance optimization
-
----
-
-## 💻 Development Workflow
-
-```bash
-# Terminal 1: Run Next.js API server
-npm run dev
-# Server runs at http://localhost:3000
-
-# Terminal 2: (Optional) Seed database
-npm run seed
-
-# Open browser
-# Test API: http://localhost:3000/api-test.html
-# Your site: file:///path/to/index.html
-```
-
----
-
-## 🔗 URL Mapping
-
-| Old (Static) | New (API) | Purpose |
-|--------------|-----------|---------|
-| products-data.js | /api/products | Get products |
-| localStorage cart | /api/cart | Persistent cart |
-| localStorage wishlist | /api/wishlist | Persistent wishlist |
-| Manual login | /api/auth/signin | Google OAuth |
-| Static orders | /api/orders | Real order tracking |
-
----
-
-## 🚀 Quick Reference
-
-**API Base URL:** `http://localhost:3000/api`
-
-**Test Page:** `http://localhost:3000/api-test.html`
-
-**Start Server:** `npm run dev`
-
-**Seed Database:** `npm run seed`
-
-**Docs:** See `README_BACKEND.md` for full API documentation
+## Key conventions
+- **Backend is authoritative.** Prices, totals, and payment amounts are recomputed server-side;
+  client values are only tamper signals. Access control is in Express middleware
+  (`verifyToken`, `requireAdmin`/seller guards, `req.user.id` scoping) since the service-role key
+  bypasses RLS.
+- **Same-origin API.** The browser calls `/api/*`; Next.js rewrites it to `NEXT_PUBLIC_API_URL`
+  (the backend), so there's no cross-origin/CORS dependency from the browser.
+- **Money model.** Order `total_amount` includes the ₦1,500 delivery fee; seller revenue =
+  product sales (excl. delivery); seller nets 90% (10% platform commission); dashboards count
+  `REVENUE_STATUSES`, withdrawable uses `PAYABLE_STATUSES`.
+- See `Docs/SYSTEM-FLOWS.md` for end-to-end flows and `HOW_IT_WORKS.md` for the feature walkthrough.

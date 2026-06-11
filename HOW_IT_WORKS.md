@@ -179,4 +179,30 @@ presentation.
   harden the API. Missing critical secrets cause a hard startup failure in production.
 
 For a security/quality assessment and the end-to-end test evidence, see `AUDIT_REPORT.md`.
-For setup and deployment, see `HANDOVER.md`.
+For setup and deployment, see `HANDOVER.md`. For end-to-end flows, see `Docs/SYSTEM-FLOWS.md`.
+
+---
+
+## Recent additions (2026-06)
+
+- **Deals hub (`/deals`)** — one page aggregating every discounted product (active campaigns
+  OR `original_price > price`); the navbar "Deals" link points here. The `on_sale` product
+  filter is now functional.
+- **Store navigation & contact** — store names link to `/stores/[slug]` from product cards and
+  the product page; the store page shows seller details and a **WhatsApp "Contact Seller"**
+  button (the product page has one too). Store names are unique.
+- **10% platform commission** — sellers net 90% of each sale; admin analytics shows commission +
+  product sales; the payouts page breaks it down. Payout requests email the seller's bank details
+  to `contact@hilgod.com`.
+- **Variants** — size/color flow product page → Quick View (selection carried via URL) → cart →
+  order; shown in cart, checkout, and all order views; colors render as names.
+- **Order emails** carry product + customer names with the order ID.
+
+## Future updates (intentionally deferred — not bugs)
+- **Standalone `/reviews` page** is built but unlinked (footer badge + "Read All Reviews"
+  commented out). Uncomment to launch.
+- **Coupon / promo-code system** — the cart promo block is commented out; no backend coupon model yet.
+- **Server-side cart variant options** — selected size/color are held per-browser (localStorage),
+  not synced across devices before checkout.
+- **Supabase vanity auth domain** (e.g. `auth.hilgod.com`) not configured — auth links use the
+  default `…supabase.co`. See `AUTH_AND_OAUTH_SETUP.md`.
