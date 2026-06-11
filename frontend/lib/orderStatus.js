@@ -10,8 +10,7 @@ const ORDER_STATUS_LABELS = {
   cancelled: 'Cancelled',
 };
 
-// Pay-on-Delivery never pays online, so it must not show "Paid"/"Awaiting payment"
-// before cash is collected at delivery.
+// POD is paid at delivery, so it never shows "Paid"/"Awaiting payment" earlier.
 const POD_STATUS_LABELS = {
   pending: 'Order placed',
   processing: 'Preparing',

@@ -221,9 +221,7 @@ export default function AdminOrders() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '150px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
                                 {ORDER_STATUSES
-                                  // Pay-on-Delivery has no separate "paid" step — cash is
-                                  // collected at delivery, so 'delivered' is the paid point.
-                                  // Hide the standalone 'paid' option for POD (unless already set).
+                                  // POD has no separate 'paid' step (paid at delivery).
                                   .filter((s) => !(String(order.paymentMethod || '').toLowerCase() === 'pod' && s === 'paid' && currentStatus !== 'paid'))
                                   .map((s) => (
                                     <option key={s} value={s}>{orderStatusLabel(s, order.paymentMethod)}</option>

@@ -29,9 +29,7 @@ const mapOrder = (order, items = [], user = null) => {
             : order.payment_reference?.startsWith('ORD_') ? 'paystack'
             : null);
     const isPod = String(paymentMethod || '').toLowerCase() === 'pod';
-    // Payment status must reflect reality. For online payments, revenue statuses
-    // (paid/processing/shipped/delivered) mean the money is in. For Pay-on-Delivery
-    // the cash is only collected at the door, so it stays 'pending' until delivered.
+    // POD is paid at delivery; online payments are paid once in a revenue status.
     const paymentStatus = isPod
         ? (order.status === 'delivered' ? 'paid' : 'pending')
         : (REVENUE_STATUSES.includes(order.status) ? 'paid' : 'pending');

@@ -1,8 +1,7 @@
 const crypto = require('crypto');
 const { optionsSummary } = require('../utils/colorName');
 
-// A small grey line under a product name showing its chosen variant options
-// (e.g. "Color: Denim · Size: M"). Colors are rendered as names, never hex.
+// Variant options shown under a product name (colors as names, not hex).
 function optionsHtml(selectedOptions) {
   const summary = optionsSummary(selectedOptions);
   return summary ? `<div style="font-size:.78rem;color:#64748b;margin-top:2px">${escapeHtml(summary)}</div>` : '';

@@ -18,7 +18,7 @@ const STEPS = [
 ];
 const STEP_INDEX = { pending: 0, paid: 1, processing: 2, shipped: 3, delivered: 4 };
 
-// Pay-on-Delivery timeline — no pre-paid step; cash is collected AT delivery.
+// Pay-on-Delivery timeline — no pre-paid step.
 const STEPS_POD = [
   { key: 'pending', label: 'Placed', icon: 'fa-receipt' },
   { key: 'processing', label: 'Preparing', icon: 'fa-box' },
