@@ -48,7 +48,6 @@ export default function Home({ products, categories = [], campaigns = [], catego
   const [catalogProducts, setCatalogProducts] = useState(products || []);
   const [catalogLoading, setCatalogLoading] = useState(!products || products.length === 0);
   const [categoryList, setCategoryList] = useState(categories || []);
-  const [flashProducts, setFlashProducts] = useState([]);
   const [bestsellers, setBestsellers] = useState([]);
   // Category sections are seeded from SSR (reliable first paint) and only re-fetched
   // client-side as a fallback for any that came back empty.
