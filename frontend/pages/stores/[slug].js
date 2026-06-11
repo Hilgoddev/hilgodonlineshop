@@ -1,9 +1,35 @@
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { resolveServerApiBase } from '@/lib/env';
 
+const titleCase = (s) => (s || '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
 export default function StorePage({ store, products }) {
+  const [activeCat, setActiveCat] = useState('all');
+
+  // Group the store's products by category, and within each by subcategory.
+  const { categories, grouped } = useMemo(() => {
+    const byCat = {};
+    (products || []).forEach((p) => {
+      const c = p.category || 'other';
+      (byCat[c] = byCat[c] || []).push(p);
+    });
+    const cats = Object.keys(byCat).sort();
+    // Within each category, split into subcategory buckets ('' = no subcategory).
+    const g = {};
+    cats.forEach((c) => {
+      const subs = {};
+      byCat[c].forEach((p) => {
+        const s = p.subcategory || '';
+        (subs[s] = subs[s] || []).push(p);
+      });
+      g[c] = subs;
+    });
+    return { categories: cats, grouped: g };
+  }, [products]);
+
   if (!store) {
     return (
       <Layout title="Store not found - Hilgod">
@@ -17,11 +43,13 @@ export default function StorePage({ store, products }) {
     );
   }
 
+  const shownCats = activeCat === 'all' ? categories : categories.filter((c) => c === activeCat);
+
   return (
     <Layout title={`${store.name} - Hilgod`}>
       <div style={{ padding: 'var(--space-6) 0' }}>
         {/* Store header */}
-        <div className="card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '18px', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
+        <div className="card" style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '18px', marginBottom: 'var(--space-5)', flexWrap: 'wrap' }}>
           {store.logo_url ? (
             <img src={store.logo_url} alt={store.name} style={{ width: '72px', height: '72px', borderRadius: '12px', objectFit: 'cover' }} />
           ) : (
@@ -34,7 +62,6 @@ export default function StorePage({ store, products }) {
             {store.description && (
               <p style={{ color: 'var(--gray-1)', fontSize: '.9rem', margin: 0 }}>{store.description}</p>
             )}
-            {/* Seller details */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', color: 'var(--gray-1)', fontSize: '.8rem', marginTop: '8px' }}>
               {store.owner?.full_name && (
                 <span><i className="fas fa-user" style={{ marginRight: '4px', color: 'var(--primary)' }} />{store.owner.full_name}</span>
@@ -49,7 +76,6 @@ export default function StorePage({ store, products }) {
             </div>
           </div>
 
-          {/* Contact button (WhatsApp) */}
           {store.owner?.phone_number && (
             <a
               href={`https://wa.me/${String(store.owner.phone_number).replace(/\D/g, '')}`}
@@ -63,18 +89,52 @@ export default function StorePage({ store, products }) {
           )}
         </div>
 
-        {/* Products */}
-        {products.length ? (
-          <div className="product-grid-5">
-            {products.map((p) => (
-              <ProductCard key={p._id || p.id} product={p} />
-            ))}
-          </div>
-        ) : (
+        {products.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--gray-1)' }}>
             <i className="fas fa-box-open" style={{ fontSize: '2rem', marginBottom: '12px', display: 'block' }}></i>
             <p>This store has no products listed yet.</p>
           </div>
+        ) : (
+          <>
+            {/* Category filter */}
+            {categories.length > 1 && (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: 'var(--space-5)' }}>
+                <button onClick={() => setActiveCat('all')} className={`btn btn-sm ${activeCat === 'all' ? 'btn-primary' : 'btn-outline'}`}>
+                  All ({products.length})
+                </button>
+                {categories.map((c) => (
+                  <button key={c} onClick={() => setActiveCat(c)} className={`btn btn-sm ${activeCat === c ? 'btn-primary' : 'btn-outline'}`}>
+                    {titleCase(c)} ({(products || []).filter((p) => (p.category || 'other') === c).length})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Category sections, each split by subcategory */}
+            {shownCats.map((c) => {
+              const subs = grouped[c] || {};
+              const subKeys = Object.keys(subs).sort((a, b) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)));
+              return (
+                <section key={c} style={{ marginBottom: 'var(--space-6)' }}>
+                  <div className="section-header">
+                    <h2 className="section-title"><span className="bar"></span>{titleCase(c)}</h2>
+                  </div>
+                  {subKeys.map((sk) => (
+                    <div key={sk || 'main'} style={{ marginBottom: subKeys.length > 1 ? 'var(--space-4)' : 0 }}>
+                      {sk && (
+                        <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: 'var(--gray-1)', margin: '4px 0 10px' }}>
+                          <i className="fas fa-tag" style={{ fontSize: '.75rem', color: 'var(--primary)', marginRight: '6px' }} />{titleCase(sk)}
+                        </h3>
+                      )}
+                      <div className="product-grid-5">
+                        {subs[sk].map((p) => <ProductCard key={p._id || p.id} product={p} />)}
+                      </div>
+                    </div>
+                  ))}
+                </section>
+              );
+            })}
+          </>
         )}
       </div>
     </Layout>
@@ -91,7 +151,7 @@ export async function getServerSideProps({ req, params }) {
 
     let products = [];
     if (store.owner_id) {
-      const prodRes = await fetch(`${apiBase}/products?seller_id=${encodeURIComponent(store.owner_id)}&limit=60`, { cache: 'no-store' });
+      const prodRes = await fetch(`${apiBase}/products?seller_id=${encodeURIComponent(store.owner_id)}&limit=100`, { cache: 'no-store' });
       const prodJson = await prodRes.json();
       products = prodJson.success ? (prodJson.data || []) : [];
     }
