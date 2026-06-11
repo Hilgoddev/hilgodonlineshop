@@ -220,9 +220,14 @@ export default function AdminOrders() {
                           <td style={{ padding: '14px 16px', verticalAlign: 'top' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <select className="form-input" value={currentStatus} onChange={(e) => handleStatusChange(order._id, e.target.value)} style={{ padding: '4px 8px', fontSize: '.82rem', width: '150px', border: `1px solid ${statusColors[currentStatus] || '#ccc'}`, color: statusColors[currentStatus], fontWeight: '600', background: `${statusColors[currentStatus]}10` }}>
-                                {ORDER_STATUSES.map((s) => (
-                                  <option key={s} value={s}>{orderStatusLabel(s, order.paymentMethod)}</option>
-                                ))}
+                                {ORDER_STATUSES
+                                  // Pay-on-Delivery has no separate "paid" step — cash is
+                                  // collected at delivery, so 'delivered' is the paid point.
+                                  // Hide the standalone 'paid' option for POD (unless already set).
+                                  .filter((s) => !(String(order.paymentMethod || '').toLowerCase() === 'pod' && s === 'paid' && currentStatus !== 'paid'))
+                                  .map((s) => (
+                                    <option key={s} value={s}>{orderStatusLabel(s, order.paymentMethod)}</option>
+                                  ))}
                               </select>
                               {isChanged && (<button className="btn btn-primary btn-sm" onClick={() => handleSaveStatus(order._id)} disabled={updatingId === order._id} style={{ padding: '4px 10px', fontSize: '.78rem' }}>{updatingId === order._id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}</button>)}
                             </div>
