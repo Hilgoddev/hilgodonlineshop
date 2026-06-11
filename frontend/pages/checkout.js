@@ -318,7 +318,7 @@ export default function Checkout() {
             Thank you for shopping with Hilgod. Your order is being processed and you will receive a confirmation email shortly.
           </p>
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/track-order" className="checkout-btn btn btn-primary btn-lg">
+            <Link href={`/track-order${placedOrderId ? `?order=${placedOrderId}` : ''}`} className="checkout-btn btn btn-primary btn-lg">
               <i className="fas fa-location-dot"></i> Track Order
             </Link>
             <Link href="/" className="checkout-btn-outline btn btn-outline btn-lg">
@@ -457,7 +457,7 @@ export default function Checkout() {
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <Link href="/track-order" className="btn btn-primary" style={{ flex: 1 }}>
+            <Link href={`/track-order${placedOrderId ? `?order=${placedOrderId}` : ''}`} className="btn btn-primary" style={{ flex: 1 }}>
               <i className="fas fa-location-dot"></i> Track Order
             </Link>
             <Link href="/account" className="btn btn-outline" style={{ flex: 1 }}>
