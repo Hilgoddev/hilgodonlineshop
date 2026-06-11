@@ -84,12 +84,12 @@ router.get('/', verifyToken, async (req, res, next) => {
         if (orderIds.length) {
             let { data: items, error: itemErr } = await supabase
                 .from('order_items')
-                .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(id, name, images, store:stores(name, logo_url)), seller:profiles(id, full_name, phone_number)')
                 .in('order_id', orderIds);
             if (itemErr && (String(itemErr.message || '').includes('fulfillment_status') || String(itemErr.message || '').includes('selected_options'))) {
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
-                    .select('id, order_id, quantity, unit_price, seller_id, product:products(id, name, images), seller:profiles(id, full_name, phone_number), store:stores(name, logo_url)')
+                    .select('id, order_id, quantity, unit_price, seller_id, product:products(id, name, images, store:stores(name, logo_url)), seller:profiles(id, full_name, phone_number)')
                     .in('order_id', orderIds));
             }
             if (itemErr) throw itemErr;
@@ -107,10 +107,10 @@ router.get('/', verifyToken, async (req, res, next) => {
                 selectedOptions: it.selected_options || null,
                     seller: it.seller ? {
                         id: it.seller.id,
-                        name: it.seller.full_name || it.store?.name || 'Seller',
+                        name: it.seller.full_name || it.product?.store?.name || 'Seller',
                         phone: it.seller.phone_number || null,
-                        storeName: it.store?.name || null,
-                        storeLogo: it.store?.logo_url || null
+                        storeName: it.product?.store?.name || null,
+                        storeLogo: it.product?.store?.logo_url || null
                     } : null
                 });
                 map.set(it.order_id, list);
