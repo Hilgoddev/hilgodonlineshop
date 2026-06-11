@@ -8,7 +8,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { orderStatusLabel } from '../lib/orderStatus';
 import { formatOptionValue } from '../lib/colorName';
 
-// Fulfilment timeline steps (cancelled is handled separately).
+// Online-payment timeline (payment happens before shipment).
 const STEPS = [
   { key: 'pending', label: 'Placed', icon: 'fa-receipt' },
   { key: 'paid', label: 'Paid', icon: 'fa-credit-card' },
@@ -18,7 +18,16 @@ const STEPS = [
 ];
 const STEP_INDEX = { pending: 0, paid: 1, processing: 2, shipped: 3, delivered: 4 };
 
-function StatusTimeline({ status }) {
+// Pay-on-Delivery timeline — no pre-paid step; cash is collected AT delivery.
+const STEPS_POD = [
+  { key: 'pending', label: 'Placed', icon: 'fa-receipt' },
+  { key: 'processing', label: 'Preparing', icon: 'fa-box' },
+  { key: 'shipped', label: 'Out for delivery', icon: 'fa-truck' },
+  { key: 'delivered', label: 'Delivered & paid', icon: 'fa-money-bill-wave' },
+];
+const STEP_INDEX_POD = { pending: 0, paid: 1, processing: 1, shipped: 2, delivered: 3 };
+
+function StatusTimeline({ status, pod }) {
   if (status === 'cancelled') {
     return (
       <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', borderRadius: '10px', padding: '12px 16px', fontWeight: 600, fontSize: '.9rem' }}>
@@ -26,10 +35,11 @@ function StatusTimeline({ status }) {
       </div>
     );
   }
-  const current = STEP_INDEX[status] ?? 0;
+  const STEP_LIST = pod ? STEPS_POD : STEPS;
+  const current = (pod ? STEP_INDEX_POD : STEP_INDEX)[status] ?? 0;
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '4px', overflowX: 'auto', padding: '4px 0' }}>
-      {STEPS.map((s, i) => {
+      {STEP_LIST.map((s, i) => {
         const done = i <= current;
         return (
           <div key={s.key} style={{ flex: 1, minWidth: '64px', textAlign: 'center', position: 'relative' }}>
@@ -110,6 +120,9 @@ function TrackOrderPage() {
             {sorted.map((o) => {
               const id = o._id || o.id;
               const highlight = focusId && id === focusId;
+              const pod = (o.paymentMethod || '').toLowerCase() === 'pod';
+              // For POD, "pending" means placed (not awaiting online payment).
+              const statusLabel = pod && o.status === 'pending' ? 'Order placed' : orderStatusLabel(o.status);
               return (
                 <div key={id} className="card" style={{ padding: '18px 20px', border: highlight ? '2px solid var(--primary)' : undefined }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
@@ -121,11 +134,18 @@ function TrackOrderPage() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 800 }}>{formatPrice(o.totalAmount || 0, o.currency || 'NGN', false)}</div>
-                      <div style={{ fontSize: '.78rem', color: 'var(--primary)', fontWeight: 700 }}>{orderStatusLabel(o.status)}</div>
+                      <div style={{ fontSize: '.78rem', color: 'var(--primary)', fontWeight: 700 }}>{statusLabel}</div>
                     </div>
                   </div>
 
-                  <StatusTimeline status={o.status} />
+                  {pod && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: '8px', padding: '6px 10px', fontSize: '.78rem', fontWeight: 700, marginBottom: '12px' }}>
+                      <i className="fas fa-money-bill-wave" />
+                      {o.status === 'delivered' ? 'Paid on delivery' : 'Pay cash on delivery'}
+                    </div>
+                  )}
+
+                  <StatusTimeline status={o.status} pod={pod} />
 
                   <div style={{ marginTop: '14px', borderTop: '1px solid var(--gray-5)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {(o.items || []).map((it, idx) => (
