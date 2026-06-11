@@ -121,8 +121,10 @@ function TrackOrderPage() {
               const id = o._id || o.id;
               const highlight = focusId && id === focusId;
               const pod = (o.paymentMethod || '').toLowerCase() === 'pod';
-              // For POD, "pending" means placed (not awaiting online payment).
-              const statusLabel = pod && o.status === 'pending' ? 'Order placed' : orderStatusLabel(o.status);
+              // POD never pays online, so don't show "Paid"/"Awaiting payment" labels.
+              // "pending" = placed; "processing" = just preparing (no "Paid ·" prefix).
+              const POD_LABELS = { pending: 'Order placed', processing: 'Preparing', shipped: 'Out for delivery', delivered: 'Delivered & paid', cancelled: 'Cancelled' };
+              const statusLabel = pod ? (POD_LABELS[o.status] || orderStatusLabel(o.status)) : orderStatusLabel(o.status);
               return (
                 <div key={id} className="card" style={{ padding: '18px 20px', border: highlight ? '2px solid var(--primary)' : undefined }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
