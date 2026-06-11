@@ -192,7 +192,18 @@ router.get('/:slug', async (req, res, next) => {
 
         if (error) throw error;
         if (!data) return res.status(404).json({ success: false, error: 'Store not found' });
-        res.status(200).json({ success: true, data });
+
+        // Attach seller details + phone (for a WhatsApp contact button on the storefront).
+        let owner = null;
+        if (data.owner_id) {
+            const { data: prof } = await supabase
+                .from('profiles')
+                .select('full_name, phone_number, created_at')
+                .eq('id', data.owner_id)
+                .maybeSingle();
+            if (prof) owner = { full_name: prof.full_name || '', phone_number: prof.phone_number || '', joined: prof.created_at || null };
+        }
+        res.status(200).json({ success: true, data: { ...data, owner } });
     } catch (err) {
         next(err);
     }

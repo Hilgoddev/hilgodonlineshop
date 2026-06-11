@@ -5,6 +5,7 @@ import { adminJson, errorMessage } from '../../lib/adminApi';
 import { apiFetch } from '../../lib/apiClient';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import styles from '@/css/fix.module.css';
 
 export default function ApprovalsPage() {
   const { formatPrice } = useCurrency();
@@ -208,11 +209,10 @@ export default function ApprovalsPage() {
                             {app.phone}
                           </td>
                           <td style={{ padding: '12px 16px', color: '#64748b' }}>{new Date(app.created_at).toLocaleDateString()}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '140px' }}>
                             <button
                               type="button"
-                              className="btn btn-sm btn-primary"
-                              style={{ marginRight: '8px' }}
+                              className={`btn btn-sm btn-primary ${styles['action-btn']}`}
                               disabled={busyId === `seller-${app.user_id}`}
                               onClick={() => handleSellerApplication(app.user_id, 'approve')}
                             >
@@ -220,7 +220,7 @@ export default function ApprovalsPage() {
                             </button>
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline"
+                              className={`btn btn-sm btn-outline ${styles['action-btn']}`}
                               style={{ color: '#b91c1c', borderColor: '#fecaca' }}
                               disabled={busyId === `seller-${app.user_id}`}
                               onClick={() => handleSellerApplication(app.user_id, 'reject')}
@@ -260,11 +260,10 @@ export default function ApprovalsPage() {
                           <td style={{ padding: '12px 16px', fontWeight: 600 }}>{store.name}</td>
                           <td style={{ padding: '12px 16px' }}>{store.slug}</td>
                           <td style={{ padding: '12px 16px', color: '#64748b' }}>{new Date(store.created_at).toLocaleDateString()}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '140px' }}>
                             <button
                               type="button"
-                              className="btn btn-sm btn-primary"
-                              style={{ marginRight: '8px' }}
+                              className={`btn btn-sm btn-primary ${styles['action-btn']}`}
                               disabled={busyId === `store-${store.id}`}
                               onClick={() => handleStoreStatus(store.id, 'approved')}
                             >
@@ -272,7 +271,7 @@ export default function ApprovalsPage() {
                             </button>
                             <button
                               type="button"
-                              className="btn "
+                              className={`btn btn-sm btn-outline ${styles['action-btn']}`}
                               style={{ color: '#b91c1c', borderColor: '#fecaca' }}
                               disabled={busyId === `store-${store.id}`}
                               onClick={() => handleStoreStatus(store.id, 'rejected')}
@@ -314,11 +313,10 @@ export default function ApprovalsPage() {
                           <td style={{ padding: '12px 16px', color: '#64748b' }}>
                             {product.created_at ? new Date(product.created_at).toLocaleDateString() : '—'}
                           </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', minWidth: '140px' }}>
                             <button
                               type="button"
-                              className="btn btn-sm btn-primary"
-                              style={{ width: '100%', marginBottom: '10px' }}
+                              className={`btn btn-sm btn-primary ${styles['action-btn']}`}
                               disabled={busyId === `product-${product.id}`}
                               onClick={() => handleProductStatus(product.id, 'approved')}
                             >
@@ -326,8 +324,8 @@ export default function ApprovalsPage() {
                             </button>
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline"
-                              style={{ color: '#b91c1c', borderColor: '#fecaca', width: '100%' }}
+                              className={`btn btn-sm btn-outline ${styles['action-btn']}`}
+                              style={{ color: '#b91c1c', borderColor: '#fecaca' }}
                               disabled={busyId === `product-${product.id}`}
                               onClick={() => handleProductStatus(product.id, 'rejected')}
                             >

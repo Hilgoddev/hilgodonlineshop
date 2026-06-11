@@ -11,9 +11,10 @@ export default function ProductCard({ product, showAddToCart = true }) {
   const { addToCart, toggleWishlist, isInWishlist, openQuickView } = useShop();
   const { formatPrice } = useCurrency();
   
-  // Get seller/store display name
+  // Get seller/store display name + link to the public store page when we have a slug
   const sellerName = store?.name || seller?.full_name || null;
   const sellerAvatar = store?.logo_url || seller?.avatar_url || null;
+  const storeSlug = store?.slug || product.seller_info?.store_slug || null;
 
   const hasVariants = (product.size_options?.length || 0) > 0 || (product.color_options?.length || 0) > 0;
   const handleAddToCart = (e) => {
@@ -113,7 +114,7 @@ export default function ProductCard({ product, showAddToCart = true }) {
             <p className="product-card__desc">{briefDesc}</p>
           )}
 
-          {/* Seller/Store Info */}
+          {/* Seller/Store Info — store name links to the store page when available */}
           {sellerName && (
             <div className="product-card__seller" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '.75rem', color: 'var(--gray-1)' }}>
               {sellerAvatar ? (
@@ -121,7 +122,13 @@ export default function ProductCard({ product, showAddToCart = true }) {
               ) : (
                 <i className="fas fa-store" style={{ fontSize: '.7rem', color: 'var(--primary)' }}></i>
               )}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{sellerName}</span>
+              {storeSlug ? (
+                <Link href={`/stores/${storeSlug}`} onClick={(e) => e.stopPropagation()} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px', color: 'var(--primary)', textDecoration: 'none' }}>
+                  {sellerName}
+                </Link>
+              ) : (
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{sellerName}</span>
+              )}
             </div>
           )}
 

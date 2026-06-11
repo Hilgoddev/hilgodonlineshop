@@ -49,3 +49,12 @@
     display: none !important;
   }
 }
+
+/* ----------ADMIN APPROVAL ACTION BUTTONS------------ */
+/* Both Approve/Reject buttons full width, stacked with a 0.5rem gap. */
+.action-btn {
+  width: 100% !important;
+}
+.action-btn + .action-btn {
+  margin-top: 0.5rem;
+}

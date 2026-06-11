@@ -417,7 +417,13 @@ export default function ProductDetail({ product, relatedProducts }) {
                   )}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: '.88rem' }}>
-                      {product.store?.name || product.seller?.full_name || 'Seller'}
+                      {product.store?.slug ? (
+                        <Link href={`/stores/${product.store.slug}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
+                          {product.store?.name || product.seller?.full_name || 'Seller'}
+                        </Link>
+                      ) : (
+                        product.store?.name || product.seller?.full_name || 'Seller'
+                      )}
                     </div>
                     <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                       <i className="fas fa-check-circle" style={{ color: 'var(--success)', fontSize: '.65rem' }}></i>
@@ -431,15 +437,17 @@ export default function ProductDetail({ product, relatedProducts }) {
                     </div>
                   </div>
                   {product.seller?.phone_number && (
-                    <a 
-                      href={`tel:${product.seller.phone_number}`}
-                      style={{ 
-                        fontSize: '.75rem', color: 'var(--primary)', fontWeight: 600,
-                        padding: '6px 12px', border: '1px solid var(--primary)',
-                        borderRadius: 'var(--radius)', textDecoration: 'none'
+                    <a
+                      href={`https://wa.me/${String(product.seller.phone_number).replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        fontSize: '.75rem', color: '#fff', fontWeight: 600,
+                        padding: '6px 12px', border: 'none', background: '#25D366',
+                        borderRadius: 'var(--radius)', textDecoration: 'none', whiteSpace: 'nowrap'
                       }}
                     >
-                      <i className="fas fa-phone"></i> Contact
+                      <i className="fab fa-whatsapp"></i> Chat on WhatsApp
                     </a>
                   )}
                 </div>

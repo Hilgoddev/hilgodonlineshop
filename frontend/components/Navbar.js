@@ -473,7 +473,7 @@ export default function Navbar() {
             <Link href="/products?category=accessories" className="cat-nav-item">Accessories</Link>
             <Link href="/products?category=home" className="cat-nav-item home">Home</Link>
             <Link href="/products?category=kitchen" className={`cat-nav-item ${styles.n__kitchen}`}>Kitchen</Link>
-            <Link href="/flash-sales" className={`cat-nav-item ${styles.n__deals}`} style={{ color: '#ffd700', fontWeight: '700' }}><i className="fas fa-bolt"></i> Deals</Link>
+            <Link href="/deals" className={`cat-nav-item ${styles.n__deals}`} style={{ color: '#ffd700', fontWeight: '700' }}><i className="fas fa-bolt"></i> Deals</Link>
           </div>
         </nav>
       </header>
@@ -539,7 +539,7 @@ export default function Navbar() {
             <Link href="/" className="mobile-nav-link" onClick={closeMobileMenu}>
               <span><i className="fas fa-house icon"></i>Home</span><i className="fas fa-chevron-right"></i>
             </Link>
-            <Link href="/flash-sales" className="mobile-nav-link" onClick={closeMobileMenu}>
+            <Link href="/deals" className="mobile-nav-link" onClick={closeMobileMenu}>
               <span><i className="fas fa-bolt icon" style={{ color: '#f59e0b' }}></i>Deals &amp; Flash Sales</span><i className="fas fa-chevron-right"></i>
             </Link>
 

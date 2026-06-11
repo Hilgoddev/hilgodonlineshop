@@ -5,12 +5,17 @@ const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
 const { REVENUE_STATUSES, PAYABLE_STATUSES } = require('../lib/orderStatus');
+const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
+const { cleanEnv } = require('../lib/env');
 
 // Statuses that count as sales activity on dashboards (incl. 'processing').
 const PAID_STATUSES = REVENUE_STATUSES;
 
 // The platform (admin) takes this cut of every sale; the seller nets the rest.
 const PLATFORM_COMMISSION_RATE = 0.10;
+
+// Where to email seller bank details when a payout is requested.
+const PAYOUT_NOTIFY_EMAIL = cleanEnv(process.env.PAYOUT_NOTIFY_EMAIL) || 'contact@hilgod.com';
 
 // Given a list of order IDs, return a Set of those that are in a paid status.
 async function getPaidOrderIdSet(orderIds = []) {
@@ -483,6 +488,29 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
     }
 
     res.status(201).json({ success: true, data });
+
+    // Fire-and-forget: notify the admin inbox with the seller's bank details.
+    (async () => {
+      try {
+        const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', req.user.id).maybeSingle();
+        const emailMap = await getEmailMap().catch(() => new Map());
+        const pd = payment_details || {};
+        await sendEmail({
+          to: PAYOUT_NOTIFY_EMAIL,
+          subject: `New Payout Request — ₦${amt.toLocaleString()} (${prof?.full_name || 'Seller'})`,
+          html: payoutRequestAdminHtml({
+            sellerName: prof?.full_name || 'Seller',
+            sellerEmail: emailMap.get(req.user.id) || '',
+            amount: amt,
+            bankName: pd.bankName,
+            accountName: pd.accountName,
+            accountNumber: pd.accountNumber,
+          }),
+          emailType: 'admin_alert',
+          userId: req.user.id,
+        });
+      } catch (_) { /* non-fatal */ }
+    })();
   } catch (err) { next(err); }
 });
 

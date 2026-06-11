@@ -286,4 +286,21 @@ function newOrderAdminHtml(orderId, items, total, buyerName, orderDate = '', cur
   </div>`;
 }
 
-module.exports = { sendEmail, escapeHtml, formatMoney, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml };
+function payoutRequestAdminHtml({ sellerName, sellerEmail, amount, bankName, accountName, accountNumber, currency = 'NGN' }) {
+  const row = (label, val) => val ? `<tr><td style="padding:6px 8px;color:#64748b">${escapeHtml(label)}</td><td style="padding:6px 8px;font-weight:600">${escapeHtml(String(val))}</td></tr>` : '';
+  return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
+    <h2 style="color:#E31C1C">New Payout Request</h2>
+    <p>A seller has requested a payout and submitted their bank details.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+      ${row('Seller', sellerName)}
+      ${row('Seller email', sellerEmail)}
+      <tr><td style="padding:6px 8px;color:#64748b">Amount</td><td style="padding:6px 8px;font-weight:800;color:#E31C1C">${formatMoney(Number(amount || 0), currency)}</td></tr>
+      ${row('Bank', bankName)}
+      ${row('Account name', accountName)}
+      ${row('Account number', accountNumber)}
+    </table>
+    <a href="${BASE_URL}/admin/payouts" style="display:inline-block;margin-top:8px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Review in Admin</a>
+  </div>`;
+}
+
+module.exports = { sendEmail, escapeHtml, formatMoney, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml, payoutRequestAdminHtml };

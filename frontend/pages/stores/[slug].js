@@ -34,10 +34,33 @@ export default function StorePage({ store, products }) {
             {store.description && (
               <p style={{ color: 'var(--gray-1)', fontSize: '.9rem', margin: 0 }}>{store.description}</p>
             )}
-            <div style={{ color: 'var(--gray-1)', fontSize: '.8rem', marginTop: '6px' }}>
-              {products.length} {products.length === 1 ? 'product' : 'products'}
+            {/* Seller details */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', color: 'var(--gray-1)', fontSize: '.8rem', marginTop: '8px' }}>
+              {store.owner?.full_name && (
+                <span><i className="fas fa-user" style={{ marginRight: '4px', color: 'var(--primary)' }} />{store.owner.full_name}</span>
+              )}
+              {store.owner?.joined && (
+                <span><i className="fas fa-calendar" style={{ marginRight: '4px' }} />Since {new Date(store.owner.joined).toLocaleDateString('en-NG', { month: 'short', year: 'numeric' })}</span>
+              )}
+              <span><i className="fas fa-box" style={{ marginRight: '4px' }} />{products.length} {products.length === 1 ? 'product' : 'products'}</span>
+              {store.status === 'approved' && (
+                <span style={{ color: 'var(--success)' }}><i className="fas fa-check-circle" style={{ marginRight: '4px' }} />Verified store</span>
+              )}
             </div>
           </div>
+
+          {/* Contact button (WhatsApp) */}
+          {store.owner?.phone_number && (
+            <a
+              href={`https://wa.me/${String(store.owner.phone_number).replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-sm"
+              style={{ background: '#25D366', color: '#fff', whiteSpace: 'nowrap', alignSelf: 'flex-start' }}
+            >
+              <i className="fab fa-whatsapp"></i> Contact Seller
+            </a>
+          )}
         </div>
 
         {/* Products */}

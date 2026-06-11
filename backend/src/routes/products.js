@@ -123,6 +123,31 @@ async function getRatingsMap(ids) {
     return map;
 }
 
+// Product ids that are "on sale": in an active campaign (flash/black_friday/easter)
+// OR marked down (original_price > price). Used by the on_sale filter + /deals page.
+async function getOnSaleProductIds() {
+    const ids = new Set();
+    try {
+        const now = new Date().toISOString();
+        const { data: camp } = await supabase
+            .from('flash_sales')
+            .select('product_id')
+            .eq('is_active', true)
+            .gt('expires_at', now);
+        (camp || []).forEach((c) => { if (c.product_id) ids.add(c.product_id); });
+    } catch { /* non-fatal */ }
+    try {
+        const { data: marked } = await supabase
+            .from('products')
+            .select('id, price, original_price')
+            .eq('is_active', true)
+            .eq('status', 'approved')
+            .not('original_price', 'is', null);
+        (marked || []).forEach((p) => { if (Number(p.original_price) > Number(p.price)) ids.add(p.id); });
+    } catch { /* non-fatal */ }
+    return [...ids];
+}
+
 async function buildProductsPayload({ category, subcategory, search, seller_id, sort, in_stock, on_sale, parsedLimit, parsedPage }, timeoutMs = QUERY_TIMEOUT_MS) {
         let query = supabase
             .from('products')
@@ -135,6 +160,15 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
         if (seller_id)   query = query.eq('seller_id', seller_id);
         if (search)      query = query.ilike('name', `%${search}%`);
         if (in_stock)    query = query.gt('stock', 0);
+
+        // On-sale filter: restrict to products in an active campaign or marked down.
+        if (on_sale) {
+            const saleIds = await getOnSaleProductIds();
+            if (!saleIds.length) {
+                return { success: true, data: [], meta: { total: 0, page: parsedPage, limit: parsedLimit }, pagination: { total: 0, page: parsedPage, limit: parsedLimit, pages: 0 } };
+            }
+            query = query.in('id', saleIds);
+        }
 
         // Sorting
         switch (sort) {
