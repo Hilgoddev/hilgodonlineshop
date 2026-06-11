@@ -192,7 +192,7 @@ export default function SellerOrders() {
                           {order.buyer.phone && <div style={{ fontSize: '.72rem', color: 'var(--gray-1)' }}>{order.buyer.phone}</div>}
                         </div>
                         <span style={{ padding: '3px 10px', borderRadius: '999px', fontSize: '.75rem', fontWeight: 700, background: bg, color }}>
-                          {orderStatusLabel(order.status)}
+                          {orderStatusLabel(order.status, order.paymentMethod)}
                         </span>
                       </div>
                     </div>

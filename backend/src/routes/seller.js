@@ -229,7 +229,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
 
     const { data: orders, error: ordErr } = await supabase
       .from('orders')
-      .select('id, user_id, total_amount, status, created_at, shipping_address, currency')
+      .select('id, user_id, total_amount, status, created_at, shipping_address, currency, payment_method')
       .in('id', orderIds)
       .order('created_at', { ascending: false });
     if (ordErr) throw ordErr;
@@ -264,6 +264,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
       return {
         id: o.id,
         status: o.status,
+        paymentMethod: o.payment_method || null,
         totalAmount: Number(o.total_amount),
         currency: o.currency || 'NGN',
         createdAt: o.created_at,

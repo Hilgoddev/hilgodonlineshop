@@ -10,6 +10,19 @@ const ORDER_STATUS_LABELS = {
   cancelled: 'Cancelled',
 };
 
-export function orderStatusLabel(status) {
+// Pay-on-Delivery never pays online, so it must not show "Paid"/"Awaiting payment"
+// before cash is collected at delivery.
+const POD_STATUS_LABELS = {
+  pending: 'Order placed',
+  processing: 'Preparing',
+  paid: 'Preparing',
+  shipped: 'Out for delivery',
+  delivered: 'Delivered & paid',
+  cancelled: 'Cancelled',
+};
+
+export function orderStatusLabel(status, paymentMethod) {
+  const pod = String(paymentMethod || '').toLowerCase() === 'pod';
+  if (pod) return POD_STATUS_LABELS[status] || status || 'Order placed';
   return ORDER_STATUS_LABELS[status] || status || 'Awaiting payment';
 }

@@ -477,7 +477,7 @@ export default function Account() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</div>
-                                <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: statusBg, color: statusColor }}>{orderStatusLabel(order.status)}</span>
+                                <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: statusBg, color: statusColor }}>{orderStatusLabel(order.status, order.paymentMethod)}</span>
                               </div>
                               <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} style={{ color: 'var(--gray-2)', fontSize: '.75rem', flexShrink: 0 }}></i>
                             </div>
