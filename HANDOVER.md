@@ -45,7 +45,9 @@ never put the service-role key here):
 
 ## 3. Apply database migrations
 Run every file in `backend/supabase/migrations/` **in numeric order** in the Supabase SQL
-editor (001 → 011). They create the schema, payouts, platform settings, and campaigns.
+editor (001 → 012, plus `20260524_add_order_items_fulfillment_status.sql`). They create the
+schema, exchange rates, stock management, reviews, payouts, order payment method, seller bank
+details, platform settings, campaigns, and order item variant options.
 
 ## 4. Run locally
 ```

@@ -15,25 +15,35 @@ A multi-vendor e-commerce platform built for the Nigerian market. Customers can 
 ## Platform Features
 
 ### For Customers
-- Browse, search, and filter thousands of products by category
-- Persistent shopping cart and wishlist (survives browser close and device switch)
+- Browse, search, and filter products by category, subcategory, on-sale status, and stock
+- Unified **Deals hub** (`/deals`) aggregating every discounted product (campaigns + markdowns)
+- Persistent shopping cart and wishlist (per-account, survives browser close)
+- Product variants: choose size/colour at checkout; colours shown as names, not hex codes
 - Paystack card payment, Stripe card payment, bank transfer, and pay-on-delivery checkout
-- Order history with live status updates (expandable order details in your account)
-- Product reviews and star ratings
+- Order tracking page with a visual timeline (POD timeline has no pre-paid step)
+- Order history with live status updates and expandable order details in your account
+- Product reviews and star ratings; contact sellers via WhatsApp from any product page
 - Google Sign-In support
 
 ### For Sellers
 - Apply to become a seller; admin reviews and approves the application
-- Seller dashboard: product management, sales metrics, revenue analytics
-- Upload product photos directly from your device (or paste an image URL)
-- View all customer orders containing your products
+- Seller dashboard: product count, units sold, revenue, distinct sales (paid orders only)
+- Product management with variant support (size/colour options); auto-approve toggle available
+- Upload product photos directly from your device (validated type + 5 MB cap)
+- View all customer orders containing your products; update per-item fulfilment status
+- Request payouts — bank details saved and pre-filled on the next request
+- Public storefront at `/stores/[slug]` with WhatsApp contact button
 
 ### For Admins
-- Platform dashboard with live revenue, order, and user metrics
-- Approve or reject products, sellers, and stores
+- Platform dashboard with live revenue, orders, units, sellers, products, and approval counts
+- Flash sales, Black Friday, and Easter campaign manager (one screen, type selector)
+- Approve or reject products, sellers, stores, and seller applications
 - User management with one-click role switching (Admin / Seller / Customer)
-- Category management
-- Platform analytics: revenue, low-stock alerts, review stats, pending approvals
+- Category management (nested — category + subcategory)
+- Platform analytics: revenue trend, commission breakdown, low-stock alerts, recent orders
+- Payout management: review requests with full bank details, approve/reject, mark paid
+- Auto-approve toggle: seller uploads go live immediately or wait for manual review
+- Order management with inline status updates, custom email composer, and status-update emails
 
 ---
 
@@ -88,6 +98,9 @@ BANK_ACCOUNT_NUMBER=0000000000
 BANK_SORT_CODE=000
 RESEND_API_KEY=your-resend-api-key
 ADMIN_EMAIL=your-admin@email.com
+PAYOUT_NOTIFY_EMAIL=contact@hilgod.com     # receives payout-request emails (bank details)
+EMAIL_FROM_ORDERS=Hilgod Orders <order@hilgod.com>
+EMAIL_FROM_NOREPLY=Hilgod <noreply@hilgod.com>
 SUPPORT_PHONE=+234...                      # shown in email footers
 FRONTEND_URL=https://www.hilgod.com
 NODE_ENV=production
@@ -208,12 +221,18 @@ Create `backend/.env` and `frontend/.env.local` using the variable names above, 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/health` | None | Health check |
-| `GET` | `/api/products` | None | List / search / filter products |
+| `GET` | `/api/products` | None | List / search / filter products (`on_sale=true` for Deals) |
 | `GET` | `/api/products/:id` | None | Single product detail |
 | `POST` | `/api/products` | Seller/Admin | Create product |
 | `PUT` | `/api/products/:id` | Seller/Admin | Update product |
+| `PATCH` | `/api/products/:id/status` | Admin | Approve / reject a product |
 | `DELETE` | `/api/products/:id` | Seller/Admin | Soft-delete product |
 | `POST` | `/api/upload/product-image` | Authenticated | Upload image to Supabase Storage |
+| `GET` | `/api/campaigns` | None | List active campaigns (filter by `?type=flash\|black_friday\|easter`) |
+| `POST` | `/api/campaigns` | Admin | Create a campaign |
+| `DELETE` | `/api/campaigns/:id` | Admin | Delete a campaign |
+| `GET` | `/api/stores/:slug` | None | Public store page data |
+| `GET` | `/api/exchange-rates` | None | Current exchange rates (cached) |
 | `GET` | `/api/orders` | User | Own order history |
 | `POST` | `/api/orders` | User | Place order |
 | `PUT` | `/api/orders/:id` | Admin | Update order status (cascades to items; triggers paid side-effects) |
@@ -233,7 +252,13 @@ Create `backend/.env` and `frontend/.env.local` using the variable names above, 
 | `GET` | `/api/seller/earnings` | Seller | Gross/withdrawn/available balance + payouts |
 | `POST` | `/api/seller/payouts/request` | Seller | Request a withdrawal |
 | `GET` | `/api/admin/stats` | Admin | Platform-wide metrics |
+| `GET` | `/api/admin/orders` | Admin | All orders (paginated) |
+| `GET` | `/api/admin/sellers` | Admin | All sellers with metrics |
+| `GET` | `/api/admin/customers` | Admin | All customers |
 | `GET` | `/api/admin/payouts` | Admin | List payout requests |
 | `PUT` | `/api/admin/payouts/:id` | Admin | Approve / mark paid / reject a payout |
+| `GET` | `/api/admin/settings` | Admin | Get platform settings |
+| `PUT` | `/api/admin/settings` | Admin | Update platform settings (e.g. auto-approve) |
+| `GET` | `/api/reviews/:productId` | None | Product reviews |
 | `POST` | `/api/newsletter/subscribe` | None | Newsletter sign-up |
 | `POST` | `/api/delivery/apply` | None | Delivery partner application |

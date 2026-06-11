@@ -34,7 +34,7 @@ hilgodonlineshop/
 │   │   ├── services/
 │   │   │   ├── email.js                # Resend send + all HTML templates (order, payout, etc.)
 │   │   │   └── paymentSuccess.js       # one-time post-payment: stock decrement + emails
-│   │   ├── utils/ (pricing.js, cache.js)  scripts/ (validateEnv.js)
+│   │   ├── utils/ (pricing.js, cache.js, colorName.js)  scripts/ (validateEnv.js)
 │   ├── supabase/migrations/            # 001..012 SQL (schema, payouts, settings, campaigns, options)
 │   └── email-templates/                # Hilgod-branded Supabase auth email HTML
 │

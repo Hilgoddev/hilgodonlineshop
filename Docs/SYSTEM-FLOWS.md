@@ -77,8 +77,8 @@ File: `frontend/pages/checkout.js` → `POST /api/orders`.
    - Recomputes unit price server-side (flash-sale price if an **active, non-expired** sale exists).
    - **Rejects price tampering** (client price must match server price).
    - Adds delivery fee server-side (free above ₦50,000, else ₦1,500).
-   - Inserts the `orders` row (status `pending`, or `processing` for POD) + `order_items`
-     (each with `seller_id` for vendor attribution).
+   - Inserts the `orders` row (status `pending` for all methods, including POD — cash is
+     collected at delivery, not upfront) + `order_items` (each with `seller_id` for vendor attribution).
 4. A confirmation email is sent (fire-and-forget).
 5. **Stock is NOT decremented at order creation** — it's reserved-on-pay (decremented only after
    payment success), so abandoned orders don't lock inventory.
@@ -105,8 +105,9 @@ File: `frontend/pages/checkout.js` → `POST /api/orders`.
   confirms (signature-verified, idempotent), same post-payment processing.
 
 ### Bank transfer / Pay on Delivery
-- No online charge. Order is created (`pending` / `processing`). An **admin marks it paid later**
-  (see §7), which triggers the same post-payment processing.
+- No online charge. Order is created (`pending`). An **admin marks it paid later** (see §7),
+  which triggers the same post-payment processing. POD orders go `pending → processing →
+  shipped → delivered`; cash is collected at delivery so there is no separate `paid` step for POD.
 
 ### Post-payment processing — `backend/src/services/paymentSuccess.js`
 Runs **once** per order when it becomes paid (from any path above):
@@ -121,7 +122,8 @@ Runs **once** per order when it becomes paid (from any path above):
 ## 7. Order status & fulfillment
 - **Customer** sees their orders at `/account?tab=orders` (expandable, with live status updates).
 - **Admin** (`/admin/orders`): inline status dropdown (pending → paid → processing → shipped →
-  delivered / cancelled). Changing status:
+  delivered / cancelled). For **POD orders** the `paid` option is hidden (cash is collected at
+  delivery; the delivered step serves as the paid point). Changing status:
   - Saves via `PUT /api/orders/:id` (admin only).
   - On the **first transition into a paid state** (paid/shipped/delivered) it runs the
     post-payment processing once (decrements stock + notifies sellers) — this is how
@@ -132,7 +134,10 @@ Runs **once** per order when it becomes paid (from any path above):
   - Sends the customer a status-update email, and can also open a **compose-email modal** with
     per-status templates (`POST /api/orders/:id/notify`).
   - The dashboard's recent-orders and the orders page derive payment status identically
-    (shipped/delivered ⇒ paid) so the two views agree.
+    (shipped/delivered ⇒ paid for online; delivered-only ⇒ paid for POD) so every view agrees.
+  - Status labels are POD-aware everywhere (account, seller orders, admin, track-order, emails)
+    via `orderStatusLabel(status, paymentMethod)`. POD shows "Order placed / Preparing / Out
+    for delivery / Delivered & paid" — never "Awaiting payment" or "Paid · Preparing".
 - **Seller** (`/seller/orders`): sees only order items for their own products; can update each
   item's `fulfillment_status`. Cancelling a paid item restores its stock.
 
@@ -182,9 +187,9 @@ Runs **once** per order when it becomes paid (from any path above):
    - The admin sends the actual money **off-platform** (bank transfer using `payment_details`)
      and marks it `paid`. **There is no automated bank/Paystack transfer.**
 
-> **Known gaps (not yet implemented):** no platform commission (sellers get 100% of item
-> revenue); refunded/returned orders aren't deducted from earnings; the balance check isn't
-> fully race-proof; disbursement is manual.
+> **Known gaps:** refunded/returned orders aren't automatically deducted from earnings (admin
+> adjusts manually); the balance check isn't fully race-proof under very high concurrency;
+> disbursement is manual (admin sends money off-platform, then marks it `paid`).
 
 ---
 

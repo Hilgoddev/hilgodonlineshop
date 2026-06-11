@@ -77,10 +77,16 @@ checkouts don't lock inventory.
 (or `cancelled`), with per-item fulfilment tracking.
 
 **How — what each status means:**
-- `pending` — order placed, awaiting payment.
-- `processing` — payment received, being prepared for dispatch.
+- `pending` — order placed, awaiting payment (or, for POD, awaiting dispatch).
+- `paid` — online payment received (not used for POD; cash is collected at the door).
+- `processing` — being prepared for dispatch.
 - `shipped` / `delivered` — in transit / completed.
 - `cancelled` — voided (reserved stock is restored).
+
+**Pay-on-Delivery** orders follow `pending → processing → shipped → delivered`; there is no
+separate `paid` step. Cash is recorded as collected when the order is marked `delivered`.
+Status labels throughout the app (track-order, account, seller orders, admin, emails) are
+POD-aware: "Order placed / Preparing / Out for delivery / Delivered & paid".
 
 For sales reporting, `paid`, `processing`, `shipped`, and `delivered` all count as real sales.
 
@@ -195,7 +201,13 @@ For setup and deployment, see `HANDOVER.md`. For end-to-end flows, see `Docs/SYS
   product sales; the payouts page breaks it down. Payout requests email the seller's bank details
   to `contact@hilgod.com`.
 - **Variants** — size/color flow product page → Quick View (selection carried via URL) → cart →
-  order; shown in cart, checkout, and all order views; colors render as names.
+  order; shown in cart, checkout, and all order views; colors render as names (not hex codes).
+  `frontend/lib/colorName.js` and `backend/src/utils/colorName.js` (kept in sync) handle the
+  hex→name conversion; the backend version powers email order summaries.
+- **POD status consistency** — status labels across every surface (track-order timeline, account
+  orders, seller orders, admin dropdown, status-update emails) are routed through a single
+  `orderStatusLabel(status, paymentMethod)` function. POD never shows "Awaiting payment" or
+  "Paid · Preparing"; `paymentStatus` reflects reality (pending until delivered, then paid).
 - **Order emails** carry product + customer names with the order ID.
 
 ## Future updates (intentionally deferred — not bugs)
