@@ -21,29 +21,39 @@ const effectiveItemStatus = (itemStatus, orderStatus) => {
     return orderStatus || itemStatus || 'pending';
 };
 
-const mapOrder = (order, items = [], user = null) => ({
-    _id: order.id,
-    id: order.id,
-    status: order.status,
-    paymentStatus: REVENUE_STATUSES.includes(order.status) ? 'paid' : 'pending',
-    totalAmount: Number(order.total_amount || 0),
-    currency: order.currency,
-    createdAt: order.created_at,
-    updatedAt: order.updated_at,
-    deliveryAddress: order.shipping_address || null,
-    paymentReference: order.payment_reference || null,
+const mapOrder = (order, items = [], user = null) => {
     // Stored method when present; otherwise infer from the reference prefix for
     // legacy orders (Paystack refs start "ORD_", Stripe PaymentIntents "pi_").
-    paymentMethod: order.payment_method
+    const paymentMethod = order.payment_method
         || (order.payment_reference?.startsWith('pi_') ? 'stripe'
             : order.payment_reference?.startsWith('ORD_') ? 'paystack'
-            : null),
-    items: (items || []).map((it) => ({
-        ...it,
-        fulfillmentStatus: effectiveItemStatus(it.fulfillmentStatus, order.status),
-    })),
-    user   // { firstName, lastName, email, phone }
-});
+            : null);
+    const isPod = String(paymentMethod || '').toLowerCase() === 'pod';
+    // Payment status must reflect reality. For online payments, revenue statuses
+    // (paid/processing/shipped/delivered) mean the money is in. For Pay-on-Delivery
+    // the cash is only collected at the door, so it stays 'pending' until delivered.
+    const paymentStatus = isPod
+        ? (order.status === 'delivered' ? 'paid' : 'pending')
+        : (REVENUE_STATUSES.includes(order.status) ? 'paid' : 'pending');
+    return {
+        _id: order.id,
+        id: order.id,
+        status: order.status,
+        paymentStatus,
+        totalAmount: Number(order.total_amount || 0),
+        currency: order.currency,
+        createdAt: order.created_at,
+        updatedAt: order.updated_at,
+        deliveryAddress: order.shipping_address || null,
+        paymentReference: order.payment_reference || null,
+        paymentMethod,
+        items: (items || []).map((it) => ({
+            ...it,
+            fulfillmentStatus: effectiveItemStatus(it.fulfillmentStatus, order.status),
+        })),
+        user   // { firstName, lastName, email, phone }
+    };
+};
 
 // Seller email is stored on auth.users (not profiles), so resolve it via the
 // admin API. Accepts one or more mapped-item lists, de-duplicates seller IDs

@@ -188,8 +188,11 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                         status:      o.status,
                         paymentMethod: o.payment_method || null,
                         // Same derivation as GET /api/orders/all so the dashboard
-                        // and the orders page agree: shipped/delivered imply paid.
-                        paymentStatus: REVENUE_STATUSES.includes(o.status) ? 'paid' : 'pending',
+                        // and the orders page agree: shipped/delivered imply paid —
+                        // except Pay-on-Delivery, where cash is only in once delivered.
+                        paymentStatus: String(o.payment_method || '').toLowerCase() === 'pod'
+                            ? (o.status === 'delivered' ? 'paid' : 'pending')
+                            : (REVENUE_STATUSES.includes(o.status) ? 'paid' : 'pending'),
                         totalAmount: Number(o.total_amount || 0),
                         createdAt:   o.created_at,
                         user: {
