@@ -5,7 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { apiFetch, safeJson } from '../lib/apiClient';
-import { normalizePricing } from '../lib/pricing';
+import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '../lib/pricing';
 import { formatOptionValue } from '../lib/colorName';
 import { cleanEnv } from '../lib/env';
 import { loadStripe } from '@stripe/stripe-js';
@@ -198,7 +198,7 @@ export default function Checkout() {
       const itemPricing = normalizePricing(item.product || {});
       subtotal += itemPricing.price * (item.quantity || 1);
     });
-    const deliveryFee = subtotal > 50000 ? 0 : 1500;
+    const deliveryFee = computeDeliveryFee(subtotal);
     return { subtotal, deliveryFee, total: subtotal + deliveryFee };
   };
 
@@ -769,7 +769,7 @@ export default function Checkout() {
                 fontSize: '.78rem', color: 'var(--success)', fontWeight: '600',
                 display: 'flex', alignItems: 'center', gap: '6px',
               }}>
-                <i className="fas fa-truck-fast"></i> Free delivery on orders above {formatPrice(50000, 'NGN', false)}
+                <i className="fas fa-truck-fast"></i> Free delivery on orders above {formatPrice(FREE_DELIVERY_THRESHOLD, 'NGN', false)}
               </div>
             )}
 

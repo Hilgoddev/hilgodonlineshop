@@ -5,14 +5,12 @@ const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
 const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder } = require('../lib/orderStatus');
+const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
 
 // Statuses that count as sales activity on dashboards (incl. 'processing').
 const PAID_STATUSES = REVENUE_STATUSES;
-
-// The platform (admin) takes this cut of every sale; the seller nets the rest.
-const PLATFORM_COMMISSION_RATE = 0.10;
 
 // Where to email seller bank details when a payout is requested.
 const PAYOUT_NOTIFY_EMAIL = cleanEnv(process.env.PAYOUT_NOTIFY_EMAIL) || 'contact@hilgod.com';

@@ -7,6 +7,7 @@ const { sendEmail, escapeHtml, sellerApprovedHtml } = require('../services/email
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { getSetting, setSetting } = require('../lib/settings');
 const { REVENUE_STATUSES, isRevenueOrder } = require('../lib/orderStatus');
+const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
 const statsCache = makeCache({ ttlMs: 30 * 1000 });
 const listCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -96,7 +97,6 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         const totalRevenue = confirmedRevenueOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
         // ── Units sold + platform commission (delivery fee goes to admin too) ──
-        const PLATFORM_COMMISSION_RATE = 0.10;
         let unitsSold = 0;
         let productSales = 0; // Σ(unit_price × qty) across confirmed revenue orders (excludes delivery fee)
         const revenueOrderIds = confirmedRevenueOrders.map((o) => o.id).filter(Boolean);

@@ -5,7 +5,7 @@ import Layout from '@/components/Layout';
 import { useShop } from '@/components/ShopProvider';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import ConfirmModal from '@/components/ConfirmModal';
-import { normalizePricing } from '@/lib/pricing';
+import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '@/lib/pricing';
 import { formatOptionValue } from '@/lib/colorName';
 
 export default function Cart() {
@@ -60,9 +60,9 @@ export default function Cart() {
       totalItems += item.quantity;
     });
     
-    const deliveryFee = subtotal > 50000 ? 0 : 1500;
+    const deliveryFee = computeDeliveryFee(subtotal);
     const total = subtotal + deliveryFee;
-    
+
     return { subtotal, total, deliveryFee, totalItems };
   };
 
@@ -222,7 +222,7 @@ export default function Cart() {
             <div className="cart-summary">
               <h3><i className="fas fa-receipt" style={{ color: 'var(--primary)' }}></i> Order Summary</h3>
               
-              {totals.subtotal > 50000 && (
+              {totals.subtotal > FREE_DELIVERY_THRESHOLD && (
                 <div 
                   style={{ 
                     background: 'var(--success-light)', color: 'var(--success)', 
@@ -251,7 +251,7 @@ export default function Cart() {
                 <div style={{
                   fontSize: '.78rem', color: 'var(--gray-2)', marginBottom: '10px', fontStyle: 'italic'
                 }}>
-                  Add {formatPrice(50000 - totals.subtotal, 'NGN', false)} more for free delivery
+                  Add {formatPrice(FREE_DELIVERY_THRESHOLD - totals.subtotal, 'NGN', false)} more for free delivery
                 </div>
               )}
 

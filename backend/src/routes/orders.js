@@ -9,6 +9,7 @@ const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
 const { isRevenueOrder } = require('../lib/orderStatus');
+const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -304,9 +305,8 @@ router.post('/', verifyToken, async (req, res, next) => {
             });
         }
 
-        // Add delivery fee server-side (free for orders strictly above ₦50,000).
-        const DELIVERY_FEE = 1500;
-        const deliveryFee = total_amount > 50000 ? 0 : DELIVERY_FEE;
+        // Add delivery fee server-side (free for orders strictly above the threshold).
+        const deliveryFee = computeDeliveryFee(total_amount);
         total_amount += deliveryFee;
 
         // Create order with server-computed total (products + delivery fee).
