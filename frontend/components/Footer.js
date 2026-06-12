@@ -167,18 +167,17 @@ export default function Footer() {
               <span>hilgodonline@gmail.com</span>
             </div>
             <div className="social-links">
-              <a href="#" className="social-link" aria-label="Facebook">
+              <a href="https://www.facebook.com/share/18iNr4b2oi/?mibextid=wwXIfr" className="social-link" aria-label="Facebook" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-facebook-f"></i>
               </a>
-              <a href="#" className="social-link" aria-label="Instagram">
+              <a href="https://www.instagram.com/hilgodhub_ng" className="social-link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-instagram"></i>
               </a>
-              <a href="#" className="social-link" aria-label="TikTok">
-                <i className="fab fa-tiktok"></i>
+              <a href="https://x.com/Hilgodhub" className="social-link" aria-label="X (Twitter)" target="_blank" rel="noopener noreferrer">
+                <i className="fab fa-x-twitter"></i>
               </a>
-              <a href="https://wa.me/+2348080535728" className="social-link" aria-label="WhatsApp">
+              <a href="https://wa.me/+2348080535728" className="social-link" aria-label="WhatsApp" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-whatsapp"></i>
-        
               </a>
             </div>
             <div className="payments-section">
