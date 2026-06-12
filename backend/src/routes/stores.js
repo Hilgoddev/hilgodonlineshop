@@ -3,7 +3,7 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { withTimeout, makeCache, singleFlight } = require('../lib/resilience');
-const { REVENUE_STATUSES } = require('../lib/orderStatus');
+const { REVENUE_STATUSES, isRevenueOrder } = require('../lib/orderStatus');
 const requireAdmin = require('../middleware/requireAdmin');
 const storesAllCache = makeCache({ ttlMs: 30 * 1000 });
 const storesFlight = singleFlight();
@@ -107,13 +107,13 @@ router.get('/all', verifyToken, requireAdmin, async (req, res, next) => {
                     const { data: paidOrders } = await withTimeout(
                         (signal) => supabase
                             .from('orders')
-                            .select('id')
+                            .select('id, status, payment_method')
                             .in('id', orderIds)
                             .in('status', REVENUE_STATUSES)
                             .abortSignal(signal),
                         12 * 1000,
                     );
-                    paidSet = new Set((paidOrders || []).map((o) => o.id));
+                    paidSet = new Set((paidOrders || []).filter((o) => isRevenueOrder(o.status, o.payment_method)).map((o) => o.id));
                 }
 
                 for (const item of orderItems || []) {

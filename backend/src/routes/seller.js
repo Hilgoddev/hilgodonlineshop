@@ -4,7 +4,7 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
-const { REVENUE_STATUSES, PAYABLE_STATUSES } = require('../lib/orderStatus');
+const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder } = require('../lib/orderStatus');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
 
@@ -17,16 +17,17 @@ const PLATFORM_COMMISSION_RATE = 0.10;
 // Where to email seller bank details when a payout is requested.
 const PAYOUT_NOTIFY_EMAIL = cleanEnv(process.env.PAYOUT_NOTIFY_EMAIL) || 'contact@hilgod.com';
 
-// Given a list of order IDs, return a Set of those that are in a paid status.
+// Given a list of order IDs, return a Set of those that count as received revenue.
+// POD orders only count when delivered; online orders count at any REVENUE_STATUSES.
 async function getPaidOrderIdSet(orderIds = []) {
   const ids = [...new Set((orderIds || []).filter(Boolean))];
   if (!ids.length) return new Set();
   const { data } = await supabase
     .from('orders')
-    .select('id')
+    .select('id, status, payment_method')
     .in('id', ids)
     .in('status', PAID_STATUSES);
-  return new Set((data || []).map((o) => o.id));
+  return new Set((data || []).filter((o) => isRevenueOrder(o.status, o.payment_method)).map((o) => o.id));
 }
 
 const requireSellerOrAdmin = async (req, res, next) => {
@@ -373,10 +374,10 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
     if (productIds.length) {
       const { data: items } = await supabase
         .from('order_items')
-        .select('quantity, unit_price, order:orders(status)')
+        .select('quantity, unit_price, order:orders(status, payment_method)')
         .in('product_id', productIds);
       grossSales = (items || [])
-        .filter(i => PAYABLE_STATUSES.includes(i.order?.status))
+        .filter(i => isPayableOrder(i.order?.status, i.order?.payment_method))
         .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     }
     // Platform takes 10% per sale; the seller's earnings are the net 90%.
@@ -449,10 +450,10 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
     if (productIds.length) {
       const { data: items } = await supabase
         .from('order_items')
-        .select('quantity, unit_price, order:orders(status)')
+        .select('quantity, unit_price, order:orders(status, payment_method)')
         .in('product_id', productIds);
       grossSales = (items || [])
-        .filter(i => PAYABLE_STATUSES.includes(i.order?.status))
+        .filter(i => isPayableOrder(i.order?.status, i.order?.payment_method))
         .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     }
     // Withdrawable balance is the net (after the 10% platform commission).

@@ -8,7 +8,7 @@ const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
-const { REVENUE_STATUSES } = require('../lib/orderStatus');
+const { isRevenueOrder } = require('../lib/orderStatus');
 const { optionsSummary } = require('../utils/colorName');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -28,11 +28,8 @@ const mapOrder = (order, items = [], user = null) => {
         || (order.payment_reference?.startsWith('pi_') ? 'stripe'
             : order.payment_reference?.startsWith('ORD_') ? 'paystack'
             : null);
-    const isPod = String(paymentMethod || '').toLowerCase() === 'pod';
     // POD is paid at delivery; online payments are paid once in a revenue status.
-    const paymentStatus = isPod
-        ? (order.status === 'delivered' ? 'paid' : 'pending')
-        : (REVENUE_STATUSES.includes(order.status) ? 'paid' : 'pending');
+    const paymentStatus = isRevenueOrder(order.status, paymentMethod) ? 'paid' : 'pending';
     return {
         _id: order.id,
         id: order.id,
@@ -487,7 +484,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
         await attachSellerEmails([...itemMap.values()]);
 
         const data = (orders || []).map((o) => mapOrder(o, itemMap.get(o.id) || [], userMap.get(o.user_id) || null));
-        const totalRevenue = data.reduce((sum, o) => sum + (REVENUE_STATUSES.includes(o.status) ? o.totalAmount : 0), 0);
+        const totalRevenue = data.reduce((sum, o) => sum + (isRevenueOrder(o.status, o.paymentMethod) ? o.totalAmount : 0), 0);
         const payload = { success: true, data, totalRevenue, pagination: { total: count || 0, page: parsedPage, limit: parsedLimit } };
         ordersAllCache.set(cacheKey, payload);
         return res.status(200).json(payload);

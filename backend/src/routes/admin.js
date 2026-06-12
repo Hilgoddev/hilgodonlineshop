@@ -6,7 +6,7 @@ const requireAdmin = require('../middleware/requireAdmin');
 const { sendEmail, escapeHtml, sellerApprovedHtml } = require('../services/email');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { getSetting, setSetting } = require('../lib/settings');
-const { REVENUE_STATUSES } = require('../lib/orderStatus');
+const { REVENUE_STATUSES, isRevenueOrder } = require('../lib/orderStatus');
 const statsCache = makeCache({ ttlMs: 30 * 1000 });
 const listCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -47,9 +47,9 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             // Total revenue: all orders that represent received money. MUST include
             // 'shipped' — a paid order that's been shipped is still revenue (otherwise
             // shipping an order makes its money vanish from the dashboard).
-            supabase.from('orders').select('id, total_amount').in('status', REVENUE_STATUSES),
+            supabase.from('orders').select('id, total_amount, status, payment_method').in('status', REVENUE_STATUSES),
             // Monthly revenue trend: last 6 months
-            supabase.from('orders').select('total_amount, created_at')
+            supabase.from('orders').select('total_amount, created_at, status, payment_method')
                 .in('status', REVENUE_STATUSES)
                 .gte('created_at', sixMonthsAgoISO),
             // ALL registered users (profiles) — covers every role including unsynced
@@ -91,14 +91,15 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         const trendOrders   = trendRes.error     ? [] : (trendRes.data     || []);
 
         // ── Totals ───────────────────────────────────────────────────────────
-        const totalRevenue = revenueOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
+        // POD orders only count when delivered (cash collected at door).
+        const confirmedRevenueOrders = revenueOrders.filter((o) => isRevenueOrder(o.status, o.payment_method));
+        const totalRevenue = confirmedRevenueOrders.reduce((s, o) => s + Number(o.total_amount || 0), 0);
 
-        // ── Units sold + platform commission (paid/processing/shipped/delivered) ─
-        // Commission is the admin's 10% cut of sellers' product sales.
+        // ── Units sold + platform commission (delivery fee goes to admin too) ──
         const PLATFORM_COMMISSION_RATE = 0.10;
         let unitsSold = 0;
-        let productSales = 0; // Σ(unit_price × qty) across revenue orders (excludes delivery fee)
-        const revenueOrderIds = revenueOrders.map((o) => o.id).filter(Boolean);
+        let productSales = 0; // Σ(unit_price × qty) across confirmed revenue orders (excludes delivery fee)
+        const revenueOrderIds = confirmedRevenueOrders.map((o) => o.id).filter(Boolean);
         if (revenueOrderIds.length) {
             const { data: soldItems } = await supabase
                 .from('order_items')
@@ -124,6 +125,7 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
             monthlyMap[key] = { month: key, revenue: 0, orders: 0 };
         }
         trendOrders.forEach((o) => {
+            if (!isRevenueOrder(o.status, o.payment_method)) return;
             const d   = new Date(o.created_at);
             const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
             if (monthlyMap[key]) {
@@ -187,10 +189,8 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
                         id:          o.id,
                         status:      o.status,
                         paymentMethod: o.payment_method || null,
-                        // POD is paid at delivery; otherwise revenue statuses imply paid.
-                        paymentStatus: String(o.payment_method || '').toLowerCase() === 'pod'
-                            ? (o.status === 'delivered' ? 'paid' : 'pending')
-                            : (REVENUE_STATUSES.includes(o.status) ? 'paid' : 'pending'),
+                        // POD is paid at delivery; online payments once in a revenue status.
+                        paymentStatus: isRevenueOrder(o.status, o.payment_method) ? 'paid' : 'pending',
                         totalAmount: Number(o.total_amount || 0),
                         createdAt:   o.created_at,
                         user: {
@@ -275,13 +275,14 @@ router.get('/customers', verifyToken, requireAdmin, async (req, res, next) => {
 
         const userIds = (profiles || []).map((p) => p.id);
         const { data: orders } = userIds.length
-            ? await supabase.from('orders').select('id, user_id, total_amount').in('status', REVENUE_STATUSES)
+            ? await supabase.from('orders').select('id, user_id, total_amount, status, payment_method').in('status', REVENUE_STATUSES)
             : { data: [] };
 
         // Fetch real emails in one batch (cached/shared across admin routes)
         const emailMap = await getEmailMap();
 
         const stats = (orders || []).reduce((map, o) => {
+            if (!isRevenueOrder(o.status, o.payment_method)) return map;
             const entry = map.get(o.user_id) || { orderCount: 0, totalSpent: 0 };
             entry.orderCount += 1;
             entry.totalSpent += Number(o.total_amount || 0);
@@ -356,11 +357,11 @@ router.get('/sellers', verifyToken, requireAdmin, async (req, res, next) => {
           const orderIds = [...new Set((orderItems || []).map((i) => i.order_id))];
           const { data: paidOrders, error: poErr } = await supabase
             .from('orders')
-            .select('id')
+            .select('id, status, payment_method')
             .in('id', orderIds)
             .in('status', REVENUE_STATUSES);
           if (poErr) throw poErr;
-          const paidSet = new Set((paidOrders || []).map((o) => o.id));
+          const paidSet = new Set((paidOrders || []).filter((o) => isRevenueOrder(o.status, o.payment_method)).map((o) => o.id));
           const paidItems = (orderItems || []).filter(i => paidSet.has(i.order_id));
           for (const item of paidItems) {
             const sid = item.seller_id;
