@@ -1,5 +1,12 @@
 -- Supabase schema for E-commerce platform
 -- Note: Supabase provides an auth.users table automatically which we will reference.
+--
+-- IMPORTANT: This file is the initial baseline schema only.
+-- It does NOT reflect the full current database structure.
+-- To get a complete, working database apply all migration files in:
+--   backend/supabase/migrations/   (numbered 001–014+)
+--   backend/migrations/
+-- in ascending order after running this baseline.
 
 -- 1. Profiles
 CREATE TABLE public.profiles (

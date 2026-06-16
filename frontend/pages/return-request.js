@@ -2,8 +2,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { apiFetch } from '@/lib/apiClient';
+import { useSession } from '@/contexts/AuthContext';
 
 export default function ReturnRequest() {
+  const { data: session, status: authStatus } = useSession();
   const [form, setForm] = useState({ orderId: '', email: '', reason: '', details: '' });
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +64,22 @@ export default function ReturnRequest() {
           ))}
         </div>
 
-        {status === 'success' ? (
+        {authStatus === 'loading' ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: '2rem', color: 'var(--primary)' }}></i>
+          </div>
+        ) : !session ? (
+          <div style={{ padding: '32px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+            <i className="fas fa-lock" style={{ fontSize: '2rem', color: '#2563eb', display: 'block', marginBottom: '12px' }}></i>
+            <p style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '8px' }}>Login Required</p>
+            <p style={{ color: 'var(--gray-1)', fontSize: '.9rem', marginBottom: '20px', lineHeight: 1.6 }}>
+              You must be logged in to submit a return request.
+            </p>
+            <Link href="/auth/login?next=/return-request" className="btn btn-primary">
+              <i className="fas fa-sign-in-alt"></i> Log In
+            </Link>
+          </div>
+        ) : status === 'success' ? (
           <div style={{ textAlign: 'center', padding: '48px 32px', background: 'var(--success-light)', border: '1px solid #bbf7d0', borderRadius: 'var(--radius-md)' }}>
             <i className="fas fa-check-circle" style={{ fontSize: '3rem', color: 'var(--success)', display: 'block', marginBottom: '16px' }}></i>
             <h2 style={{ fontWeight: 800, marginBottom: '8px' }}>Request Submitted!</h2>

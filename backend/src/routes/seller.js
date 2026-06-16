@@ -416,9 +416,7 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
     res.json({
       success: true,
       data: {
-        // grossEarnings is the seller's NET (after the 10% platform commission),
-        // kept under this name for backward-compat with the payouts page.
-        grossEarnings: netEarnings,
+        netEarnings,
         grossSales,
         commission,
         commissionRate: PLATFORM_COMMISSION_RATE,
@@ -438,6 +436,17 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) {
       return res.status(400).json({ success: false, error: 'A valid amount is required' });
+    }
+
+    // Block duplicate requests — one pending payout at a time prevents race-condition overdrafts
+    const { data: pendingPayouts } = await supabase
+      .from('seller_payouts')
+      .select('id')
+      .eq('seller_id', req.user.id)
+      .eq('status', 'pending')
+      .limit(1);
+    if (pendingPayouts?.length) {
+      return res.status(409).json({ success: false, error: 'You already have a pending payout request. Please wait for it to be reviewed before submitting another.' });
     }
 
     // Verify sufficient available balance

@@ -26,7 +26,8 @@ export default function Login() {
 
   const redirectByRole = async (userId, accessToken) => {
     const redirectTo = router.query.redirect;
-    if (redirectTo && redirectTo.startsWith('/')) {
+    // startsWith('/') also passes for protocol-relative URLs like //evil.com — block those explicitly
+    if (redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
       router.replace(redirectTo);
       return;
     }

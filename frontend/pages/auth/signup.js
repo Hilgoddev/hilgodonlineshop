@@ -65,7 +65,7 @@ export default function Signup() {
         }
       });
 
-      const postSignupRedirect = router.query.redirect && router.query.redirect.startsWith('/') ? router.query.redirect : '/account';
+      const postSignupRedirect = router.query.redirect && router.query.redirect.startsWith('/') && !router.query.redirect.startsWith('//') ? router.query.redirect : '/account';
       if (signUpError) {
         setError(signUpError.message || 'Registration failed. Please try again.');
       } else if (data.session) {

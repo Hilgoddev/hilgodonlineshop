@@ -57,7 +57,11 @@ function inline(s) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, href) => {
+      // Only allow safe protocols — block javascript:, data:, vbscript:, etc.
+      const safe = /^(https?:\/\/|\/[^/])/i.test(href) ? href : '#';
+      return `<a href="${safe}" rel="noopener noreferrer">${text}</a>`;
+    });
 }
 
 export default function BlogPost({ post, related }) {

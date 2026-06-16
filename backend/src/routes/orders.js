@@ -142,7 +142,7 @@ router.post('/', verifyToken, async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'items and shippingAddress are required' });
         }
 
-        const allowedPaymentMethods = ['stripe', 'paystack', 'opay', 'card', 'pod', 'bank_transfer'];
+        const allowedPaymentMethods = ['stripe', 'paystack', 'pod', 'bank_transfer'];
         if (!allowedPaymentMethods.includes(paymentMethod)) {
             return res.status(400).json({ success: false, error: 'Invalid paymentMethod' });
         }

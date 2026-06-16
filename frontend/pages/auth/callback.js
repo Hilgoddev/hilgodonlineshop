@@ -21,7 +21,7 @@ export default function AuthCallback() {
           setStatus('Email confirmed! Redirecting...');
           try { await syncProfile(); } catch (_) {}
           const redirect = router.query.redirect;
-          router.replace(redirect && redirect.startsWith('/') ? redirect : '/account');
+          router.replace(redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/account');
         } else {
           // Give detectSessionInUrl a moment to exchange the token
           await new Promise(r => setTimeout(r, 1500));

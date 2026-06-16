@@ -8,6 +8,7 @@ import { apiFetch, safeJson } from '../lib/apiClient';
 import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '../lib/pricing';
 import { formatOptionValue } from '../lib/colorName';
 import { cleanEnv } from '../lib/env';
+import { GEO_DATA } from '../lib/geoData';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
@@ -16,6 +17,7 @@ const stripePublishableKey = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE
 // a misconfigured NEXT_PUBLIC_STRIPE_ENABLED doesn't silently hide Stripe).
 const stripeEnabled = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_ENABLED)?.toLowerCase() === 'true'
   || (!!stripePublishableKey && stripePublishableKey.startsWith('pk_'));
+const bankTransferEnabled = cleanEnv(process.env.NEXT_PUBLIC_BANK_TRANSFER_ENABLED)?.toLowerCase() === 'true';
 // Catch a failed Stripe.js load (commonly blocked by ad-blockers / Firefox
 // tracking protection, or offline) so it degrades to "Stripe unavailable"
 // instead of throwing an uncaught promise rejection. Paystack/POD still work.
@@ -116,7 +118,8 @@ export default function Checkout() {
     street: '', city: '', country: 'Nigeria', state: 'Lagos', instructions: '',
   });
 
-  const [geoData, setGeoData] = useState(null);
+  // GEO_DATA is bundled locally — no external API call needed
+
 
   // Detect return from Paystack redirect or Stripe 3DS redirect.
   // For Paystack we MUST call verify/:reference to sync the order status —
@@ -160,19 +163,8 @@ export default function Checkout() {
     }
   }, []);
 
-  useEffect(() => {
-    fetch('https://countriesnow.space/api/v0.1/countries/states')
-      .then(r => r.json())
-      .then(json => setGeoData(json.data || []))
-      .catch(() => setGeoData([]));
-  }, []);
-
-  // Deduplicate countries — countriesnow.space returns duplicate entries
-  // (e.g. "Congo" appears twice). Use Map keyed by name to keep first occurrence.
-  const countries = geoData
-    ? [...new Map(geoData.map(c => [c.name, c])).values()].map(c => c.name)
-    : [];
-  const currentCountryData = geoData?.find(c => c.name === formData.country);
+  const countries = [...new Map(GEO_DATA.map(c => [c.name, c])).values()].map(c => c.name);
+  const currentCountryData = GEO_DATA.find(c => c.name === formData.country);
   const states = currentCountryData
     ? [...new Set(currentCountryData.states?.map(s => s.name) || [])]
     : [];
@@ -559,8 +551,7 @@ export default function Checkout() {
               </div>
               <div className="form-group">
                 <label className="form-label">Country</label>
-                <select className="form-select form-input" name="country" value={formData.country} onChange={handleInputChange} disabled={!geoData}>
-                  {!geoData && <option value="Nigeria">Loading countries...</option>}
+                <select className="form-select form-input" name="country" value={formData.country} onChange={handleInputChange}>
                   {countries.map((c, i) => <option key={`${c}-${i}`} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -601,7 +592,7 @@ export default function Checkout() {
                     key={pm.id}
                     className={`payment-option ${selectedPayment === pm.id ? 'selected' : ''}`}
                     onClick={() => {
-                      if (pm.id === 'bank_transfer') { setShowBankComingSoon(true); return; }
+                      if (pm.id === 'bank_transfer' && !bankTransferEnabled) { setShowBankComingSoon(true); return; }
                       setSelectedPayment(pm.id);
                     }}
                   >
@@ -644,7 +635,7 @@ export default function Checkout() {
                   className="btn btn-primary btn-lg"
                   style={{ flex: 1 }}
                   onClick={() => setCurrentStep(3)}
-                  disabled={selectedPayment === 'stripe' && !stripeEnabled}
+                  disabled={(selectedPayment === 'stripe' && !stripeEnabled) || (selectedPayment === 'bank_transfer' && !bankTransferEnabled)}
                 >
                   Review Order <i className="fas fa-arrow-right"></i>
                 </button>

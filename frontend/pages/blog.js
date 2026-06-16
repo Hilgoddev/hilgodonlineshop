@@ -2,7 +2,31 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 import { BLOG_POSTS, CAT_COLORS } from '../lib/blogPosts';
 
+const blogEnabled = process.env.NEXT_PUBLIC_BLOG_ENABLED?.toLowerCase() === 'true';
+
 export default function Blog() {
+  if (!blogEnabled) {
+    return (
+      <Layout title="Blog — Hilgod Online Store" description="Shopping guides, seller tips, delivery updates, and more from Hilgod.">
+        <nav className="breadcrumb">
+          <Link href="/">Home</Link>
+          <i className="fas fa-chevron-right sep"></i>
+          <span className="current">Blog</span>
+        </nav>
+        <div style={{ textAlign: 'center', padding: '80px 20px', maxWidth: '600px', margin: '0 auto' }}>
+          <i className="fas fa-newspaper" style={{ fontSize: '3.5rem', color: 'var(--primary)', display: 'block', marginBottom: '20px', opacity: .7 }}></i>
+          <h1 style={{ fontSize: 'clamp(1.4rem,3vw,2rem)', fontWeight: 900, marginBottom: '12px' }}>Blog — Coming Soon</h1>
+          <p style={{ color: 'var(--gray-1)', lineHeight: 1.7, marginBottom: '32px' }}>
+            We&apos;re working on bringing you shopping tips, seller guides, and delivery updates. Check back soon!
+          </p>
+          <Link href="/" className="btn btn-primary">
+            <i className="fas fa-home"></i> Back to Home
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout title="Blog — Hilgod Online Store" description="Shopping guides, seller tips, delivery updates, and more from Hilgod.">
       <nav className="breadcrumb">
@@ -56,3 +80,4 @@ export default function Blog() {
     </Layout>
   );
 }
+

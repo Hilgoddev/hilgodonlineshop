@@ -18,7 +18,7 @@ router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
         // Fetch the order and verify it belongs to the authenticated user
         const { data: order, error: orderError } = await supabase
             .from('orders')
-            .select('id, user_id')
+            .select('id, user_id, status')
             .eq('id', orderId.trim())
             .maybeSingle();
 
@@ -26,6 +26,12 @@ router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
         if (!order) return res.status(404).json({ success: false, error: 'Order not found' });
         if (order.user_id !== req.user.id) {
             return res.status(403).json({ success: false, error: 'Order does not belong to your account' });
+        }
+
+        // Only allow returns on orders that have been paid or delivered — not pending or already cancelled
+        const returnableStatuses = ['paid', 'processing', 'shipped', 'delivered'];
+        if (!returnableStatuses.includes(order.status)) {
+            return res.status(400).json({ success: false, error: 'Returns can only be requested for paid or delivered orders.' });
         }
 
         // Verify supplied email matches the authenticated user's email

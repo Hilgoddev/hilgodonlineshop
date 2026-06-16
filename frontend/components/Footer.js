@@ -156,7 +156,7 @@ export default function Footer() {
             */}
             <div className="footer-contact-item">
               <i className="fas fa-map-marker-alt"></i>
-              <span>21 Agbor Road, Oredo Benin City Edo Statea</span>
+              <span>21 Agbor Road, Oredo Benin City Edo State</span>
             </div>
             <div className="footer-contact-item">
               <i className="fas fa-phone"></i>
@@ -307,7 +307,7 @@ export default function Footer() {
             <Link href="/privacy">Privacy</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy#cookies">Cookies</Link>
-            <Link href="/about">Accessibility</Link>
+            <Link href="/about">About</Link>
           </div>
         </div>
       </div>
