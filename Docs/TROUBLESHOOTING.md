@@ -123,11 +123,11 @@ Check for error messages like:
 ### 4. Verify Environment Variables
 Make sure `.env.local` has:
 ```env
-MONGODB_URI=***REMOVED_MONGODB_URI***
-NEXTAUTH_SECRET=***REMOVED_NEXTAUTH_SECRET***
+MONGODB_URI=your-mongodb-connection-string
+NEXTAUTH_SECRET=your-nextauth-secret
 NEXTAUTH_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=605313142709-c46qeqgrovamln88uo2g5de25m8du2nj.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=***REMOVED_GOOGLE_CLIENT_SECRET***
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
 ---

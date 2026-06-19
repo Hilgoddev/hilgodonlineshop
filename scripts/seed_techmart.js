@@ -1,13 +1,14 @@
 /**
  * Seed script: clean up test data and add real products + reviews to TechMart store.
- * Run from the repo root: node scripts/seed_techmart.js
+ * Run from the repo root: node --env-file=backend/.env scripts/seed_techmart.js
+ * (Node 20+ built-in --env-file; credentials come from backend/.env — never hardcode keys.)
  */
 
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
-  'https://nmrqdzikceakkhfhflja.supabase.co',
-  '***REMOVED_SUPABASE_SERVICE_ROLE_KEY***'
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
 // ─── 1. Real products for TechMart ──────────────────────────────────────────

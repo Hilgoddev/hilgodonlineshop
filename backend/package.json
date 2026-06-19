@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Hilgod Online Shop — Express/Supabase backend API",
   "main": "index.js",
+  "private": true,
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
@@ -16,8 +17,8 @@
     "probe": "node scripts/injection-probe.js && node scripts/attack-probe.js && node scripts/robustness-probe.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Hilgod",
+  "license": "UNLICENSED",
   "type": "commonjs",
   "devDependencies": {
     "jest": "^29.7.0",
