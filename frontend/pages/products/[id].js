@@ -10,7 +10,7 @@ import { resolveServerApiBase } from '@/lib/env';
 import { apiFetch } from '@/lib/apiClient';
 import { colorName } from '@/lib/colorName';
 
-export default function ProductDetail({ product, relatedProducts }) {
+export default function ProductDetail({ product, relatedProducts, loadError = false }) {
   const router = useRouter();
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -65,13 +65,13 @@ export default function ProductDetail({ product, relatedProducts }) {
     setTimeout(() => document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth' }), 60);
   };
 
-  if (!product) {
+  if (loadError) {
     return (
-      <Layout title="Product Not Found — Hilgod Online Store">
+      <Layout title="Product Temporarily Unavailable — Hilgod Online Store">
         <div className="container" style={{ textAlign: 'center', padding: '80px 0' }}>
-          <i className="fas fa-exclamation-triangle" style={{ fontSize: '3rem', color: 'var(--warning)' }}></i>
-          <h2 style={{ marginTop: '20px', marginBottom: '10px' }}>Product Not Found</h2>
-          <p>The product you're looking for doesn't exist or has been removed.</p>
+          <i className="fas fa-triangle-exclamation" style={{ fontSize: '3rem', color: 'var(--warning)' }}></i>
+          <h2 style={{ marginTop: '20px', marginBottom: '10px' }}>Product Temporarily Unavailable</h2>
+          <p>We could not load this product right now. Please refresh or try again in a moment.</p>
           <Link href="/products" className="btn btn-primary" style={{ marginTop: '20px' }}>
             Browse Products
           </Link>
@@ -80,6 +80,20 @@ export default function ProductDetail({ product, relatedProducts }) {
     );
   }
 
+  if (!product) {
+    return (
+      <Layout title="Product Not Found — Hilgod Online Store">
+        <div className="container" style={{ textAlign: 'center', padding: '80px 0' }}>
+          <i className="fas fa-exclamation-triangle" style={{ fontSize: '3rem', color: 'var(--warning)' }}></i>
+          <h2 style={{ marginTop: '20px', marginBottom: '10px' }}>Product Not Found</h2>
+          <p>The product you are looking for does not exist or has been removed.</p>
+          <Link href="/products" className="btn btn-primary" style={{ marginTop: '20px' }}>
+            Browse Products
+          </Link>
+        </div>
+      </Layout>
+    );
+  }
   const { addToCart, toggleWishlist, isInWishlist, showToast } = useShop();
   const { formatPrice } = useCurrency();
 
@@ -398,7 +412,7 @@ export default function ProductDetail({ product, relatedProducts }) {
                 border: '1px solid var(--gray-4)',
                 marginBottom: '16px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                   {(product.store?.logo_url || product.seller?.avatar_url) ? (
                     <img 
                       src={product.store?.logo_url || product.seller?.avatar_url} 
@@ -415,7 +429,7 @@ export default function ProductDetail({ product, relatedProducts }) {
                       {(product.store?.name || product.seller?.full_name || 'S').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: '160px' }}>
                     <div style={{ fontWeight: 700, fontSize: '.88rem' }}>
                       {product.store?.slug ? (
                         <Link href={`/stores/${product.store.slug}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>
@@ -425,7 +439,7 @@ export default function ProductDetail({ product, relatedProducts }) {
                         product.store?.name || product.seller?.full_name || 'Seller'
                       )}
                     </div>
-                    <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                    <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginTop: '2px' }}>
                       <i className="fas fa-check-circle" style={{ color: 'var(--success)', fontSize: '.65rem' }}></i>
                       <span>Verified Seller</span>
                       {product.store?.status === 'approved' && (
@@ -708,26 +722,35 @@ export async function getServerSideProps({ params, req }) {
   const productUrl = `${apiBase}/products/${params.id}`;
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
-    let res;
-    try {
-      res = await fetch(productUrl, { cache: 'no-store', signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
+    const fetchProduct = async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 9000);
+      try {
+        const res = await fetch(productUrl, { cache: 'no-store', signal: controller.signal });
+        const body = await res.json().catch(() => null);
+        return { res, body };
+      } finally {
+        clearTimeout(timer);
+      }
+    };
 
-    if (res.status === 404) return { notFound: true };
+    const firstAttempt = await fetchProduct();
+    if (firstAttempt.res.status === 404) return { notFound: true };
 
-    if (!res.ok) {
-      console.error(`[PDP] Backend error ${res.status} for product ${params.id} (url: ${productUrl})`);
-      return { notFound: true };
-    }
+    let res = firstAttempt.res;
+    let data = firstAttempt.body;
+    const firstAttemptFailed = !res.ok || !data?.success || !data?.data;
 
-    const data = await res.json();
-    if (!data.success || !data.data) {
-      console.error(`[PDP] Bad data for product ${params.id}:`, JSON.stringify(data).slice(0, 200));
-      return { notFound: true };
+    if (firstAttemptFailed) {
+      console.error(`[PDP] Backend fetch failed for product ${params.id} (status: ${res.status}, url: ${productUrl})`);
+      const retryAttempt = await fetchProduct().catch(() => null);
+      if (retryAttempt?.res?.status === 404) return { notFound: true };
+      if (retryAttempt?.res?.ok && retryAttempt?.body?.success && retryAttempt?.body?.data) {
+        res = retryAttempt.res;
+        data = retryAttempt.body;
+      } else {
+        return { props: { product: null, relatedProducts: [], loadError: true } };
+      }
     }
 
     let relatedProducts = [];
@@ -745,6 +768,6 @@ export async function getServerSideProps({ params, req }) {
     return { props: { product: data.data, relatedProducts } };
   } catch (error) {
     console.error(`[PDP] Failed to fetch product ${params.id} from ${productUrl}:`, error.message);
-    return { notFound: true };
+    return { props: { product: null, relatedProducts: [], loadError: true } };
   }
 }
