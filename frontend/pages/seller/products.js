@@ -14,7 +14,7 @@ const EMPTY_FORM = {
   price: '',
   currency: 'NGN',
   originalPrice: '',
-  category: 'electronics',
+  category: '',
   subcategory: '',
   brand: '',
   stock: '',
@@ -238,7 +238,9 @@ export default function SellerProducts() {
                 className="form-input"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value, subcategory: '' }))}
+                required
               >
+                <option value="" disabled>-- Select category --</option>
                 {categoriesData.map(cat => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}

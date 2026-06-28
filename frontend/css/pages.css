@@ -1223,7 +1223,7 @@ main { padding: 1rem; }
 }
 .related-grid .product-card__img-wrapper img {
   object-fit: contain !important;
-  padding: 10px;
+  padding: 6px;
 }
 @media (max-width: 768px) {
   .related-grid { grid-template-columns: repeat(2, 1fr); max-width: 600px; }

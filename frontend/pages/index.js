@@ -215,7 +215,9 @@ export default function Home({ products, categories = [], campaigns = [], catego
         } catch { /* try the next fallback slug */ }
       }
     };
-    loadCat(['electronics', 'accessories'], setElectronics, categorySections.electronics);
+    // Tech section must only ever show electronics — never fall back to another
+    // category (accessories) or it fills the "Tech & Electronics" row with bags.
+    loadCat(['electronics'], setElectronics, categorySections.electronics);
     loadCat(['menswear', 'shoes'], setMenswear, categorySections.menswear);
     loadCat(['womenswear'], setWomenswear, categorySections.womenswear);
     loadCat(['beauty'], setBeauty, categorySections.beauty);
@@ -756,7 +758,7 @@ export async function getServerSideProps({ req, res }) {
       fetchJsonWithTimeout(`${baseUrl}/products?limit=20`, 12000),
       fetchJsonWithTimeout(`${baseUrl}/categories`, 8000),
       fetchJsonWithTimeout(`${baseUrl}/campaigns`, 8000),
-      fetchCat(['electronics', 'accessories']),
+      fetchCat(['electronics']),
       fetchCat(['menswear', 'shoes']),
       fetchCat(['womenswear']),
       fetchCat(['beauty']),

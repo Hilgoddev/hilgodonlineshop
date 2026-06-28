@@ -8,6 +8,21 @@ const { isUuid } = require('../lib/validate');
 const { getSetting } = require('../lib/settings');
 const allCache = makeCache({ ttlMs: 30 * 1000 });
 
+// Canonical category ids — must match the frontend taxonomy (pages/categories.js).
+// A product's category MUST be one of these (lowercase) so listing filters and
+// homepage sections line up; anything else (e.g. "Electronics" with a capital E,
+// or a free-text value) silently disappears from its category page.
+const VALID_CATEGORIES = new Set([
+    'accessories', 'beauty', 'collectibles', 'electronics', 'gaming', 'herbs',
+    'home', 'kitchen', 'menswear', 'shoes', 'sports', 'toys', 'womenswear',
+]);
+// Normalise + validate a submitted category. Returns the canonical value or null.
+function normalizeCategory(value) {
+    if (typeof value !== 'string') return null;
+    const v = value.trim().toLowerCase();
+    return VALID_CATEGORIES.has(v) ? v : null;
+}
+
 // Short-lived in-memory cache for the public product list. Supabase (free tier)
 // can be cold/slow on the first hit, which makes SSR and serverless requests
 // time out. Serving a recent payload keeps pages responsive and shields the DB
@@ -481,6 +496,12 @@ const verifySellerOrAdmin = async (req, res, next) => {
 router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
     try {
         const { name, description, price, currency, category, subcategory, category_id, store_id, images, stock, brand, original_price, size_options, color_options } = req.body;
+        // Category is required and must be a known category — reject otherwise so a
+        // product can't land in an invalid/empty bucket (and disappear from its page).
+        const normalizedCategory = normalizeCategory(category);
+        if (!normalizedCategory) {
+            return res.status(400).json({ success: false, error: 'A valid product category is required.' });
+        }
         // Admin uploads always go live. Seller uploads go live only when the
         // platform-wide auto-approve setting is on; otherwise they await approval.
         const autoApprove = (await getSetting('auto_approve_products', false)) === true;
@@ -491,7 +512,7 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             store_id: store_id || null,
             name, description, price,
             currency: currency || 'NGN',
-            category, subcategory,
+            category: normalizedCategory, subcategory,
             category_id: category_id || null,
             images, stock, status,
             is_active: true,
@@ -524,7 +545,13 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         if (description    !== undefined) updateData.description    = description;
         if (price          !== undefined) updateData.price          = price;
         if (currency       !== undefined) updateData.currency       = currency;
-        if (category       !== undefined) updateData.category       = category;
+        if (category       !== undefined) {
+            const normalizedCategory = normalizeCategory(category);
+            if (!normalizedCategory) {
+                return res.status(400).json({ success: false, error: 'A valid product category is required.' });
+            }
+            updateData.category = normalizedCategory;
+        }
         if (subcategory    !== undefined) updateData.subcategory    = subcategory;
         if (images         !== undefined) updateData.images         = images;
         if (stock          !== undefined) updateData.stock          = stock;
