@@ -83,10 +83,15 @@ router.post('/webhook', async (req, res) => {
     return res.status(500).send('Webhook secret not configured');
   }
 
-  // Verify HMAC signature (adjust header name to match Grey's docs)
+  // Verify HMAC signature (adjust header name to match Grey's docs).
+  // NOTE: timingSafeEqual THROWS when the two buffers differ in length, so we
+  // must length-check first — otherwise a malformed signature header crashes
+  // this unauthenticated endpoint (matches the Paystack webhook's guard).
   const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '');
   const computed = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
-  if (!sig || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(computed))) {
+  const sigBuf = Buffer.from(typeof sig === 'string' ? sig : '', 'utf8');
+  const cmpBuf = Buffer.from(computed, 'utf8');
+  if (sigBuf.length !== cmpBuf.length || !crypto.timingSafeEqual(sigBuf, cmpBuf)) {
     return res.status(400).send('Invalid signature');
   }
 

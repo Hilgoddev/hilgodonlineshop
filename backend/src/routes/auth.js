@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
 const { withTimeout, makeCache, singleFlight } = require('../lib/resilience');
 const { cleanEnv } = require('../lib/env');
+const { writeLimiter } = require('../middleware/rateLimit');
 const meCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Supabase signs user access tokens with the project's asymmetric keys (ES256/
@@ -194,7 +195,10 @@ router.post('/sync-profile', verifyToken, async (req, res, next) => {
 // Auto-confirm email — ONLY active when EMAIL_VERIFICATION_ENABLED=false.
 // When verification is enabled (the default), this returns 403 and the signup
 // page shows the "check your email" modal instead.
-router.post('/auto-confirm', async (req, res, next) => {
+// Rate-limited: this endpoint is unauthenticated and (when enabled) can both
+// confirm an arbitrary email and probe whether an account exists. The limiter
+// blunts enumeration/abuse in case EMAIL_VERIFICATION_ENABLED is ever flipped.
+router.post('/auto-confirm', writeLimiter, async (req, res, next) => {
     try {
         if (process.env.EMAIL_VERIFICATION_ENABLED !== 'false') {
             return res.status(403).json({ success: false, message: 'Email verification is enabled' });

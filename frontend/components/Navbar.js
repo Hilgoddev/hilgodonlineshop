@@ -301,17 +301,17 @@ export default function Navbar() {
                 <button type="submit" className="search-btn" aria-label="Search"><i className="fas fa-magnifying-glass"></i></button>
               </form>
               {isSearching && searchResults.length > 0 && (
-                <div className="search-suggestions open" id="search-suggestions" style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px' }}>
+                <div className="search-suggestions open" id="search-suggestions" style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px', overflow: 'hidden', boxSizing: 'border-box' }}>
                   {searchResults.map(p => (
                     <div key={p._id} className="suggestion-item" onClick={() => router.push(`/products/${p._id}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}>
                       <i className="fas fa-search" style={{ color: 'var(--gray-2)' }}></i>
-                      <span style={{ fontSize: '.9rem', fontWeight: '600' }}>{p.name}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
+                      <span style={{ fontSize: '.9rem', fontWeight: '600', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                      <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700', whiteSpace: 'nowrap' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
                     </div>
                   ))}
                   <div className="suggestion-item" onClick={() => router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'var(--primary-xlight)' }}>
                     <i className="fas fa-search" style={{ color: 'var(--primary)' }}></i>
-                    <span style={{ color: 'var(--primary)', fontWeight: '600' }}>See all results for &quot;{searchQuery}&quot;</span>
+                    <span style={{ color: 'var(--primary)', fontWeight: '600', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>See all results for &quot;{searchQuery}&quot;</span>
                   </div>
                 </div>
               )}
@@ -437,17 +437,17 @@ export default function Navbar() {
                 </button>
               </form>
               {isSearching && searchResults.length > 0 && (
-                <div className="search-suggestions open" id="mobile-search-suggestions" style={{ position: 'absolute', top: '100%', left: '16px', right: '16px', background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px' }}>
+                <div className="search-suggestions open" id="mobile-search-suggestions" style={{ position: 'absolute', top: '100%', left: '16px', right: '16px', width: 'auto', background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px', overflow: 'hidden', boxSizing: 'border-box' }}>
                   {searchResults.map(p => (
                     <div key={p._id} className="suggestion-item" onClick={() => router.push(`/products/${p._id}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}>
                       <i className="fas fa-search" style={{ color: 'var(--gray-2)' }}></i>
-                      <span style={{ fontSize: '.9rem', fontWeight: '600' }}>{p.name}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
+                      <span style={{ fontSize: '.9rem', fontWeight: '600', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                      <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700', whiteSpace: 'nowrap' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
                     </div>
                   ))}
                   <div className="suggestion-item" onClick={() => router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'var(--primary-xlight)' }}>
                     <i className="fas fa-search" style={{ color: 'var(--primary)' }}></i>
-                    <span style={{ color: 'var(--primary)', fontWeight: '600' }}>See all results for "{searchQuery}"</span>
+                    <span style={{ color: 'var(--primary)', fontWeight: '600', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>See all results for "{searchQuery}"</span>
                   </div>
                 </div>
               )}

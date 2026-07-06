@@ -502,14 +502,22 @@ router.get('/:id', verifyToken, async (req, res, next) => {
         let order = null;
 
         if (id.length < 36) {
-            const { data: orders, error } = await supabase
+            // Short-code lookup: prefix-match against ALL of the user's order ids
+            // (fetching just ids is cheap, so no 200-row cap that would hide old
+            // orders), then load the matched order in full.
+            const prefix = id.replace(/-/g, '');
+            const { data: idRows, error } = await supabase
                 .from('orders')
-                .select('*')
+                .select('id')
                 .eq('user_id', req.user.id)
-                .order('created_at', { ascending: false })
-                .limit(200);
+                .order('created_at', { ascending: false });
             if (error) throw error;
-            order = (orders || []).find((o) => String(o.id).replace(/-/g, '').startsWith(id.replace(/-/g, '')));
+            const match = (idRows || []).find((o) => String(o.id).replace(/-/g, '').startsWith(prefix));
+            if (match) {
+                const { data, error: fErr } = await supabase.from('orders').select('*').eq('id', match.id).maybeSingle();
+                if (fErr) throw fErr;
+                order = data;
+            }
         } else {
             // Full-length id must be a valid uuid, else Postgres throws 22P02.
             if (!isUuid(id)) return res.status(404).json({ success: false, error: 'Order not found' });

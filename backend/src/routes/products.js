@@ -173,7 +173,19 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
         if (category)    query = query.eq('category', category);
         if (subcategory) query = query.eq('subcategory', subcategory);
         if (seller_id)   query = query.eq('seller_id', seller_id);
-        if (search)      query = query.ilike('name', `%${search}%`);
+        if (search) {
+            // Match name OR brand OR description (users search by any of them).
+            // Escape LIKE wildcards (%, _) so they're literal, and strip chars that
+            // would break PostgREST's or() grammar (commas, parens, quotes).
+            const term = String(search)
+                .slice(0, 100)
+                .replace(/[%_\\]/g, (m) => `\\${m}`)
+                .replace(/[(),"]/g, ' ')
+                .trim();
+            if (term) {
+                query = query.or(`name.ilike.%${term}%,brand.ilike.%${term}%,description.ilike.%${term}%`);
+            }
+        }
         if (in_stock)    query = query.gt('stock', 0);
 
         // On-sale filter: restrict to products in an active campaign or marked down.

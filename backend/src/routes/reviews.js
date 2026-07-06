@@ -58,13 +58,19 @@ router.get('/:productId', async (req, res, next) => {
     }
 });
 
-// Create a review — requires authentication; name/email sourced from verified profile
+// Create a review — requires authentication AND a verified purchase.
+// name/email come from the verified profile; product_name is derived from the
+// products table (never trusted from the client).
 router.post('/', verifyToken, reviewLimiter, async (req, res, next) => {
     try {
-        const { product_id, product_name, rating, title, message } = req.body;
+        const { product_id, rating, title, message } = req.body;
 
         if (!product_id || !message) {
             return res.status(400).json({ success: false, error: 'product_id and message are required' });
+        }
+        // Malformed id → treat as unknown product (avoids a 22P02 500).
+        if (!isUuid(product_id)) {
+            return res.status(400).json({ success: false, error: 'Invalid product_id' });
         }
 
         // Rating must be an integer 1–5. Reject anything else (no silent default to 5).
@@ -77,6 +83,23 @@ router.post('/', verifyToken, reviewLimiter, async (req, res, next) => {
         if (String(message).length > 2000) {
             return res.status(400).json({ success: false, error: 'message is too long (max 2000 characters)' });
         }
+
+        // Verified-purchase gate: the reviewer must have a paid-through order line
+        // for this product. Prevents fake reviews (self-promotion / competitor
+        // sabotage) from any logged-in account. Also yields the canonical product
+        // name so the client can't spoof it.
+        const { data: purchased, error: purchaseErr } = await supabase
+            .from('order_items')
+            .select('id, product:products(name), order:orders!inner(user_id, status)')
+            .eq('product_id', product_id)
+            .eq('order.user_id', req.user.id)
+            .in('order.status', ['paid', 'processing', 'shipped', 'delivered'])
+            .limit(1);
+        if (purchaseErr) throw purchaseErr;
+        if (!purchased?.length) {
+            return res.status(403).json({ success: false, error: 'You can only review products you have purchased.' });
+        }
+        const canonicalProductName = purchased[0]?.product?.name || null;
 
         // One review per user per product. Guards against review spam.
         const { data: existing } = await supabase
@@ -99,7 +122,7 @@ router.post('/', verifyToken, reviewLimiter, async (req, res, next) => {
             .from('reviews')
             .insert([{
                 product_id,
-                product_name,
+                product_name: canonicalProductName,
                 user_name: profile?.full_name || req.user.email || 'Customer',
                 user_email: req.user.email,
                 rating: parsedRating,

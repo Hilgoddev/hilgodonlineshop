@@ -13,6 +13,16 @@ const { cleanEnv } = require('./lib/env');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust the first proxy hop (Render/Vercel sit in front of us) so `req.ip`
+// resolves to the real client address. Without this, express-rate-limit keys
+// every request off the proxy's IP — collapsing all users into one shared
+// bucket and emitting a validation error. One hop only (not `true`) so clients
+// can't spoof X-Forwarded-For to dodge the limiter.
+// NOTE: on serverless (Vercel), the in-memory limiter store resets per cold
+// start — back it with a shared store (e.g. Upstash/rate-limit-redis) if you
+// need durable limits there. On Render (long-lived process) this is sufficient.
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 const allowedOrigins = (cleanEnv(process.env.FRONTEND_URL) || 'http://localhost:3000')
@@ -257,6 +267,11 @@ app.use((req, res) => {
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
+    // A blocked CORS origin is a policy rejection, not a server fault — return a
+    // clean 403 instead of letting it fall through to a noisy 500.
+    if (err && err.message === 'Not allowed by CORS') {
+        return res.status(403).json({ success: false, code: 'CORS_FORBIDDEN', message: 'Origin not allowed' });
+    }
     console.error(err.stack);
     const status = err.status || 500;
     const isProd = process.env.NODE_ENV === 'production';
