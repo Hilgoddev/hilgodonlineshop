@@ -183,7 +183,9 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
                 .replace(/[(),"]/g, ' ')
                 .trim();
             if (term) {
-                query = query.or(`name.ilike.%${term}%,brand.ilike.%${term}%,description.ilike.%${term}%`);
+                // Include category so a category name (e.g. "shoes") returns that
+                // category's products, not just items with the word in their name.
+                query = query.or(`name.ilike.%${term}%,brand.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`);
             }
         }
         if (in_stock)    query = query.gt('stock', 0);
@@ -412,6 +414,85 @@ router.get('/all', verifyToken, async (req, res, next) => {
         if (hit) return res.status(200).json({ ...hit.value, stale: true });
         console.error('products /all failed:', err?.message || err);
         return res.status(503).json({ success: false, error: 'Products temporarily unavailable' });
+    }
+});
+
+// GET /api/products/suggest?q=...&limit=8 — autocomplete suggestions ranked by
+// relevance. Matches on name/brand ONLY (description is too noisy for a live
+// dropdown) and ranks exact > name-prefix > name-word > name-contains > brand,
+// so typing "iphone" surfaces products actually named iPhone first — not random
+// items that merely mention it. Defined BEFORE '/:id' so "suggest" isn't treated
+// as a product id.
+router.get('/suggest', async (req, res, next) => {
+    try {
+        const q = String(req.query.q || req.query.search || '').trim().slice(0, 80);
+        const limit = Math.min(10, Math.max(1, Number(req.query.limit) || 8));
+        if (q.length < 2) return res.json({ success: true, data: [] });
+
+        // Escape LIKE wildcards (%, _, \) and strip chars that break PostgREST or().
+        const term = q.replace(/[%_\\]/g, (m) => `\\${m}`).replace(/[(),"]/g, ' ').trim();
+        if (!term) return res.json({ success: true, data: [] });
+
+        // Pull a candidate pool (name/brand matches), then rank in-process. 40 is
+        // plenty to find the best few without over-fetching.
+        // Also match the product's category, so typing a category name (e.g.
+        // "shoe"/"shoes") surfaces items from that category even when the term
+        // isn't in the product's own name.
+        const { data, error } = await withTimeout(
+            (signal) => supabase
+                .from('products')
+                .select('id, name, brand, category, price, currency, images, original_price')
+                .eq('is_active', true)
+                .eq('status', 'approved')
+                .or(`name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`)
+                .limit(60)
+                .abortSignal(signal),
+            6000,
+        );
+        if (error) throw error;
+
+        const lc = q.toLowerCase();
+        const singular = (s) => s.replace(/s$/, '');       // crude shoe/shoes match
+        const esc = lc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // safe for the word-boundary regex
+        const wordRe = new RegExp(`\\b${esc}`);
+        const scored = (data || []).map((p) => {
+            const name = String(p.name || '').toLowerCase();
+            const brand = String(p.brand || '').toLowerCase();
+            const cat = String(p.category || '').toLowerCase();
+            let score = 0;
+            if (name === lc) score = 100;
+            else if (name.startsWith(lc)) score = 85;
+            else if (wordRe.test(name)) score = 65;
+            else if (cat && (cat === lc || singular(cat) === singular(lc))) score = 55; // exact category hit
+            else if (name.includes(lc)) score = 45;
+            else if (cat && (cat.includes(lc) || lc.includes(cat))) score = 35;         // partial category hit
+            else if (brand.startsWith(lc)) score = 30;
+            else if (brand.includes(lc)) score = 20;
+            return { p, score, len: name.length };
+        }).sort((a, b) => b.score - a.score || a.len - b.len); // best match, then shorter (more specific) name
+
+        const top = scored.slice(0, limit).map((s) => s.p);
+
+        let flashSaleMap = new Map();
+        try { flashSaleMap = await getActiveFlashSaleMap(top.map((p) => p.id)); } catch {}
+
+        const out = top.map((p) => {
+            const pricing = getEffectiveProductPricing(p, flashSaleMap.get(p.id));
+            return {
+                id: p.id,
+                _id: p.id,
+                name: p.name,
+                brand: p.brand || null,
+                price: pricing.price,
+                currency: p.currency || 'NGN',
+                image: p.images?.[0] || null,
+            };
+        });
+
+        res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=40');
+        res.json({ success: true, data: out });
+    } catch (err) {
+        next(err);
     }
 });
 

@@ -246,6 +246,7 @@ export default function Footer() {
                 <span style={{ fontSize: '.78rem' }}>Start your online shop today</span>
               </div>
             </Link>
+            {/* Delivery Partner CTA — hidden for now (program paused)
             <Link href="/delivery" className="footer-cta-link">
               <i className="fas fa-motorcycle"></i>
               <div>
@@ -254,6 +255,7 @@ export default function Footer() {
                 <span style={{ fontSize: '.78rem' }}>Earn money with every delivery</span>
               </div>
             </Link>
+            */}
             <div style={{ marginTop: 'var(--space-4)' }}>
               <span className="footer-col-title">Download App</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>

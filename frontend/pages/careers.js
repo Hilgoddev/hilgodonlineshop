@@ -7,7 +7,8 @@ const openings = [
   { title: 'Customer Support Lead',     dept: 'Support',     type: 'Full-time',  location: 'Benin City',          desc: 'Own the voice of Hilgod — help buyers and sellers resolve issues swiftly.' },
   { title: 'Logistics Coordinator',     dept: 'Operations',  type: 'Full-time',  location: 'Lagos / Abuja',       desc: 'Plan and oversee last-mile delivery across our growing nationwide network.' },
   { title: 'Growth & Marketing Manager',dept: 'Marketing',   type: 'Full-time',  location: 'Remote',              desc: 'Drive acquisition, retention and brand visibility across digital channels.' },
-  { title: 'Delivery Partner',          dept: 'Logistics',   type: 'Freelance',  location: 'Nationwide',          desc: 'Earn money making deliveries in your city. Flexible hours, competitive pay.' },
+  // Delivery Partner opening — hidden for now (program paused)
+  // { title: 'Delivery Partner',          dept: 'Logistics',   type: 'Freelance',  location: 'Nationwide',          desc: 'Earn money making deliveries in your city. Flexible hours, competitive pay.' },
 ];
 
 const EMPTY = { fullName: '', email: '', phone: '', coverNote: '', cvLink: '' };

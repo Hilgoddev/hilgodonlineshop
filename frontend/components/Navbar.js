@@ -115,7 +115,7 @@ export default function Navbar() {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) { setSearchResults([]); return; }
     const fetchResults = async () => {
       try {
-        const res = await fetch(`/api/products?search=${encodeURIComponent(searchQuery.trim())}&limit=5`);
+        const res = await fetch(`/api/products/suggest?q=${encodeURIComponent(searchQuery.trim())}&limit=8`);
         const data = await res.json();
         if (data.success) { setSearchResults(data.data || []); setIsSearching(true); }
       } catch (err) { console.error('Error fetching search suggestions', err); }
@@ -591,9 +591,11 @@ export default function Navbar() {
                 <span><i className="fas fa-store icon"></i>Sell on Hilgod</span><i className="fas fa-chevron-right"></i>
               </Link>
             )}
+            {/* Delivery Partner link — hidden for now (program paused)
             <Link href="/delivery" className="mobile-nav-link" onClick={closeMobileMenu}>
               <span><i className="fas fa-motorcycle icon"></i>Delivery Partner</span><i className="fas fa-chevron-right"></i>
             </Link>
+            */}
 
             {/* Preferences */}
             <div className="mobile-nav-title" style={{ marginTop: '15px' }}>Preferences</div>
