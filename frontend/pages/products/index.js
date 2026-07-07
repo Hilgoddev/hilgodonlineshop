@@ -28,9 +28,11 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
 
   const initCategory = router.query.category ? [router.query.category] : [];
   const initSubs = router.query.subcategory ? router.query.subcategory.split(',') : [];
+  const initSearch = router.query.search ? String(router.query.search) : '';
 
   const [selectedCategories, setSelectedCategories] = useState(initCategory);
   const [selectedSubcategories, setSelectedSubcategories] = useState(initSubs);
+  const [searchTerm, setSearchTerm] = useState(initSearch);
   const [sortBy, setSortBy] = useState('default');
   const [inStockOnly, setInStockOnly] = useState(false);
   const [onSaleOnly, setOnSaleOnly] = useState(false);
@@ -46,6 +48,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   const apiBase = '/api';
   const buildParams = (limit, page) => {
     const params = new URLSearchParams({ limit: String(limit), page: String(page) });
+    if (searchTerm) params.set('search', searchTerm);
     if (selectedCategories[0]) params.set('category', selectedCategories[0]);
     if (selectedSubcategories.length === 1) params.set('subcategory', selectedSubcategories[0]);
     const sort = SORT_MAP[sortBy];
@@ -60,6 +63,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     if (!router.isReady) return;
     const newCat = router.query.category ? [router.query.category] : [];
     setSelectedCategories(newCat);
+    setSearchTerm(router.query.search ? String(router.query.search) : '');
     if (router.query.subcategory) {
       const validSubs = newCat.length > 0
         ? (categoriesData.find(c => c.id === newCat[0])?.subs || [])
@@ -70,7 +74,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
       setSelectedSubcategories([]);
     }
     setCurrentPage(1);
-  }, [router.isReady, router.query.category, router.query.subcategory]);
+  }, [router.isReady, router.query.category, router.query.subcategory, router.query.search]);
 
   // Reset to page 1 whenever the filter/sort changes (the page fetch below then
   // loads page 1 for the new filters).
@@ -78,7 +82,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     if (!router.isReady) return;
     if (skipInitialFetch.current) return; // don't fight the initial SSR state
     setCurrentPage(1);
-  }, [selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly]);
+  }, [selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly, searchTerm]);
 
   // Fetch exactly the current page from the server whenever the page or filters
   // change. No client buffer, so it can never get out of sync or hang.
@@ -101,7 +105,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [router.isReady, currentPage, selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly]);
+  }, [router.isReady, currentPage, selectedCategories, selectedSubcategories, sortBy, inStockOnly, onSaleOnly, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageProducts = products;
@@ -135,6 +139,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   };
 
   const getBreadcrumbTitle = () => {
+    if (searchTerm) return `Results for "${searchTerm}"`;
     if (selectedCategories.length > 0) {
       const c = categoriesData.find(c => c.id === selectedCategories[0]);
       return c ? c.name : selectedCategories[0];
@@ -400,6 +405,7 @@ export async function getServerSideProps({ query, req, res }) {
     const baseUrl = resolveServerApiBase(req);
     // Seed page 1 for instant first paint; the client fetches each page on demand.
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: '1' });
+    if (query.search) params.set('search', String(query.search));
     if (query.category) params.set('category', query.category);
     if (query.subcategory && !String(query.subcategory).includes(',')) {
       params.set('subcategory', String(query.subcategory));
