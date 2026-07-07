@@ -500,7 +500,8 @@ export default function Home({ products, categories = [], campaigns = [], catego
             </div>
           </div>
         </div>
-        <div className="banner-card" onClick={() => window.location.href = '/products?category=appliances'}>
+        {/* 'appliances' isn't a real category — the appliance inventory lives under kitchen */}
+        <div className="banner-card" onClick={() => window.location.href = '/products?category=kitchen'}>
           <div className="banner-card__bg" style={{ background: 'linear-gradient(135deg,#1a0a2e,#2e1a3f,#4a1a5e)' }}></div>
           <div className="banner-card__overlay"></div>
           <div className="banner-card__content">
@@ -532,19 +533,24 @@ export default function Home({ products, categories = [], campaigns = [], catego
         </div>
       </div>
 
-      {/* 4-Mini Banners */}
+      {/* 4-Mini Banners.
+          Phones → electronics (real phones live there; fills as tech is added).
+          Fashion → 'fashion' combined alias (menswear + womenswear).
+          The former Laptops/Gadgets slots are rethemed to Shoes/Accessories until
+          laptop & gadget inventory exists — when it does, restore the old themes
+          pointing to /products?category=electronics&subcategory=... */}
       <div className="banner-4col">
-        <div className="mini-banner" onClick={() => window.location.href = '/products?category=phones'} style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=electronics'} style={{ background: 'linear-gradient(135deg,#dc2626,#991b1b)' }}>
           <div className="mini-banner__text"><h4><i className="fas fa-mobile-screen-button"></i> Phones</h4><p>Latest Arrivals</p></div>
         </div>
-        <div className="mini-banner" onClick={() => window.location.href = '/products?category=laptops'} style={{ background: 'linear-gradient(135deg,#1d4ed8,#1e3a8a)' }}>
-          <div className="mini-banner__text"><h4><i className="fas fa-laptop"></i> Laptops</h4><p>Work Smarter</p></div>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=shoes'} style={{ background: 'linear-gradient(135deg,#1d4ed8,#1e3a8a)' }}>
+          <div className="mini-banner__text"><h4><i className="fas fa-shoe-prints"></i> Shoes</h4><p>Step Out Fresh</p></div>
         </div>
         <div className="mini-banner" onClick={() => window.location.href = '/products?category=fashion'} style={{ background: 'linear-gradient(135deg,#7c3aed,#4c1d95)' }}>
           <div className="mini-banner__text"><h4><i className="fas fa-shirt"></i> Fashion</h4><p>New Styles Daily</p></div>
         </div>
-        <div className="mini-banner" onClick={() => window.location.href = '/products?category=gadgets'} style={{ background: 'linear-gradient(135deg,#047857,#065f46)' }}>
-          <div className="mini-banner__text"><h4><i className="fas fa-headphones"></i> Gadgets</h4><p>Tech Accessories</p></div>
+        <div className="mini-banner" onClick={() => window.location.href = '/products?category=accessories'} style={{ background: 'linear-gradient(135deg,#047857,#065f46)' }}>
+          <div className="mini-banner__text"><h4><i className="fas fa-bag-shopping"></i> Accessories</h4><p>Bags, Watches & More</p></div>
         </div>
       </div>
 

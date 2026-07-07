@@ -141,6 +141,9 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   const getBreadcrumbTitle = () => {
     if (searchTerm) return `Results for "${searchTerm}"`;
     if (selectedCategories.length > 0) {
+      // 'fashion' is a combined menswear+womenswear alias (homepage banner), not
+      // a real category — give it a friendly label instead of the raw slug.
+      if (selectedCategories[0] === 'fashion') return 'Fashion';
       const c = categoriesData.find(c => c.id === selectedCategories[0]);
       return c ? c.name : selectedCategories[0];
     }

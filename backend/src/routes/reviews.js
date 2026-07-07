@@ -44,9 +44,10 @@ router.get('/:productId', async (req, res, next) => {
         if (!isUuid(productId)) {
             return res.json({ success: true, data: [] });
         }
+        // Explicit columns — never expose reviewer emails (user_email) publicly.
         const { data, error } = await supabase
             .from('reviews')
-            .select('*')
+            .select('id, product_id, product_name, user_name, rating, title, message, created_at')
             .eq('product_id', productId)
             .order('created_at', { ascending: false });
 

@@ -118,7 +118,8 @@ export default function Navbar() {
         const res = await fetch(`/api/products/suggest?q=${encodeURIComponent(searchQuery.trim())}&limit=8`);
         const data = await res.json();
         if (data.success) { setSearchResults(data.data || []); setIsSearching(true); }
-      } catch (err) { console.error('Error fetching search suggestions', err); }
+        else { setSearchResults([]); } // endpoint failed — never show a stale/blank dropdown
+      } catch (err) { console.error('Error fetching search suggestions', err); setSearchResults([]); }
     };
     const debounce = setTimeout(fetchResults, 300);
     return () => clearTimeout(debounce);
@@ -153,7 +154,6 @@ export default function Navbar() {
       { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' },
       { name: 'Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
       { name: 'Gaming', slug: 'gaming', icon: 'fa-gamepad' },
-      { name: 'Health', slug: 'health', icon: 'fa-heart-pulse' },
       { name: 'Herbs', slug: 'herbs', icon: 'fa-leaf' },
       { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
       { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },

@@ -170,7 +170,10 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
             .eq('is_active', true)
             .eq('status', 'approved');
 
-        if (category)    query = query.eq('category', category);
+        // 'fashion' is a combined alias: show menswear + womenswear together
+        // (used by the homepage Fashion banner). Not a stored category value.
+        if (category === 'fashion') query = query.in('category', ['menswear', 'womenswear']);
+        else if (category)          query = query.eq('category', category);
         if (subcategory) query = query.eq('subcategory', subcategory);
         if (seller_id)   query = query.eq('seller_id', seller_id);
         if (search) {

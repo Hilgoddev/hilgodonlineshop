@@ -197,7 +197,7 @@ The earbuds market is extremely competitive. Many under ₦20,000 now offer acti
 2. **Read the product description** carefully for warranty terms
 3. **Compare prices** across sellers — the same product may be listed by multiple stores
 
-Browse the full [electronics range](/products?category=gadgets) on Hilgod.
+Browse the full [electronics range](/products?category=electronics) on Hilgod.
     `.trim(),
   },
   {
