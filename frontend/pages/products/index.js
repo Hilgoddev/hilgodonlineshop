@@ -7,7 +7,7 @@ import { categoriesData } from '@/pages/categories';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
 import { resolveServerApiBase } from '@/lib/env';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 32;
 
 const SORT_MAP = {
   'price-asc':  'price_asc',
@@ -396,7 +396,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
 
 export async function getServerSideProps({ query, req, res }) {
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
-  const PAGE_SIZE = 20;
+  const PAGE_SIZE = 32;
   const SORT_MAP = {
     'price-asc': 'price_asc',
     'price-desc': 'price_desc',
