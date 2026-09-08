@@ -65,6 +65,39 @@ export default function AboutUs() {
           </Link>
         </div>
       </div>
+      
+      {/* Owner / Founder Hero (Hilary G) */}
+      <div className="about-owner-hero container" style={{ marginBottom: 'var(--space-10)' }}>
+        <div className="owner-hero-card">
+          <div className="owner-accent" aria-hidden="true" />
+          <div className="owner-hero-inner">
+            <div className="owner-photo-wrap">
+              <img src="/images/owner/hilary-g.jpg" alt="Hilary G" className="owner-photo" />
+              <div className="owner-badge">Founder & Owner</div>
+            </div>
+
+            <div className="owner-details">
+              <h2>Hilary G</h2>
+              <p className="owner-excerpt">Serial entrepreneur and marketplace pioneer focused on reliable supply chains and fair pricing.</p>
+              <div className="owner-bios">
+                <p className="owner-bio">Hilary G is a seasoned businessman and entrepreneur who has built a cross-border trading presence across Europe and Africa. Over the past four years he has grown his operations from a small reseller to a trusted marketplace partner, focusing on product integrity, transparent pricing, and reliable customer service.</p>
+                <p className="owner-bio">He leads sourcing, vendor relations and logistics strategy, prioritising sustainable partnerships with manufacturers and local distributors to improve delivery times and reduce costs. Hilary remains actively involved in day-to-day operations and mentors other entrepreneurs through local small-business initiatives.</p>
+              </div>
+
+              <div className="owner-meta">
+                <div className="owner-links">
+                  <a href="mailto:hilgodonline@gmail.com" title="Email Hilary" className="btn btn-sm">Email</a>
+                  <a href="https://wa.me/2348080535728" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">WhatsApp</a>
+                </div>
+                <div className="owner-stats">
+                  <div><strong>10,000+</strong><span>Products</span></div>
+                  <div><strong>500+</strong><span>Sellers</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Mission */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 'var(--space-8)', marginBottom: 'var(--space-10)', alignItems: 'center' }}>
