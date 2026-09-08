@@ -36,6 +36,8 @@ export default function AboutUs() {
       </nav>
 
       {/* Hero — full-width */}
+      {/* Original inline styles commented out for consistency; moved to CSS class `.about-hero` */}
+      {/*
       <div style={{
         background: 'linear-gradient(135deg,#1e0a3c 0%,#3b0764 60%,#1e0a3c 100%)',
         padding: 'clamp(60px,10vw,100px) clamp(20px,6vw,60px)',
@@ -50,6 +52,10 @@ export default function AboutUs() {
         overflow: 'hidden',
       }}>
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 70% 30%, rgba(124,58,237,.35) 0%, transparent 60%)', pointerEvents: 'none' }} />
+      */}
+
+      <div className="about-hero">
+        <div className="hero-streak" aria-hidden="true" />
         <h1 style={{ fontSize: 'clamp(1.8rem,5vw,3rem)', fontWeight: 900, marginBottom: '16px', lineHeight: 1.2, position: 'relative' }}>
           Africa&apos;s Trusted Online Marketplace
         </h1>
@@ -89,10 +95,12 @@ export default function AboutUs() {
                   <a href="mailto:hilgodonline@gmail.com" title="Email Hilary" className="btn btn-sm">Email</a>
                   <a href="https://wa.me/2348080535728" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">WhatsApp</a>
                 </div>
+                {/*
                 <div className="owner-stats">
                   <div><strong>10,000+</strong><span>Products</span></div>
                   <div><strong>500+</strong><span>Sellers</span></div>
                 </div>
+                */}
               </div>
             </div>
           </div>
