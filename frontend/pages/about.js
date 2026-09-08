@@ -92,7 +92,9 @@ export default function AboutUs() {
 
               <div className="owner-meta">
                 <div className="owner-links">
-                  <a href="mailto:hilgodonline@gmail.com" title="Email Hilary" className="btn btn-sm">Email</a>
+                  <a href="https://www.linkedin.com/in/hilary-g" title="Hilary on LinkedIn" className="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">
+                    <i className="fab fa-linkedin"></i> LinkedIn
+                  </a>
                   <a href="https://wa.me/2348080535728" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">WhatsApp</a>
                 </div>
                 {/*
