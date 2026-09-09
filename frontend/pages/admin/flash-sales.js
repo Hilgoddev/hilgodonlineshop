@@ -245,7 +245,8 @@ export default function AdminFlashSales() {
         setNewForm(f => ({ ...f, imageUrl: json.url }));
         setImagePreview(json.url);
       } else {
-        setMessage({ type: 'error', text: json.error || 'Image upload failed' });
+        console.error('[image-upload] backend response:', JSON.stringify(json));
+        setMessage({ type: 'error', text: json.message || json.error || 'Image upload failed' });
         setImagePreview('');
       }
     } catch {

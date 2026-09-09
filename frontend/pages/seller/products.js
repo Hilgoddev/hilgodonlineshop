@@ -120,7 +120,8 @@ export default function SellerProducts() {
         setImagePreviews(prev => { const n = [...prev]; n[index] = json.url; return n; });
         setUploadedFilenames(prev => { const n = [...prev]; n[index] = file.name; return n; });
       } else {
-        setMessage({ type: 'error', text: json.error || 'Image upload failed' });
+        console.error('[image-upload] backend response:', JSON.stringify(json));
+        setMessage({ type: 'error', text: json.message || json.error || 'Image upload failed' });
         setImagePreviews(prev => { const n = [...prev]; n[index] = ''; return n; });
         setForm(f => { const imgs = [...f.images]; imgs[index] = ''; return { ...f, images: imgs }; });
         setUploadedFilenames(prev => { const n = [...prev]; n[index] = ''; return n; });
@@ -327,7 +328,19 @@ export default function SellerProducts() {
                       {imageUploading[index] ? (
                         <i className="fas fa-spinner fa-spin" style={{ color: 'var(--primary)', fontSize: '1.2rem' }} />
                       ) : imagePreviews[index] ? (
-                        <img src={imagePreviews[index]} alt={`preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img
+                          src={imagePreviews[index]}
+                          alt={`preview ${index + 1}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={() => {
+                            // Upload "succeeded" but the stored URL can't load
+                            // (e.g. private bucket) — drop the broken preview so
+                            // the user can re-upload or paste a working URL.
+                            setImagePreviews(prev => { const n = [...prev]; n[index] = ''; return n; });
+                            setUploadedFilenames(prev => { const n = [...prev]; n[index] = ''; return n; });
+                            setMessage({ type: 'error', text: 'This image could not be loaded. Re-upload the file or try a different image.' });
+                          }}
+                        />
                       ) : (
                         <div style={{ textAlign: 'center', color: 'var(--gray-2)', fontSize: '.68rem', padding: '6px' }}>
                           <i className="fas fa-image" style={{ fontSize: '1.4rem', display: 'block', marginBottom: '3px' }} />

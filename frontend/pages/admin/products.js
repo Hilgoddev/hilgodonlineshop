@@ -88,7 +88,8 @@ export default function AdminProducts() {
         setImagePreviews(prev => { const n = [...prev]; n[index] = json.url; return n; });
         setUploadedFilenames(prev => { const n = [...prev]; n[index] = file.name; return n; });
       } else {
-        setMessage({ type: 'error', text: json.error || 'Image upload failed' });
+        console.error('[image-upload] backend response:', JSON.stringify(json));
+        setMessage({ type: 'error', text: json.message || json.error || 'Image upload failed' });
         setImagePreviews(prev => { const n = [...prev]; n[index] = ''; return n; });
         setUploadedFilenames(prev => { const n = [...prev]; n[index] = ''; return n; });
       }
