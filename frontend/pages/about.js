@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import Layout from '@/components/Layout';
+import hilaryImg from '../assets/hilary-g.png';
 
 export default function AboutUs() {
   const milestones = [
@@ -78,7 +79,7 @@ export default function AboutUs() {
           <div className="owner-accent" aria-hidden="true" />
           <div className="owner-hero-inner">
             <div className="owner-photo-wrap">
-              <img src="../assets/hilary-g.png" alt="Hilary G." className="owner-photo" />
+              <img src={hilaryImg} alt="Hilary G." className="owner-photo" />
               <div className="owner-badge">Founder & Owner</div>
             </div>
 
