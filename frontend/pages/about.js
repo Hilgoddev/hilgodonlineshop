@@ -78,7 +78,7 @@ export default function AboutUs() {
           <div className="owner-accent" aria-hidden="true" />
           <div className="owner-hero-inner">
             <div className="owner-photo-wrap">
-              <img src="/images/owner/hilary-g.png" alt="Hilary G." className="owner-photo" />
+              <img src="/assets/hilary-g.png" alt="Hilary G." className="owner-photo" />
               <div className="owner-badge">Founder & Owner</div>
             </div>
 
