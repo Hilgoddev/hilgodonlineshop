@@ -83,11 +83,11 @@ export default function AboutUs() {
             </div>
 
             <div className="owner-details">
-              <h2>Hilary G.</h2>
+              <h2>Hilary Godwin</h2>
               <p className="owner-excerpt">Serial entrepreneur and marketplace pioneer focused on reliable supply chains and fair pricing.</p>
               <div className="owner-bios">
                 <p className="owner-bio">Hilary is a seasoned businessman and entrepreneur from Delta State who has built a cross-border trading presence across Europe and Africa. Over the past four years, he has grown his operations from a small reseller to a trusted marketplace partner, focusing on product integrity, transparent pricing, and reliable customer service.</p>
-                <p className="owner-bio">He leads sourcing, vendor relations, and logistics strategy, prioritising sustainable partnerships with manufacturers and local distributors to improve delivery times and reduce costs. Hilary G. remains actively involved in day-to-day operations and mentors other entrepreneurs through local small-business initiatives.</p>
+                <p className="owner-bio">He leads sourcing, vendor relations, and logistics strategy, prioritising sustainable partnerships with manufacturers and local distributors to improve delivery times and reduce costs. Hilary Godwin. remains actively involved in day-to-day operations and mentors other entrepreneurs through local small-business initiatives.</p>
               </div>
 
               <div className="owner-meta">
