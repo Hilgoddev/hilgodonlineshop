@@ -45,6 +45,7 @@ const NAV = [
   { href: '/admin/riders', label: 'Riders', icon: 'fa-motorcycle' },
   { href: '/admin/flash-sales', label: 'Flash Sales', icon: 'fa-bolt' },
   { href: '/admin/payouts', label: 'Payouts', icon: 'fa-money-bill-transfer' },
+  { href: '/admin/settings', label: 'Settings', icon: 'fa-gear' },
 ];
 
 export default function AdminLayout({ children, title, description }) {
@@ -288,7 +289,7 @@ export default function AdminLayout({ children, title, description }) {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <Link href="/account" className="btn btn-outline btn-sm admin-header-profile" style={{ fontSize: '0.82rem' }}>
+              <Link href="/admin/settings" className="btn btn-outline btn-sm admin-header-profile" style={{ fontSize: '0.82rem' }}>
                 Profile
               </Link>
               <button type="button" className="btn btn-outline btn-sm" style={{ fontSize: '0.82rem' }} onClick={handleLogout}>

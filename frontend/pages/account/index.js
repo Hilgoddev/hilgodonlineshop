@@ -32,6 +32,11 @@ export default function Account() {
   const [passSaving, setPassSaving] = useState(false);
   const [passStrength, setPassStrength] = useState(0);
 
+  // Provider from the client-side Supabase session — used as a fallback when
+  // /api/user/profile fails, so Change Password isn't silently hidden.
+  const [sessionProvider, setSessionProvider] = useState(null);
+  const [profileFailed, setProfileFailed] = useState(false);
+
   const [expandedOrder, setExpandedOrder] = useState(null);
   const toggleOrder = useCallback((id) => setExpandedOrder(prev => prev === id ? null : id), []);
 
@@ -41,6 +46,9 @@ export default function Account() {
   useEffect(() => {
     if (!session?.user?.id) return;
     const redirectByAuthoritativeRole = async () => {
+      // Explicit ?tab=settings stays on /account for every role — it's the only
+      // place password change lives, and admins/sellers need it too.
+      if (router.query.tab === 'settings') return;
       try {
         const meRes = await apiFetch('/api/auth/me');
         const meData = await meRes.json();
@@ -64,8 +72,18 @@ export default function Account() {
         if (userData.success) {
           setUser(userData.data);
           setProfileData({ firstName: userData.data.firstName || '', lastName: userData.data.lastName || '', image: userData.data.image || '' });
+          setProfileFailed(false);
+        } else {
+          setProfileFailed(true);
         }
+      } else {
+        setProfileFailed(true);
       }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setProfileFailed(true);
+    }
+    try {
       const ordersRes = await apiFetch('/api/orders');
       const ordersData = await ordersRes.json();
       if (ordersData.success) setOrders(ordersData.data || []);
@@ -73,11 +91,20 @@ export default function Account() {
       const wishlistData = await wishlistRes.json();
       if (wishlistData.success) setWishlist((wishlistData.data || []).slice(0, 4));
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      console.error('Error refreshing wishlist/orders:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Read the auth provider straight from the Supabase session (works even when
+  // the backend profile fetch fails).
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      const providers = s?.user?.app_metadata?.providers || [];
+      setSessionProvider(providers[0] || (s?.user ? 'email' : null));
+    });
+  }, [session?.user?.id]);
 
   // Refresh orders data (for live status updates)
   const refreshOrders = async () => {
@@ -584,7 +611,18 @@ export default function Account() {
             {/* SETTINGS */}
             {activeTab === 'settings' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-                {user?.provider === 'email' && (
+                {profileFailed && (
+                  <div style={{ padding: '12px 16px', borderRadius: 'var(--radius)', border: '1px solid #fde68a', background: '#fffbeb', color: '#92400e', fontSize: '.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <i className="fas fa-triangle-exclamation"></i>
+                    Couldn't load your full account details. Some settings may be unavailable — try refreshing.
+                  </div>
+                )}
+                {/* Show Change Password for email accounts. Provider comes from the
+                    session first (always available, no API dependency); the card is
+                    hidden ONLY for confirmed Google-only accounts. If the provider is
+                    unknown (e.g. profile fetch failed), the card still shows — the
+                    backend verifies the current password anyway. */}
+                {sessionProvider !== 'google' && (
                   <div className="card" style={{ padding: '28px' }}>
                     <h2 style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: '20px' }}>Change Password</h2>
                     <form onSubmit={handlePasswordUpdate} style={{ maxWidth: '420px' }}>
@@ -616,8 +654,18 @@ export default function Account() {
                   </div>
                 )}
 
+                {(sessionProvider === 'google' || (!sessionProvider && user?.provider === 'google')) && (
+                  <div className="card" style={{ padding: '20px 28px', border: '1px solid var(--gray-4)' }}>
+                    <p style={{ color: 'var(--gray-1)', fontSize: '.88rem', margin: 0 }}>
+                      <i className="fab fa-google" style={{ marginRight: '8px', color: 'var(--primary)' }}></i>
+                      You signed in with Google, so there's no Hilgod password to change here. Use the "Continue with Google" button on the sign-in page to access your account.
+                    </p>
+                  </div>
+                )}
+
                 <div className="card" style={{ padding: '28px' }}>
                   <h2 style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: '20px' }}>Notification Preferences</h2>
+                  <p style={{ color: 'var(--gray-1)', fontSize: '.82rem', marginTop: '-12px', marginBottom: '16px' }}><i className="fas fa-circle-info" style={{ marginRight: '6px' }}></i>Coming soon — preferences are not saved yet.</p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '420px' }}>
                     {[
                       { label: 'Order Updates', desc: 'SMS and email updates on your orders', defaultOn: true },
@@ -638,7 +686,7 @@ export default function Account() {
 
                 <div className="card" style={{ padding: '28px', border: '1px solid #fecaca' }}>
                   <h2 style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--danger)', marginBottom: '8px' }}>Danger Zone</h2>
-                  <p style={{ color: 'var(--gray-1)', fontSize: '.88rem', marginBottom: '16px', maxWidth: '400px' }}>Once you delete your account, there is no going back. Please be certain.</p>
+                  <p style={{ color: 'var(--gray-1)', fontSize: '.88rem', marginBottom: '16px', maxWidth: '400px' }}>Account deletion is coming soon. Once available, it will be permanent — please be certain.</p>
                   <button
                     className="btn btn-sm"
                     style={{ border: '1px solid var(--danger)', color: 'var(--danger)', background: 'transparent' }}
