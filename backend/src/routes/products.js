@@ -23,11 +23,52 @@ function normalizeCategory(value) {
     return VALID_CATEGORIES.has(v) ? v : null;
 }
 
+// Validate the money/stock fields a seller can send. Returns an error message
+// or null. Only fields present in `body` are checked (PUT is a partial update).
+const MAX_PRICE = 100000000; // ₦100m — far above any real listing, blocks garbage
+function validateProductNumbers(body, { requirePrice = false } = {}) {
+    const { price, original_price, stock } = body;
+    if (price !== undefined || requirePrice) {
+        const n = Number(price);
+        if (price === null || price === '' || !Number.isFinite(n) || n < 0 || n > MAX_PRICE) {
+            return 'Price must be a number between 0 and 100,000,000.';
+        }
+    }
+    if (original_price !== undefined && original_price !== null && original_price !== '') {
+        const n = Number(original_price);
+        if (!Number.isFinite(n) || n < 0 || n > MAX_PRICE) return 'Original price must be a positive number.';
+    }
+    if (stock !== undefined) {
+        const n = Number(stock);
+        if (!Number.isInteger(n) || n < 0 || n > 1000000) return 'Stock must be a whole number of 0 or more.';
+    }
+    return null;
+}
+
+// A seller may only attach products to their own store (admins to any).
+async function storeBelongsTo(storeId, userId) {
+    if (!isUuid(storeId)) return false;
+    const { data, error } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('id', storeId)
+        .eq('owner_id', userId)
+        .maybeSingle();
+    if (error) throw error;
+    return !!data;
+}
+
+// Edits to these fields change what buyers see, so a seller editing an already
+// approved product sends it back for review (unless auto-approve is on).
+// Stock and price edits don't — price is validated by validateProductNumbers.
+const REVIEWED_FIELDS = ['name', 'description', 'images', 'category', 'subcategory', 'brand', 'size_options', 'color_options'];
+
 // Short-lived in-memory cache for the public product list. Supabase (free tier)
 // can be cold/slow on the first hit, which makes SSR and serverless requests
 // time out. Serving a recent payload keeps pages responsive and shields the DB
 // from repeated identical queries.
 const LIST_CACHE_TTL_MS = 60 * 1000;
+const LIST_CACHE_MAX_ENTRIES = 1000;
 // Hard cap on how long a single Supabase query may run. The free-tier DB can be
 // cold/slow and a hung query would otherwise block the request (and pile up
 // under concurrency). Failing fast lets us fall back to cached data instead.
@@ -45,7 +86,10 @@ function fetchProductsOnce(cacheKey, params, timeoutMs = QUERY_TIMEOUT_MS) {
     if (inflight.has(cacheKey)) return inflight.get(cacheKey);
     const promise = buildProductsPayload(params, timeoutMs)
         .then((payload) => {
+            listCache.delete(cacheKey);
             listCache.set(cacheKey, { payload, freshUntil: Date.now() + LIST_CACHE_TTL_MS, revalidating: false });
+            // Keys include free-text search, so cap the cache (oldest written first out).
+            while (listCache.size > LIST_CACHE_MAX_ENTRIES) listCache.delete(listCache.keys().next().value);
             return payload;
         })
         .finally(() => { inflight.delete(cacheKey); });
@@ -598,6 +642,11 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         if (!normalizedCategory) {
             return res.status(400).json({ success: false, error: 'A valid product category is required.' });
         }
+        const numberError = validateProductNumbers(req.body, { requirePrice: true });
+        if (numberError) return res.status(400).json({ success: false, error: numberError });
+        if (store_id && req.userRole !== 'admin' && !(await storeBelongsTo(store_id, req.user.id))) {
+            return res.status(403).json({ success: false, error: 'You can only add products to your own store.' });
+        }
         // Admin uploads always go live. Seller uploads go live only when the
         // platform-wide auto-approve setting is on; otherwise they await approval.
         const autoApprove = (await getSetting('auto_approve_products', false)) === true;
@@ -661,6 +710,30 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
 
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ success: false, error: 'No fields to update' });
+        }
+        const numberError = validateProductNumbers(req.body);
+        if (numberError) return res.status(400).json({ success: false, error: numberError });
+        if (updateData.store_id && req.userRole !== 'admin' && !(await storeBelongsTo(updateData.store_id, req.user.id))) {
+            return res.status(403).json({ success: false, error: 'You can only add products to your own store.' });
+        }
+
+        // A seller changing buyer-facing content on a live product sends it back
+        // for approval, so an approved listing can't be swapped for something else.
+        // Compared against stored values, so a form that re-sends unchanged fields
+        // doesn't trigger a review.
+        if (req.userRole === 'seller' && REVIEWED_FIELDS.some((f) => updateData[f] !== undefined)) {
+            const { data: current, error: currentErr } = await supabase
+                .from('products')
+                .select(REVIEWED_FIELDS.join(', '))
+                .eq('id', req.params.id)
+                .eq('seller_id', req.user.id)
+                .maybeSingle();
+            if (currentErr) throw currentErr;
+            const changed = current && REVIEWED_FIELDS.some((f) =>
+                updateData[f] !== undefined && JSON.stringify(updateData[f] ?? null) !== JSON.stringify(current[f] ?? null));
+            if (changed && (await getSetting('auto_approve_products', false)) !== true) {
+                updateData.status = 'pending';
+            }
         }
 
         let updateQuery = supabase.from('products').update(updateData).eq('id', req.params.id);

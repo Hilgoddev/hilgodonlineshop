@@ -8,6 +8,7 @@ const morgan = require('morgan');
 const crypto = require('crypto');
 const { sendEmail, escapeHtml, newsletterConfirmHtml } = require('./services/email');
 const { cleanEnv } = require('./lib/env');
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Initialize Express app
 const app = express();
@@ -117,12 +118,19 @@ app.get('/api/db-test', async (req, res, next) => {
 });
 
 app.post('/api/newsletter/subscribe', newsletterLimiter, async (req, res) => {
-  const { email } = req.body;
-  if (!email || !email.includes('@')) {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!EMAIL_RE.test(email) || email.length > 254) {
     return res.status(400).json({ success: false, error: 'Valid email required' });
   }
-  // Save to DB (upsert so duplicate emails don't error)
-  await supabase.from('newsletter_subscribers').upsert({ email, subscribed_at: new Date().toISOString() }, { onConflict: 'email' }).catch(() => {});
+  // Save to DB (upsert so duplicate emails don't error). supabase-js returns
+  // errors instead of throwing, so check `error` — the query builder has no .catch().
+  const { error: dbErr } = await supabase
+    .from('newsletter_subscribers')
+    .upsert({ email, subscribed_at: new Date().toISOString() }, { onConflict: 'email' });
+  if (dbErr) {
+    console.error('[NEWSLETTER] DB error:', dbErr.message);
+    return res.status(500).json({ success: false, error: 'Could not subscribe right now. Please try again.' });
+  }
   sendEmail({
     to: email,
     subject: "You're subscribed to Hilgod updates!",
@@ -134,7 +142,7 @@ app.post('/api/newsletter/subscribe', newsletterLimiter, async (req, res) => {
     sendEmail({
       to: process.env.ADMIN_EMAIL,
       subject: `New newsletter subscriber: ${email}`,
-      html: `<p><strong>${email}</strong> just subscribed to the Hilgod newsletter.</p>`,
+      html: `<p><strong>${escapeHtml(email)}</strong> just subscribed to the Hilgod newsletter.</p>`,
       emailType: 'admin_alert',
     }).catch(() => {});
   }
@@ -145,6 +153,9 @@ app.post('/api/delivery/apply', deliveryLimiter, async (req, res) => {
   const { fullName, phone, email, state, vehicleType, hasLicense, dateOfBirth } = req.body;
   if (!fullName || !phone || !email) {
     return res.status(400).json({ success: false, error: 'Name, phone and email are required' });
+  }
+  if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ success: false, error: 'Invalid email address' });
   }
   // Save application to database
   const { error: dbErr } = await supabase.from('rider_applications').insert({
@@ -208,8 +219,13 @@ app.post('/api/careers/apply', writeLimiter, async (req, res) => {
     if (!fullName || !email || !role) {
         return res.status(400).json({ success: false, error: 'Name, email and role are required' });
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (typeof email !== 'string' || !EMAIL_RE.test(email)) {
         return res.status(400).json({ success: false, error: 'Invalid email address' });
+    }
+    // Only web links: a javascript:/data: URL would end up as a clickable link
+    // in the admin's email.
+    if (cvLink && !/^https?:\/\//i.test(String(cvLink).trim())) {
+        return res.status(400).json({ success: false, error: 'CV / portfolio link must start with http:// or https://' });
     }
 
     const { error: dbErr } = await supabase.from('career_applications').insert({
@@ -221,7 +237,11 @@ app.post('/api/careers/apply', writeLimiter, async (req, res) => {
         cv_link: cvLink || null,
         status: 'new',
         applied_at: new Date().toISOString(),
-    }).catch(() => ({ error: null })); // table may not exist yet — don't crash
+    });
+    if (dbErr) {
+        console.error('[CAREERS] DB error:', dbErr.message);
+        return res.status(500).json({ success: false, error: 'Failed to save your application. Please try again.' });
+    }
 
     const safeName  = escapeHtml(fullName);
     const safeEmail = escapeHtml(email);

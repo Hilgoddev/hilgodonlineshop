@@ -18,8 +18,10 @@ function withTimeout(run, timeoutMs) {
 
 // Tiny in-memory TTL cache. get() returns { value, fresh } or undefined.
 // Stale entries are still returned (fresh:false) so callers can serve stale
-// data while a background refresh runs.
-function makeCache({ ttlMs }) {
+// data while a background refresh runs. Capped at `maxEntries` (oldest written
+// first out) so per-token/per-user caches can't grow without bound on a
+// long-running server.
+function makeCache({ ttlMs, maxEntries = 5000 }) {
     const store = new Map();
     return {
         get(key) {
@@ -28,7 +30,9 @@ function makeCache({ ttlMs }) {
             return { value: e.value, fresh: e.freshUntil > Date.now() };
         },
         set(key, value) {
+            store.delete(key); // re-insert so Map order tracks write recency
             store.set(key, { value, freshUntil: Date.now() + ttlMs });
+            while (store.size > maxEntries) store.delete(store.keys().next().value);
         },
         delete(key) { store.delete(key); },
     };
@@ -45,6 +49,23 @@ function singleFlight() {
     };
 }
 
+// Every auth user, following pagination — listUsers returns at most `perPage`
+// users per call, so a single call silently drops everyone past the first page.
+async function listAllUsers({ perPage = 1000, maxPages = 50 } = {}) {
+    const all = [];
+    for (let page = 1; page <= maxPages; page++) {
+        const { data, error } = await withTimeout(
+            () => supabase.auth.admin.listUsers({ page, perPage }),
+            12 * 1000,
+        );
+        if (error) throw error;
+        const users = data?.users || [];
+        all.push(...users);
+        if (users.length < perPage) break;
+    }
+    return all;
+}
+
 // Cached, single-flighted wrapper around the expensive
 // supabase.auth.admin.listUsers call. /stats, /customers and /sellers all need
 // the same id->email map; this computes it at most once per TTL.
@@ -55,11 +76,8 @@ async function getEmailMap() {
     if (cached && cached.fresh) return cached.value;
     try {
         const map = await emailFlight('all', async () => {
-            const { data } = await withTimeout(
-                () => supabase.auth.admin.listUsers({ perPage: 1000 }),
-                12 * 1000,
-            );
-            return new Map((data?.users || []).map((u) => [u.id, u.email]));
+            const users = await listAllUsers();
+            return new Map(users.map((u) => [u.id, u.email]));
         });
         emailMapCache.set('all', map);
         return map;
@@ -70,4 +88,4 @@ async function getEmailMap() {
     }
 }
 
-module.exports = { withTimeout, makeCache, singleFlight, getEmailMap };
+module.exports = { withTimeout, makeCache, singleFlight, getEmailMap, listAllUsers };
