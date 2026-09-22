@@ -2,7 +2,7 @@
 
 Concrete, copy-paste configuration for everything identity-related after the domains are
 live. Domains `hilgod.com`, `www.hilgod.com` (frontend) and `api.hilgod.com` (backend) are
-already verified — see `CUSTOM_DOMAIN_SETUP.md` for the domain/DNS side.
+already verified — see `Docs/CUSTOM_DOMAIN_SETUP.md` for the domain/DNS side.
 
 **Project facts**
 - Supabase project ref: `nmrqdzikceakkhfhflja`

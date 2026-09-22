@@ -4,6 +4,12 @@
 /handover/
 
 # ===========================================
+# LOCAL ARCHIVE (old reports, duplicate assets, one-off scripts;
+# kept on disk for reference, never committed)
+# ===========================================
+_archive/
+
+# ===========================================
 # LOCAL DB BACKUPS (contain PII — never commit)
 # ===========================================
 backups/

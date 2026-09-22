@@ -68,9 +68,10 @@ hilgodonlineshop/
 │   ├── hooks/useAutoRefresh.js
 │   └── css/ (main, header, footer, home, products, pages, fix.module.css)
 │
-└── Docs/                             # SYSTEM-FLOWS.md, PROJECT_STRUCTURE.md, API docs, guides
-    (root also has HOW_IT_WORKS.md, HANDOVER.md, AUDIT_REPORT.md, AUTH_AND_OAUTH_SETUP.md,
-     CUSTOM_DOMAIN_SETUP.md, scripts/make-handover.ps1)
+└── Docs/                             # all guides: HOW_IT_WORKS.md, HANDOVER.md, SYSTEM-FLOWS.md,
+                                      # PROJECT_STRUCTURE.md, AUTH_AND_OAUTH_SETUP.md,
+                                      # CUSTOM_DOMAIN_SETUP.md, README.dev.md, API docs
+    (README.md stays at the root; _archive/ is local-only and gitignored)
 ```
 
 ## Key conventions
@@ -83,4 +84,4 @@ hilgodonlineshop/
 - **Money model.** Order `total_amount` includes the ₦1,500 delivery fee; seller revenue =
   product sales (excl. delivery); seller nets 90% (10% platform commission); dashboards count
   `REVENUE_STATUSES`, withdrawable uses `PAYABLE_STATUSES`.
-- See `Docs/SYSTEM-FLOWS.md` for end-to-end flows and `HOW_IT_WORKS.md` for the feature walkthrough.
+- See `Docs/SYSTEM-FLOWS.md` for end-to-end flows and `Docs/HOW_IT_WORKS.md` for the feature walkthrough.

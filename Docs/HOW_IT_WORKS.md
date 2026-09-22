@@ -184,8 +184,7 @@ presentation.
 - Rate limiting, `helmet`, a CORS allowlist, HTML escaping, and production error masking
   harden the API. Missing critical secrets cause a hard startup failure in production.
 
-For a security/quality assessment and the end-to-end test evidence, see `AUDIT_REPORT.md`.
-For setup and deployment, see `HANDOVER.md`. For end-to-end flows, see `Docs/SYSTEM-FLOWS.md`.
+For setup and deployment, see `Docs/HANDOVER.md`. For end-to-end flows, see `Docs/SYSTEM-FLOWS.md`.
 
 ---
 
@@ -217,4 +216,4 @@ For setup and deployment, see `HANDOVER.md`. For end-to-end flows, see `Docs/SYS
 - **Server-side cart variant options** — selected size/color are held per-browser (localStorage),
   not synced across devices before checkout.
 - **Supabase vanity auth domain** (e.g. `auth.hilgod.com`) not configured — auth links use the
-  default `…supabase.co`. See `AUTH_AND_OAUTH_SETUP.md`.
+  default `…supabase.co`. See `Docs/AUTH_AND_OAUTH_SETUP.md`.
