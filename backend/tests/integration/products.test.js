@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../src/index');
+const app = require('../../src/index');
 
 describe('Products API', () => {
   it('should fetch all active products', async () => {

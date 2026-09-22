@@ -1,5 +1,4 @@
 // Seller route rules, run against an in-memory fake Supabase — never the real DB.
-jest.mock('dotenv', () => ({ config: () => ({}) }));
 
 jest.mock('../src/config/supabase', () => require('./helpers/fakeSupabase').supabase);
 jest.mock('../src/routes/auth', () => ({

@@ -1,6 +1,5 @@
 // Input validation + admin safeguards, against the in-memory fake DB — never
 // the real database, and never the real .env.
-jest.mock('dotenv', () => ({ config: () => ({}) }));
 jest.mock('../src/config/supabase', () => require('./helpers/fakeSupabase').supabase);
 jest.mock('../src/routes/auth', () => ({
   router: require('express').Router(),

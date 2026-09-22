@@ -1,6 +1,5 @@
 // Payment + order-status integrity, run against an in-memory fake DB — never
 // the real database, and never the real .env.
-jest.mock('dotenv', () => ({ config: () => ({}) }));
 jest.mock('../src/config/supabase', () => require('./helpers/fakeSupabase').supabase);
 jest.mock('../src/routes/auth', () => ({
   verifyToken: (req, res, next) => {
@@ -229,5 +228,32 @@ describe('PUT /api/orders/:id (admin status changes)', () => {
   it('does not restore stock when cancelling an unpaid order', async () => {
     await setStatus('cancelled');
     expect(rpcCalls('increment_product_stock')).toHaveLength(0);
+  });
+});
+
+describe('POST /api/payment/initialize (Paystack client over fetch)', () => {
+  const realFetch = global.fetch;
+  afterEach(() => { global.fetch = realFetch; });
+
+  it('sends the server-side amount in integer kobo and returns the checkout URL', async () => {
+    resetDb({ total: 1234.57 });
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({ status: true, data: { authorization_url: 'https://checkout.paystack.com/x', reference: 'ref-9' } }),
+    }));
+    const res = await request(app).post('/api/payment/initialize').send({ order_id: ORDER_ID, email: 'b@example.com' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.authorization_url).toBe('https://checkout.paystack.com/x');
+    const [url, opts] = global.fetch.mock.calls[0];
+    expect(url).toBe('https://api.paystack.co/transaction/initialize');
+    expect(opts.headers.Authorization).toBe(`Bearer ${process.env.PAYSTACK_SECRET_KEY}`);
+    expect(JSON.parse(opts.body).amount).toBe(123457);
+  });
+
+  it("surfaces Paystack's error message as a 502", async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ status: false, message: 'Invalid email' }) }));
+    const res = await request(app).post('/api/payment/initialize').send({ order_id: ORDER_ID, email: 'b@example.com' });
+    expect(res.statusCode).toBe(502);
+    expect(res.body.message).toBe('Invalid email');
   });
 });

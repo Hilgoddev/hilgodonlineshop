@@ -111,8 +111,8 @@ const initializePayment = async (req, res, next) => {
 
         res.status(200).json({ success: true, data: response.data });
     } catch (err) {
-        // Paystack (via paystack-api / request-promise) throws a StatusCodeError
-        // with the gateway's JSON in err.error. Surface a clean, actionable
+        // The Paystack client (config/paystack.js) throws an Error with the
+        // gateway's JSON in err.error. Surface a clean, actionable
         // message instead of a generic 500, and log enough to diagnose.
         const gateway = err?.error || err?.response?.body || null;
         const gatewayMsg = gateway?.message || err?.message;
@@ -230,8 +230,7 @@ router.get('/verify/:reference', verifyToken, writeLimiter, async (req, res) => 
     if (!reference) return res.status(400).json({ success: false, message: 'reference is required' });
 
     try {
-        // Call Paystack's verify REST endpoint directly — more reliable than the
-        // paystack-api library's verify() with a raw string reference.
+        // Call Paystack's verify REST endpoint directly.
         const PAYSTACK_SECRET = cleanEnv(process.env.PAYSTACK_SECRET_KEY);
         const vres = await withTimeout(
             () => fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
