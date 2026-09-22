@@ -8,7 +8,8 @@ const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
-const { isRevenueOrder } = require('../lib/orderStatus');
+const { isRevenueOrder, stockWasTaken } = require('../lib/orderStatus');
+const { handlePaymentSuccess, restoreOrderStock } = require('../services/paymentSuccess');
 const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
@@ -583,12 +584,23 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const allowed = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
         if (!allowed.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
 
-        // Read the previous status so we can detect the FIRST transition into a
-        // paid state (e.g. admin confirming a bank-transfer/POD order). That is
-        // the moment to decrement stock + notify sellers — which otherwise only
-        // happens for online payments via the webhook/verify path.
-        const { data: prev } = await supabase
-            .from('orders').select('status').eq('id', req.params.id).single();
+        // Read the previous state so stock side effects run exactly once: taken on
+        // the first transition INTO a stock-taken status (e.g. admin confirming a
+        // bank transfer, or a POD order leaving for delivery), restored when
+        // cancelling FROM one. See stockWasTaken() in lib/orderStatus.js.
+        if (!isUuid(req.params.id)) return res.status(404).json({ success: false, error: 'Order not found' });
+        const { data: prev, error: prevErr } = await supabase
+            .from('orders').select('status, payment_method').eq('id', req.params.id).maybeSingle();
+        if (prevErr) throw prevErr;
+        if (!prev) return res.status(404).json({ success: false, error: 'Order not found' });
+        const hadStock = stockWasTaken(prev.status, prev.payment_method);
+        const willHaveStock = stockWasTaken(status, prev.payment_method);
+
+        // Restore stock BEFORE the item-status cascade marks every line
+        // cancelled (restoreOrderStock skips lines that were already cancelled).
+        if (status === 'cancelled' && hadStock) {
+            await restoreOrderStock(req.params.id);
+        }
 
         const { data, error } = await supabase
             .from('orders')
@@ -614,13 +626,10 @@ router.put('/:id', verifyToken, async (req, res, next) => {
             }
         }
 
-        // One-time paid-transition side effects (idempotent: only when crossing
-        // from a non-paid status into a paid one).
-        const PAID_SET = ['paid', 'shipped', 'delivered'];
-        const wasPaid = prev && PAID_SET.includes(prev.status);
-        const nowPaid = PAID_SET.includes(status);
-        if (!wasPaid && nowPaid && data[0].user_id) {
-            const { handlePaymentSuccess } = require('../services/paymentSuccess');
+        // One-time side effects (stock decrement + seller/admin emails) only when
+        // crossing into a stock-taken status — never again on later steps such
+        // as paid → processing → shipped.
+        if (!hadStock && willHaveStock && data[0].user_id) {
             handlePaymentSuccess(data[0].id, data[0].user_id).catch(() => {});
         }
 

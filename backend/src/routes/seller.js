@@ -4,7 +4,8 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
-const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder } = require('../lib/orderStatus');
+const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder, stockWasTaken } = require('../lib/orderStatus');
+const { handlePaymentSuccess } = require('../services/paymentSuccess');
 const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
@@ -371,43 +372,43 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
       .single();
     if (updateErr) throw updateErr;
 
-    // Restore reserved stock when an item is cancelled. Stock is only decremented
-    // on payment success (reserve-on-pay), so only restore for paid-through orders
-    // and only on the transition INTO cancelled (guards against double-restore).
-    if (fulfillmentStatus === 'cancelled' && item.fulfillment_status !== 'cancelled') {
-      const { data: ord } = await supabase
-        .from('orders')
-        .select('status, payment_method')
-        .eq('id', item.order_id)
-        .maybeSingle();
-      // Online orders had stock taken at payment (paid → processing → shipped →
-      // delivered). POD stock is taken when an admin moves it to shipped/delivered.
-      const isPodOrder = String(ord?.payment_method || '').toLowerCase() === 'pod';
-      const stockWasTaken = ord && (isPodOrder
-        ? ['shipped', 'delivered'].includes(ord.status)
-        : ['paid', 'processing', 'shipped', 'delivered'].includes(ord.status));
-      if (stockWasTaken) {
-        await supabase.rpc('increment_product_stock', {
-          p_product_id: item.product_id,
-          p_quantity: updatedItem.quantity,
-        });
-      }
+    const { data: ord } = await supabase
+      .from('orders')
+      .select('status, payment_method, user_id')
+      .eq('id', item.order_id)
+      .maybeSingle();
+
+    // Restore stock when an item is cancelled, but only if the order's stock was
+    // actually taken, and only on the transition INTO cancelled (no double-restore).
+    if (fulfillmentStatus === 'cancelled' && item.fulfillment_status !== 'cancelled'
+        && ord && stockWasTaken(ord.status, ord.payment_method)) {
+      await supabase.rpc('increment_product_stock', {
+        p_product_id: item.product_id,
+        p_quantity: updatedItem.quantity,
+      });
     }
 
-    // Best-effort: if all items are delivered/cancelled, bring order status in sync.
+    // Best-effort: bring the order status in line with its items.
     const { data: allItems, error: allItemsErr } = await supabase
       .from('order_items')
       .select('fulfillment_status')
       .eq('order_id', item.order_id);
-    if (!allItemsErr && allItems?.length) {
+    if (ord && !allItemsErr && allItems?.length) {
       const statuses = allItems.map((r) => r.fulfillment_status || 'pending');
+      let nextOrderStatus = null;
       if (statuses.every((s) => s === 'delivered' || s === 'cancelled')) {
-        const nextOrderStatus = statuses.every((s) => s === 'cancelled') ? 'cancelled' : 'delivered';
-        await supabase.from('orders').update({ status: nextOrderStatus }).eq('id', item.order_id);
+        nextOrderStatus = statuses.every((s) => s === 'cancelled') ? 'cancelled' : 'delivered';
       } else if (statuses.some((s) => s === 'shipped' || s === 'delivered')) {
-        await supabase.from('orders').update({ status: 'shipped' }).eq('id', item.order_id);
+        nextOrderStatus = 'shipped';
       } else if (statuses.some((s) => s === 'packed')) {
-        await supabase.from('orders').update({ status: 'processing' }).eq('id', item.order_id);
+        nextOrderStatus = 'processing';
+      }
+      if (nextOrderStatus && nextOrderStatus !== ord.status) {
+        await supabase.from('orders').update({ status: nextOrderStatus }).eq('id', item.order_id);
+        // e.g. a POD order leaving for delivery: take stock + notify, once.
+        if (!stockWasTaken(ord.status, ord.payment_method) && stockWasTaken(nextOrderStatus, ord.payment_method)) {
+          handlePaymentSuccess(item.order_id, ord.user_id).catch(() => {});
+        }
       }
     }
 

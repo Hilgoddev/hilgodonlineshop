@@ -3,7 +3,7 @@ const router = express.Router();
 const stripe = require('../config/stripe');
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
-const { handlePaymentSuccess } = require('../services/paymentSuccess');
+const { markOrderPaid } = require('../services/paymentSuccess');
 const { withTimeout } = require('../lib/resilience');
 
 // POST /api/stripe/create-payment-intent
@@ -49,11 +49,10 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid order amount' });
     }
 
-    // Charge in the order's own currency (stored at checkout). All orders are
-    // created in NGN today, so this charges NGN — matching Paystack. An optional
-    // STRIPE_CURRENCY env can override only if a deployment needs to force one.
-    const { cleanEnv: _ce } = require('../lib/env');
-    const stripeCurrency = (_ce(process.env.STRIPE_CURRENCY) || order.currency || 'ngn').toLowerCase();
+    // Always charge in the order's own currency (stored at checkout; NGN today).
+    // The amount is in that currency's units, so charging any other currency
+    // would bill the wrong sum — and the webhook would then refuse to apply it.
+    const stripeCurrency = String(order.currency || 'ngn').toLowerCase();
 
     // amount is in major units; *100 gives minor units (kobo/cents).
     const paymentIntent = await withTimeout(
@@ -116,6 +115,7 @@ router.post('/webhook', async (req, res) => {
 
     if (!order_id) return res.sendStatus(200);
 
+    let ownsEvent = false;
     try {
       // Idempotency barrier — unique event_key prevents double-processing
       const { error: insertError } = await supabase
@@ -131,42 +131,17 @@ router.post('/webhook', async (req, res) => {
 
       if (insertError?.code === '23505') return res.sendStatus(200);
       if (insertError) throw insertError;
+      ownsEvent = true;
 
-      const { data: dbOrder, error: dbOrderErr } = await supabase
-        .from('orders')
-        .select('id, user_id, total_amount, payment_reference, status')
-        .eq('id', order_id)
-        .single();
-      if (dbOrderErr || !dbOrder) throw dbOrderErr || new Error('Order not found for Stripe webhook');
-
-      const paidAmount = Number(pi.amount_received || pi.amount || 0) / 100;
-      const orderAmount = Number(dbOrder.total_amount || 0);
-      if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - orderAmount) > 0.01) {
-        throw new Error(`Amount mismatch on Stripe webhook for order ${order_id}: paid=${paidAmount}, expected=${orderAmount}`);
-      }
-
-      // Atomically claim the paid transition (matches the Paystack path): only
-      // the first caller to flip a not-yet-paid order to paid runs the one-time
-      // side-effects, so stock decrement + emails stay exactly-once even if a
-      // duplicate event slips past the idempotency barrier.
-      const { data: claimed, error: claimErr } = await supabase
-        .from('orders')
-        .update({ status: 'paid', payment_reference: pi.id })
-        .eq('id', order_id)
-        .neq('status', 'paid')
-        .select('id');
-      if (claimErr) throw claimErr;
-      if (!claimed || !claimed.length) {
-        await supabase.from('payment_events').update({ processed_at: new Date().toISOString() }).eq('event_key', event.id);
-        return res.sendStatus(200);
-      }
-
-      const userId = pi.metadata?.user_id || dbOrder.user_id;
-      if (userId) {
-        await supabase.from('cart_items').delete().eq('user_id', userId);
-      }
-
-      await handlePaymentSuccess(order_id, userId);
+      // Same checks as Paystack: amount + currency, pending-only atomic claim.
+      const result = await markOrderPaid({
+        orderId: order_id,
+        reference: pi.id,
+        paidAmount: Number(pi.amount_received || pi.amount || 0) / 100,
+        currency: pi.currency,
+        provider: 'stripe',
+      });
+      if (!result.ok) console.error('[STRIPE] payment not applied:', result.reason, { order_id });
 
       await supabase
         .from('payment_events')
@@ -174,6 +149,11 @@ router.post('/webhook', async (req, res) => {
         .eq('event_key', event.id);
     } catch (err) {
       console.error('[STRIPE] Webhook processing error:', err);
+      // Release the idempotency row so Stripe's retry reprocesses the event.
+      if (ownsEvent) {
+        await supabase.from('payment_events').delete().eq('event_key', event.id).is('processed_at', null)
+          .then(() => {}, (e) => console.error('[STRIPE] could not release event for retry:', e?.message));
+      }
       return res.sendStatus(500);
     }
   }

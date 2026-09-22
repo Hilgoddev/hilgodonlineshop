@@ -91,7 +91,6 @@ SUPABASE_ANON_KEY=your-anon-key          # public key; required for password-cha
 PAYSTACK_SECRET_KEY=sk_live_your-key
 STRIPE_SECRET_KEY=sk_live_your-stripe-key
 STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
-STRIPE_CURRENCY=ngn                       # optional; defaults to the order's currency (NGN)
 BANK_NAME=Your Bank Name
 BANK_ACCOUNT_NAME=Your Business Name
 BANK_ACCOUNT_NUMBER=0000000000
