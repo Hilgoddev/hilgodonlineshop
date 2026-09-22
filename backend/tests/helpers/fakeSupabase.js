@@ -9,10 +9,13 @@
 
 const fake = {
   handler: () => ({ data: null, error: null }),
+  // Optional: (fnName, args) => ({ data, error }) for supabase.rpc calls.
+  rpcHandler: null,
   calls: [],
   reset() {
     this.calls.length = 0;
     this.handler = () => ({ data: null, error: null });
+    this.rpcHandler = null;
     this.supabase.rpc.mockClear();
   },
 };
@@ -45,7 +48,7 @@ function builder(table) {
 
 fake.supabase = {
   from: (table) => builder(table),
-  rpc: jest.fn(async () => ({ data: true, error: null })),
+  rpc: jest.fn(async (fn, args) => (fake.rpcHandler ? fake.rpcHandler(fn, args) : { data: true, error: null })),
   auth: { admin: { getUserById: async () => ({ data: { user: null } }) } },
   storage: { getBucket: async () => ({ data: { public: true } }), from: () => ({}) },
 };

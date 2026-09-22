@@ -18,7 +18,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     // confirmation emails were ever sent. Always select real columns.
     let { data: items, error: itemsErr } = await supabase
       .from('order_items')
-      .select('product_id, quantity, unit_price, selected_options, fulfillment_status')
+      .select('product_id, quantity, unit_price, selected_options')
       .eq('order_id', order_id);
     // Backward-compat: retry without selected_options if that column is absent.
     if (itemsErr && String(itemsErr.message || '').includes('selected_options')) {
@@ -30,7 +30,12 @@ async function handlePaymentSuccess(order_id, user_id) {
 
     if (itemsErr || !items?.length) return;
 
-    // Fetch product details for email only (stock is managed via RPC)
+    // Take stock first, so nothing below (email lookups) can skip it.
+    // Exactly-once per line (migration 021): lines that already took stock,
+    // or are cancelled, are skipped.
+    await takeOrderStock(order_id);
+
+    // Fetch product details for email only
     const productIds = [...new Set(items.map(i => i.product_id))];
     const { data: products } = await supabase
       .from('products')
@@ -39,18 +44,6 @@ async function handlePaymentSuccess(order_id, user_id) {
 
     const productMap = {};
     (products || []).forEach(p => { productMap[p.id] = p; });
-
-    // Atomically decrement stock via Postgres RPC — safe against concurrent calls.
-    // decrement_product_stock uses UPDATE … WHERE stock >= quantity so it never goes negative.
-    // Lines already cancelled never take stock (restoreOrderStock skips them too).
-    await Promise.allSettled(
-      items.filter((item) => item.fulfillment_status !== 'cancelled').map((item) =>
-        supabase.rpc('decrement_product_stock', {
-          p_product_id: item.product_id,
-          p_quantity: item.quantity,
-        })
-      )
-    );
 
     const emailItems = items.map(i => ({
       name: productMap[i.product_id]?.name || 'Product',
@@ -155,7 +148,7 @@ async function handlePaymentSuccess(order_id, user_id) {
 async function markOrderPaid({ orderId, reference, paidAmount, currency, provider }) {
   const { data: order, error } = await supabase
     .from('orders')
-    .select('id, user_id, total_amount, currency, status')
+    .select('id, user_id, total_amount, currency, status, payment_reference')
     .eq('id', orderId)
     .maybeSingle();
   if (error) throw error;
@@ -179,7 +172,17 @@ async function markOrderPaid({ orderId, reference, paidAmount, currency, provide
     .eq('status', 'pending')
     .select('id');
   if (claimErr) throw claimErr;
-  if (!claimed || !claimed.length) return { ok: true, claimed: false };
+  if (!claimed || !claimed.length) {
+    // Money arrived for an order that can't take it — it must not vanish.
+    if (order.status === 'cancelled') {
+      console.error(`[PAYMENT_NEEDS_REFUND] ${provider} payment ${reference} for CANCELLED order ${orderId} (${paid} ${currency || order.currency})`);
+      return { ok: false, reason: 'order_cancelled' };
+    }
+    if (order.payment_reference && reference && order.payment_reference !== reference && order.status !== 'pending') {
+      console.error(`[PAYMENT_NEEDS_REFUND] ${provider} second payment ${reference} for already-paid order ${orderId} (paid by ${order.payment_reference})`);
+    }
+    return { ok: true, claimed: false };
+  }
 
   // Use the order's own user, never a user id from provider metadata.
   if (order.user_id) {
@@ -189,20 +192,18 @@ async function markOrderPaid({ orderId, reference, paidAmount, currency, provide
   return { ok: true, claimed: true };
 }
 
-// Put back the stock of an order's items (used when cancelling an order whose
-// stock was already taken). Items individually cancelled earlier were already
-// restored by the seller route, so they are skipped.
-async function restoreOrderStock(orderId) {
-  const { data: items, error } = await supabase
-    .from('order_items')
-    .select('product_id, quantity, fulfillment_status')
-    .eq('order_id', orderId);
-  if (error) throw error;
-  await Promise.allSettled(
-    (items || [])
-      .filter((i) => i.fulfillment_status !== 'cancelled')
-      .map((i) => supabase.rpc('increment_product_stock', { p_product_id: i.product_id, p_quantity: i.quantity })),
-  );
+// Stock ledger (migration 021): each order line records how much stock it
+// took, and these DB functions lock the lines while changing stock, so calling
+// them repeatedly or concurrently can never take or return stock twice.
+async function takeOrderStock(orderId) {
+  const { error } = await supabase.rpc('take_order_stock', { p_order_id: orderId });
+  if (error) console.error('[STOCK] take_order_stock failed:', error.message, { orderId });
 }
 
-module.exports = { handlePaymentSuccess, markOrderPaid, restoreOrderStock };
+// Return the stock an order took — all lines, or just `itemId`.
+async function restoreOrderStock(orderId, itemId = null) {
+  const { error } = await supabase.rpc('release_order_stock', { p_order_id: orderId, p_item_id: itemId });
+  if (error) console.error('[STOCK] release_order_stock failed:', error.message, { orderId, itemId });
+}
+
+module.exports = { handlePaymentSuccess, markOrderPaid, takeOrderStock, restoreOrderStock };

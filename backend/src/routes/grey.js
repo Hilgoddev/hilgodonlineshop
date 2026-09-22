@@ -27,13 +27,16 @@ router.post('/create-payment', verifyToken, async (req, res, next) => {
 
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, total_amount, user_id')
+      .select('id, total_amount, user_id, status')
       .eq('id', order_id)
       .eq('user_id', req.user.id)
       .single();
 
     if (error || !order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    if (order.status !== 'pending') {
+      return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
     }
 
     const amount = Number(order.total_amount);

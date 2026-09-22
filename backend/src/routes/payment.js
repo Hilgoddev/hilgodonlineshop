@@ -25,7 +25,7 @@ const initializePayment = async (req, res, next) => {
             ({ data: order, error: orderError } = await withTimeout(
                 (signal) => supabase
                     .from('orders')
-                    .select('id, user_id, total_amount, shipping_address, payment_reference')
+                    .select('id, user_id, total_amount, shipping_address, payment_reference, status')
                     .eq('id', order_id)
                     .eq('user_id', req.user.id)
                     .abortSignal(signal)
@@ -40,6 +40,9 @@ const initializePayment = async (req, res, next) => {
 
         if (orderError || !order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (order.status !== 'pending') {
+            return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
         }
 
         const amount = Number(order.total_amount);
@@ -273,7 +276,10 @@ router.get('/verify/:reference', verifyToken, writeLimiter, async (req, res) => 
                 provider: 'paystack-verify',
             });
             if (!applied.ok) {
-                return res.status(409).json({ success: false, message: 'This payment does not match your order. Please contact support.' });
+                const message = applied.reason === 'order_cancelled'
+                    ? 'This order was cancelled before your payment arrived. Our team has been alerted and will refund you — please contact support if you have questions.'
+                    : 'This payment does not match your order. Please contact support.';
+                return res.status(409).json({ success: false, message });
             }
         }
 

@@ -9,7 +9,7 @@ const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
 const { isRevenueOrder, stockWasTaken } = require('../lib/orderStatus');
-const { handlePaymentSuccess, restoreOrderStock } = require('../services/paymentSuccess');
+const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
 const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
@@ -584,10 +584,9 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const allowed = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
         if (!allowed.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
 
-        // Read the previous state so stock side effects run exactly once: taken on
-        // the first transition INTO a stock-taken status (e.g. admin confirming a
-        // bank transfer, or a POD order leaving for delivery), restored when
-        // cancelling FROM one. See stockWasTaken() in lib/orderStatus.js.
+        // Stock is tracked per order line (migration 021), so taking/returning it
+        // is idempotent. The status update below is conditional on the status we
+        // read, so a double-click or a concurrent change can't apply twice.
         if (!isUuid(req.params.id)) return res.status(404).json({ success: false, error: 'Order not found' });
         const { data: prev, error: prevErr } = await supabase
             .from('orders').select('status, payment_method').eq('id', req.params.id).maybeSingle();
@@ -596,19 +595,16 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const hadStock = stockWasTaken(prev.status, prev.payment_method);
         const willHaveStock = stockWasTaken(status, prev.payment_method);
 
-        // Restore stock BEFORE the item-status cascade marks every line
-        // cancelled (restoreOrderStock skips lines that were already cancelled).
-        if (status === 'cancelled' && hadStock) {
-            await restoreOrderStock(req.params.id);
-        }
-
         const { data, error } = await supabase
             .from('orders')
             .update({ status })
             .eq('id', req.params.id)
+            .eq('status', prev.status)
             .select('*');
         if (error) throw error;
-        if (!data?.length) return res.status(404).json({ success: false, error: 'Order not found' });
+        if (!data?.length) {
+            return res.status(409).json({ success: false, error: 'This order was just changed by someone else. Please reload and try again.' });
+        }
 
         // Cascade the order status to its line items' fulfillment_status so the
         // order modal / per-item views reflect the order's progress (no more
@@ -626,11 +622,16 @@ router.put('/:id', verifyToken, async (req, res, next) => {
             }
         }
 
-        // One-time side effects (stock decrement + seller/admin emails) only when
-        // crossing into a stock-taken status — never again on later steps such
-        // as paid → processing → shipped.
-        if (!hadStock && willHaveStock && data[0].user_id) {
+        if (status === 'cancelled') {
+            // Returns exactly what the lines took; lines that took nothing are skipped.
+            await restoreOrderStock(req.params.id);
+        } else if (!hadStock && willHaveStock && data[0].user_id) {
+            // First time in a stock-taken status: take stock + seller/admin emails.
             handlePaymentSuccess(data[0].id, data[0].user_id).catch(() => {});
+        } else if (willHaveStock) {
+            // Already stock-taken: pick up any lines that haven't taken stock yet
+            // (e.g. an order reopened after cancellation). No-op otherwise.
+            await takeOrderStock(req.params.id);
         }
 
         // Bust all page caches so the next admin fetch sees fresh data.

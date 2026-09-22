@@ -29,7 +29,7 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       ({ data: order, error } = await withTimeout(
         (signal) => supabase
           .from('orders')
-          .select('id, total_amount, user_id, currency')
+          .select('id, total_amount, user_id, currency, status')
           .eq('id', order_id)
           .eq('user_id', req.user.id)
           .abortSignal(signal)
@@ -42,6 +42,9 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
 
     if (error || !order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    if (order.status !== 'pending') {
+      return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
     }
 
     const amount = Number(order.total_amount);

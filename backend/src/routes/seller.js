@@ -5,7 +5,7 @@ const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
 const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder, stockWasTaken } = require('../lib/orderStatus');
-const { handlePaymentSuccess } = require('../services/paymentSuccess');
+const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
 const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
@@ -378,14 +378,13 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
       .eq('id', item.order_id)
       .maybeSingle();
 
-    // Restore stock when an item is cancelled, but only if the order's stock was
-    // actually taken, and only on the transition INTO cancelled (no double-restore).
-    if (fulfillmentStatus === 'cancelled' && item.fulfillment_status !== 'cancelled'
-        && ord && stockWasTaken(ord.status, ord.payment_method)) {
-      await supabase.rpc('increment_product_stock', {
-        p_product_id: item.product_id,
-        p_quantity: updatedItem.quantity,
-      });
+    // Stock is tracked per line (migration 021), so these calls are idempotent:
+    // cancelling returns exactly what this line took; reopening a cancelled line
+    // on an order whose stock is already taken takes it again.
+    if (fulfillmentStatus === 'cancelled') {
+      await restoreOrderStock(item.order_id, item.id);
+    } else if (item.fulfillment_status === 'cancelled' && ord && stockWasTaken(ord.status, ord.payment_method)) {
+      await takeOrderStock(item.order_id);
     }
 
     // Best-effort: bring the order status in line with its items.
@@ -404,9 +403,16 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
         nextOrderStatus = 'processing';
       }
       if (nextOrderStatus && nextOrderStatus !== ord.status) {
-        await supabase.from('orders').update({ status: nextOrderStatus }).eq('id', item.order_id);
+        // Conditional on the status we read: if two sellers update the same
+        // order at once, only one wins the transition (and its side effects).
+        const { data: moved } = await supabase
+          .from('orders')
+          .update({ status: nextOrderStatus })
+          .eq('id', item.order_id)
+          .eq('status', ord.status)
+          .select('id');
         // e.g. a POD order leaving for delivery: take stock + notify, once.
-        if (!stockWasTaken(ord.status, ord.payment_method) && stockWasTaken(nextOrderStatus, ord.payment_method)) {
+        if (moved?.length && !stockWasTaken(ord.status, ord.payment_method) && stockWasTaken(nextOrderStatus, ord.payment_method)) {
           handlePaymentSuccess(item.order_id, ord.user_id).catch(() => {});
         }
       }

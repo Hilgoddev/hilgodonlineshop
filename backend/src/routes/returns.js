@@ -5,6 +5,7 @@ const { verifyToken } = require('./auth');
 const requireAdmin = require('../middleware/requireAdmin');
 const { sendEmail, escapeHtml } = require('../services/email');
 const { writeLimiter } = require('../middleware/rateLimit');
+const { restoreOrderStock } = require('../services/paymentSuccess');
 
 // POST /api/returns — authenticated; verifies order ownership and email match
 router.post('/', verifyToken, writeLimiter, async (req, res, next) => {
@@ -162,31 +163,13 @@ router.patch('/:id', verifyToken, requireAdmin, async (req, res, next) => {
 
         if (error) throw error;
 
-        // Restore stock when a return moves INTO approved/refunded from a state
-        // outside that set. Returns are order-scoped here, so restore every item
-        // of the order that was actually decremented (paid order) and not already
-        // cancelled (cancellation restores its own stock in seller.js).
+        // Restore stock when a return moves INTO approved/refunded. Uses the
+        // per-line stock ledger (migration 021): it returns exactly what the
+        // order's lines took, so a second approved return for the same order, or
+        // a later cancellation, can't restock twice.
         const RESTORE_STATES = ['approved', 'refunded'];
         if (status && RESTORE_STATES.includes(status) && !RESTORE_STATES.includes(existing.status)) {
-            const { data: ord } = await supabase
-                .from('orders')
-                .select('status')
-                .eq('id', existing.order_id)
-                .maybeSingle();
-            if (ord && ['paid', 'shipped', 'delivered'].includes(ord.status)) {
-                const { data: orderItems } = await supabase
-                    .from('order_items')
-                    .select('product_id, quantity, fulfillment_status')
-                    .eq('order_id', existing.order_id);
-                await Promise.allSettled(
-                    (orderItems || [])
-                        .filter((it) => it.fulfillment_status !== 'cancelled')
-                        .map((it) => supabase.rpc('increment_product_stock', {
-                            p_product_id: it.product_id,
-                            p_quantity: it.quantity,
-                        }))
-                );
-            }
+            await restoreOrderStock(existing.order_id);
         }
 
         res.status(200).json({ success: true, data });

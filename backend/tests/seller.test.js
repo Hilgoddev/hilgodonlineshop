@@ -18,15 +18,26 @@ app.use('/api/seller', sellerRoutes);
 app.use((err, req, res, next) => res.status(500).json({ error: err.message }));
 
 // Build a handler for a seller-owned item in an order with the given state.
-function orderScenario({ role = 'seller', status, payment_method }) {
-  return ({ table, op }) => {
+// `lineStatus` is the item's current status; `orderMoves` decides whether the
+// conditional order-status update wins (true) or loses a race (false).
+function orderScenario({ role = 'seller', status, payment_method, lineStatus = 'pending', orderMoves = true }) {
+  const line = { id: 'item-1', order_id: 'order-1', product_id: 'prod-1', quantity: 1, unit_price: 1000, fulfillment_status: lineStatus };
+  return ({ table, op, filters, payload }) => {
     if (table === 'profiles') return { data: { role }, error: null };
     if (table === 'order_items' && op === 'select') {
-      return { data: { id: 'item-1', order_id: 'order-1', product_id: 'prod-1', quantity: 1, fulfillment_status: 'pending' }, error: null };
+      // By id → the single line; by order_id → the order's lines (a list).
+      return { data: filters.order_id ? [{ ...line }] : { ...line }, error: null };
     }
-    if (table === 'products') return { data: { id: 'prod-1', seller_id: 'seller-1' }, error: null };
+    if (table === 'order_items' && op === 'update') {
+      Object.assign(line, payload);
+      return { data: { ...line }, error: null };
+    }
+    if (table === 'orders' && op === 'update') return { data: orderMoves ? [{ id: 'order-1', ...payload }] : [], error: null };
+    if (table === 'products') {
+      const product = { id: 'prod-1', seller_id: 'seller-1', name: 'Lamp' };
+      return { data: Array.isArray(filters.id) ? [product] : product, error: null };
+    }
     if (table === 'orders' && op === 'select') return { data: { status, payment_method }, error: null };
-    if (table === 'order_items' && op === 'update') return { data: { id: 'item-1', order_id: 'order-1', quantity: 1 }, error: null };
     return { data: null, error: null };
   };
 }
@@ -69,18 +80,34 @@ describe('PATCH /api/seller/order-items/:id/status', () => {
     expect(res.statusCode).toBe(200);
   });
 
-  it('restores stock when cancelling an item of a processing order', async () => {
+  it('cancelling a line returns exactly what that line took (stock ledger)', async () => {
     fake.handler = orderScenario({ status: 'processing', payment_method: 'paystack' });
     const res = await patchStatus('cancelled');
     expect(res.statusCode).toBe(200);
-    expect(fake.supabase.rpc).toHaveBeenCalledWith('increment_product_stock', { p_product_id: 'prod-1', p_quantity: 1 });
+    expect(fake.supabase.rpc).toHaveBeenCalledWith('release_order_stock', { p_order_id: 'order-1', p_item_id: 'item-1' });
   });
 
-  it('does not restore stock when cancelling an unpaid order', async () => {
-    fake.handler = orderScenario({ status: 'pending', payment_method: 'paystack' });
-    const res = await patchStatus('cancelled');
+  it('reopening a cancelled line on a paid order takes its stock again', async () => {
+    fake.handler = orderScenario({ status: 'paid', payment_method: 'paystack', lineStatus: 'cancelled' });
+    const res = await patchStatus('packed');
     expect(res.statusCode).toBe(200);
-    expect(fake.supabase.rpc).not.toHaveBeenCalled();
+    expect(fake.supabase.rpc).toHaveBeenCalledWith('take_order_stock', { p_order_id: 'order-1' });
+  });
+
+  it('a POD order leaving for delivery takes stock once', async () => {
+    fake.handler = orderScenario({ status: 'pending', payment_method: 'pod' });
+    await patchStatus('shipped');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+    expect(fake.supabase.rpc.mock.calls.filter(([fn]) => fn === 'take_order_stock')).toHaveLength(1);
+  });
+
+  it('a seller who loses the status race does not repeat the first-shipment actions', async () => {
+    fake.handler = orderScenario({ status: 'pending', payment_method: 'pod', orderMoves: false });
+    await patchStatus('shipped');
+    for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
+    expect(fake.supabase.rpc).not.toHaveBeenCalledWith('take_order_stock', expect.anything());
+    // …but it did attempt the (conditional) order update.
+    expect(fake.calls.some((c) => c.table === 'orders' && c.op === 'update' && c.filters.status === 'pending')).toBe(true);
   });
 });
 
