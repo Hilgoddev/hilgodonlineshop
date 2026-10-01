@@ -108,7 +108,7 @@ export default function AdminSellers() {
       ) : null}
 
       <div className="card" style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, fontWeight: '700' }}>Sellers</h2>
           <div style={{ position: 'relative' }}>
             <input
