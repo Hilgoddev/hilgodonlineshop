@@ -498,14 +498,20 @@ export default function Navbar() {
               }}
               style={{ display: 'flex', gap: '8px', marginBottom: 'var(--space-4)' }}
             >
+              {/* minWidth: 0 lets the field shrink. Without it a flex input keeps its
+                  intrinsic ~20-character width and pushes the submit button outside
+                  the drawer (9px past the panel edge at 390px). */}
               <input
                 type="text"
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ flex: 1, padding: '10px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--gray-4)', fontSize: '.9rem', outline: 'none' }}
+                style={{ flex: 1, minWidth: 0, padding: '10px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--gray-4)', fontSize: '.9rem', outline: 'none' }}
               />
-              <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '10px 14px', flexShrink: 1 }}>
+              {/* width:auto overrides the global `.btn-primary { width: 100% }` that
+                  css/pages.css applies below 768px, which would otherwise make this
+                  icon button take the whole row. */}
+              <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '10px 14px', flexShrink: 0, width: 'auto' }}>
                 <i className="fas fa-magnifying-glass"></i>
               </button>
             </form>
