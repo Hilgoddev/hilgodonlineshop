@@ -401,7 +401,7 @@ export default function Navbar() {
                   <span className="badge-count cart-badge" style={{ display: cart.reduce((t, i) => t + i.quantity, 0) > 0 ? 'flex' : 'none' }}>{cart.reduce((t, i) => t + i.quantity, 0)}</span>
                 </Link>
               </div>
-              <button className="mobile-search-btn" aria-label="Search" onClick={() => setMobileSearchOpen(o => !o)} style={{ marginTop: '2px' }}>
+              <button className="mobile-search-btn" aria-label="Search" onClick={() => setMobileSearchOpen(o => !o)}>
                 <i className="fas fa-magnifying-glass"></i>
               </button>
               <button className="menu-toggle" id="menu-toggle" aria-label="Menu" onClick={toggleMobileMenu}><span></span><span></span><span></span></button>

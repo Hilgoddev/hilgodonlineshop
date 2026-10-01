@@ -690,6 +690,9 @@
 .mobile-search-bar .container {
   display: flex;
   gap: var(--space-3);
+  /* The suggestions dropdown is absolutely positioned against this container.
+     Without it the dropdown anchors to the sticky header instead of the input. */
+  position: relative;
 }
 
 .mobile-search-bar form {
@@ -737,6 +740,35 @@
 
   .mobile-search-btn {
     display: flex;
+  }
+
+  /* ---- Header action hit areas ----
+     The account/cart icons (19–22px), the hamburger (24px) and the search
+     button (36px) were all below the 44px touch minimum. These transparent
+     overlays enlarge the tappable area to ~44px WITHOUT moving or resizing
+     anything visible: the icons, the search button's box and the header
+     height all stay exactly as they were. Horizontal spread is kept inside
+     the existing 16px gap so neighbouring targets never overlap. */
+  .header-actions .header-action-btn,
+  .header-actions .menu-toggle,
+  .header-actions .mobile-search-btn {
+    position: relative;
+  }
+
+  .header-actions .header-action-btn::after,
+  .header-actions .menu-toggle::after,
+  .header-actions .mobile-search-btn::after {
+    content: '';
+    position: absolute;
+    inset: -13px -7px;
+  }
+
+  .header-actions .menu-toggle::after {
+    inset: -10px -7px;
+  }
+
+  .header-actions .mobile-search-btn::after {
+    inset: -5px;
   }
 
   .mobile-search-bar .search-btn {
