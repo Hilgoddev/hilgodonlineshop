@@ -8,6 +8,7 @@ import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
 import { colorName } from '../../lib/colorName';
+import { parseSizeInput } from '../../lib/parseSizes';
 import styles from '@/css/fix.module.css';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
@@ -152,7 +153,6 @@ export default function AdminProducts() {
     setSaving(true);
     setMessage({ type: '', text: '' });
     try {
-      const toArray = (str) => str.split(',').map(s => s.trim()).filter(Boolean);
       const payload = {
         name: form.name,
         description: form.description,
@@ -164,7 +164,7 @@ export default function AdminProducts() {
         brand: form.brand || undefined,
         stock: Number(form.stock),
         images: uploadedImages,
-        size_options: form.sizes ? toArray(form.sizes) : undefined,
+        size_options: form.sizes ? parseSizeInput(form.sizes) : undefined,
         color_options: form.colors.length > 0 ? form.colors : undefined,
       };
 

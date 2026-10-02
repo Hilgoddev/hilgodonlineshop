@@ -7,6 +7,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { colorName } from '../../lib/colorName';
+import { parseSizeInput } from '../../lib/parseSizes';
 
 const EMPTY_FORM = {
   name: '',
@@ -153,7 +154,6 @@ export default function SellerProducts() {
     setSaving(true);
     setMessage({ type: '', text: '' });
     try {
-      const toArray = (str) => str.split(',').map(s => s.trim()).filter(Boolean);
       const payload = {
         name: form.name,
         description: form.description,
@@ -165,7 +165,7 @@ export default function SellerProducts() {
         brand: form.brand || undefined,
         stock: Number(form.stock),
         images: uploadedImages,
-        size_options: form.sizes ? toArray(form.sizes) : undefined,
+        size_options: form.sizes ? parseSizeInput(form.sizes) : undefined,
         color_options: form.colors.length > 0 ? form.colors : undefined,
       };
       const res = await apiFetch('/api/products', {
