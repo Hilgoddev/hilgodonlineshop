@@ -8,7 +8,8 @@ const BASE_URL = cleanEnv(process.env.FRONTEND_URL) || 'https://www.hilgod.com';
 const { getActiveFlashSaleMap } = require('../utils/pricing');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
-const { isRevenueOrder } = require('../lib/orderStatus');
+const { isRevenueOrder, stockWasTaken } = require('../lib/orderStatus');
+const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
 const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
@@ -583,20 +584,27 @@ router.put('/:id', verifyToken, async (req, res, next) => {
         const allowed = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'];
         if (!allowed.includes(status)) return res.status(400).json({ success: false, error: 'Invalid status' });
 
-        // Read the previous status so we can detect the FIRST transition into a
-        // paid state (e.g. admin confirming a bank-transfer/POD order). That is
-        // the moment to decrement stock + notify sellers — which otherwise only
-        // happens for online payments via the webhook/verify path.
-        const { data: prev } = await supabase
-            .from('orders').select('status').eq('id', req.params.id).single();
+        // Stock is tracked per order line (migration 021), so taking/returning it
+        // is idempotent. The status update below is conditional on the status we
+        // read, so a double-click or a concurrent change can't apply twice.
+        if (!isUuid(req.params.id)) return res.status(404).json({ success: false, error: 'Order not found' });
+        const { data: prev, error: prevErr } = await supabase
+            .from('orders').select('status, payment_method').eq('id', req.params.id).maybeSingle();
+        if (prevErr) throw prevErr;
+        if (!prev) return res.status(404).json({ success: false, error: 'Order not found' });
+        const hadStock = stockWasTaken(prev.status, prev.payment_method);
+        const willHaveStock = stockWasTaken(status, prev.payment_method);
 
         const { data, error } = await supabase
             .from('orders')
             .update({ status })
             .eq('id', req.params.id)
+            .eq('status', prev.status)
             .select('*');
         if (error) throw error;
-        if (!data?.length) return res.status(404).json({ success: false, error: 'Order not found' });
+        if (!data?.length) {
+            return res.status(409).json({ success: false, error: 'This order was just changed by someone else. Please reload and try again.' });
+        }
 
         // Cascade the order status to its line items' fulfillment_status so the
         // order modal / per-item views reflect the order's progress (no more
@@ -614,14 +622,16 @@ router.put('/:id', verifyToken, async (req, res, next) => {
             }
         }
 
-        // One-time paid-transition side effects (idempotent: only when crossing
-        // from a non-paid status into a paid one).
-        const PAID_SET = ['paid', 'shipped', 'delivered'];
-        const wasPaid = prev && PAID_SET.includes(prev.status);
-        const nowPaid = PAID_SET.includes(status);
-        if (!wasPaid && nowPaid && data[0].user_id) {
-            const { handlePaymentSuccess } = require('../services/paymentSuccess');
+        if (status === 'cancelled') {
+            // Returns exactly what the lines took; lines that took nothing are skipped.
+            await restoreOrderStock(req.params.id);
+        } else if (!hadStock && willHaveStock && data[0].user_id) {
+            // First time in a stock-taken status: take stock + seller/admin emails.
             handlePaymentSuccess(data[0].id, data[0].user_id).catch(() => {});
+        } else if (willHaveStock) {
+            // Already stock-taken: pick up any lines that haven't taken stock yet
+            // (e.g. an order reopened after cancellation). No-op otherwise.
+            await takeOrderStock(req.params.id);
         }
 
         // Bust all page caches so the next admin fetch sees fresh data.

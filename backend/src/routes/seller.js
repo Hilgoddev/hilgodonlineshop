@@ -4,7 +4,8 @@ const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
-const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder } = require('../lib/orderStatus');
+const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder, stockWasTaken } = require('../lib/orderStatus');
+const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
 const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
@@ -26,6 +27,33 @@ async function getPaidOrderIdSet(orderIds = []) {
     .in('id', ids)
     .in('status', PAID_STATUSES);
   return new Set((data || []).filter((o) => isRevenueOrder(o.status, o.payment_method)).map((o) => o.id));
+}
+
+// A seller's balance: 90% of their payable sales minus approved/paid payouts.
+// Keyed on order_items.seller_id (who sold the line at the time), not current
+// product ownership, and cancelled lines never count.
+async function getSellerBalance(sellerId) {
+  const { data: items, error: itemsErr } = await supabase
+    .from('order_items')
+    .select('quantity, unit_price, fulfillment_status, order:orders(status, payment_method)')
+    .eq('seller_id', sellerId);
+  if (itemsErr) throw itemsErr;
+  const grossSales = (items || [])
+    .filter(i => i.fulfillment_status !== 'cancelled')
+    .filter(i => isPayableOrder(i.order?.status, i.order?.payment_method))
+    .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
+  const commission = grossSales * PLATFORM_COMMISSION_RATE;
+  const netEarnings = grossSales - commission;
+
+  const { data: payouts, error: payoutsErr } = await supabase
+    .from('seller_payouts')
+    .select('amount')
+    .eq('seller_id', sellerId)
+    .in('status', ['approved', 'paid']);
+  if (payoutsErr) throw payoutsErr;
+  const withdrawn = (payouts || []).reduce((s, p) => s + Number(p.amount), 0);
+
+  return { grossSales, commission, netEarnings, withdrawn, available: Math.max(0, netEarnings - withdrawn) };
 }
 
 const requireSellerOrAdmin = async (req, res, next) => {
@@ -311,6 +339,31 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
       return res.status(403).json({ success: false, error: 'Access denied for this order item' });
     }
 
+    // Sellers may only fulfil orders that are actually paid for. Without this a
+    // seller could buy their own product, never pay, mark it delivered, and have
+    // the unpaid order counted as withdrawable earnings.
+    if (req.userRole !== 'admin') {
+      const { data: parentOrder, error: parentErr } = await supabase
+        .from('orders')
+        .select('status, payment_method')
+        .eq('id', item.order_id)
+        .maybeSingle();
+      if (parentErr) throw parentErr;
+      if (!parentOrder || parentOrder.status === 'cancelled') {
+        return res.status(409).json({ success: false, error: 'This order is cancelled and can no longer be updated' });
+      }
+      const isPod = String(parentOrder.payment_method || '').toLowerCase() === 'pod';
+      const isPaid = isRevenueOrder(parentOrder.status, parentOrder.payment_method);
+      if (!isPod && !isPaid && !['pending', 'cancelled'].includes(fulfillmentStatus)) {
+        return res.status(409).json({ success: false, error: 'This order has not been paid yet. You can fulfil it once payment is confirmed.' });
+      }
+      // Cash on delivery is only confirmed by an admin, because 'delivered' is
+      // what makes a POD order count as paid.
+      if (isPod && fulfillmentStatus === 'delivered') {
+        return res.status(403).json({ success: false, error: 'Pay-on-delivery orders are marked delivered by an admin once cash is collected' });
+      }
+    }
+
     const { data: updatedItem, error: updateErr } = await supabase
       .from('order_items')
       .update({ fulfillment_status: fulfillmentStatus })
@@ -319,37 +372,49 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
       .single();
     if (updateErr) throw updateErr;
 
-    // Restore reserved stock when an item is cancelled. Stock is only decremented
-    // on payment success (reserve-on-pay), so only restore for paid-through orders
-    // and only on the transition INTO cancelled (guards against double-restore).
-    if (fulfillmentStatus === 'cancelled' && item.fulfillment_status !== 'cancelled') {
-      const { data: ord } = await supabase
-        .from('orders')
-        .select('status')
-        .eq('id', item.order_id)
-        .maybeSingle();
-      if (ord && ['paid', 'shipped', 'delivered'].includes(ord.status)) {
-        await supabase.rpc('increment_product_stock', {
-          p_product_id: item.product_id,
-          p_quantity: updatedItem.quantity,
-        });
-      }
+    const { data: ord } = await supabase
+      .from('orders')
+      .select('status, payment_method, user_id')
+      .eq('id', item.order_id)
+      .maybeSingle();
+
+    // Stock is tracked per line (migration 021), so these calls are idempotent:
+    // cancelling returns exactly what this line took; reopening a cancelled line
+    // on an order whose stock is already taken takes it again.
+    if (fulfillmentStatus === 'cancelled') {
+      await restoreOrderStock(item.order_id, item.id);
+    } else if (item.fulfillment_status === 'cancelled' && ord && stockWasTaken(ord.status, ord.payment_method)) {
+      await takeOrderStock(item.order_id);
     }
 
-    // Best-effort: if all items are delivered/cancelled, bring order status in sync.
+    // Best-effort: bring the order status in line with its items.
     const { data: allItems, error: allItemsErr } = await supabase
       .from('order_items')
       .select('fulfillment_status')
       .eq('order_id', item.order_id);
-    if (!allItemsErr && allItems?.length) {
+    if (ord && !allItemsErr && allItems?.length) {
       const statuses = allItems.map((r) => r.fulfillment_status || 'pending');
+      let nextOrderStatus = null;
       if (statuses.every((s) => s === 'delivered' || s === 'cancelled')) {
-        const nextOrderStatus = statuses.every((s) => s === 'cancelled') ? 'cancelled' : 'delivered';
-        await supabase.from('orders').update({ status: nextOrderStatus }).eq('id', item.order_id);
+        nextOrderStatus = statuses.every((s) => s === 'cancelled') ? 'cancelled' : 'delivered';
       } else if (statuses.some((s) => s === 'shipped' || s === 'delivered')) {
-        await supabase.from('orders').update({ status: 'shipped' }).eq('id', item.order_id);
+        nextOrderStatus = 'shipped';
       } else if (statuses.some((s) => s === 'packed')) {
-        await supabase.from('orders').update({ status: 'processing' }).eq('id', item.order_id);
+        nextOrderStatus = 'processing';
+      }
+      if (nextOrderStatus && nextOrderStatus !== ord.status) {
+        // Conditional on the status we read: if two sellers update the same
+        // order at once, only one wins the transition (and its side effects).
+        const { data: moved } = await supabase
+          .from('orders')
+          .update({ status: nextOrderStatus })
+          .eq('id', item.order_id)
+          .eq('status', ord.status)
+          .select('id');
+        // e.g. a POD order leaving for delivery: take stock + notify, once.
+        if (moved?.length && !stockWasTaken(ord.status, ord.payment_method) && stockWasTaken(nextOrderStatus, ord.payment_method)) {
+          handlePaymentSuccess(item.order_id, ord.user_id).catch(() => {});
+        }
       }
     }
 
@@ -364,30 +429,8 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
 // GET /api/seller/earnings — available balance (total sales minus total withdrawn/approved)
 router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
   try {
-    const { data: products } = await supabase
-      .from('products').select('id').eq('seller_id', req.user.id);
-    const productIds = (products || []).map(p => p.id);
-
-    let grossSales = 0;
-    if (productIds.length) {
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('quantity, unit_price, order:orders(status, payment_method)')
-        .in('product_id', productIds);
-      grossSales = (items || [])
-        .filter(i => isPayableOrder(i.order?.status, i.order?.payment_method))
-        .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
-    }
     // Platform takes 10% per sale; the seller's earnings are the net 90%.
-    const commission = grossSales * PLATFORM_COMMISSION_RATE;
-    const netEarnings = grossSales - commission;
-
-    const { data: payouts } = await supabase
-      .from('seller_payouts')
-      .select('amount, status')
-      .eq('seller_id', req.user.id)
-      .in('status', ['approved', 'paid']);
-    const withdrawn = (payouts || []).reduce((s, p) => s + Number(p.amount), 0);
+    const { grossSales, commission, netEarnings, withdrawn, available } = await getSellerBalance(req.user.id);
 
     const { data: allPayouts } = await supabase
       .from('seller_payouts')
@@ -421,7 +464,7 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
         commission,
         commissionRate: PLATFORM_COMMISSION_RATE,
         withdrawn,
-        available: Math.max(0, netEarnings - withdrawn),
+        available,
         payouts: allPayouts || [],
         bankDetails,
       },
@@ -449,27 +492,8 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
       return res.status(409).json({ success: false, error: 'You already have a pending payout request. Please wait for it to be reviewed before submitting another.' });
     }
 
-    // Verify sufficient available balance
-    const { data: products } = await supabase
-      .from('products').select('id').eq('seller_id', req.user.id);
-    const productIds = (products || []).map(p => p.id);
-    let grossSales = 0;
-    if (productIds.length) {
-      const { data: items } = await supabase
-        .from('order_items')
-        .select('quantity, unit_price, order:orders(status, payment_method)')
-        .in('product_id', productIds);
-      grossSales = (items || [])
-        .filter(i => isPayableOrder(i.order?.status, i.order?.payment_method))
-        .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
-    }
-    // Withdrawable balance is the net (after the 10% platform commission).
-    const netEarnings = grossSales * (1 - PLATFORM_COMMISSION_RATE);
-    const { data: prevPayouts } = await supabase
-      .from('seller_payouts').select('amount')
-      .eq('seller_id', req.user.id).in('status', ['approved','paid']);
-    const withdrawn = (prevPayouts || []).reduce((s, p) => s + Number(p.amount), 0);
-    const available = Math.max(0, netEarnings - withdrawn);
+    // Verify sufficient available balance (net, after the 10% platform commission).
+    const { available } = await getSellerBalance(req.user.id);
 
     if (amt > available) {
       return res.status(400).json({ success: false, error: `Requested amount exceeds available balance (₦${available.toLocaleString()})` });
@@ -479,6 +503,11 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
       .from('seller_payouts')
       .insert({ seller_id: req.user.id, amount: amt, payment_method, payment_details: payment_details || null })
       .select().single();
+    // Unique index seller_payouts_one_pending_per_seller (migration 020) catches
+    // two simultaneous requests that both passed the pending check above.
+    if (error?.code === '23505') {
+      return res.status(409).json({ success: false, error: 'You already have a pending payout request. Please wait for it to be reviewed before submitting another.' });
+    }
     if (error) throw error;
 
     // Persist bank details on the profile so future requests can reuse them.

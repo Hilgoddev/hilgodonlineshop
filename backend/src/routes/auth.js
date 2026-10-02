@@ -3,7 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
-const { withTimeout, makeCache, singleFlight } = require('../lib/resilience');
+const { withTimeout, makeCache, singleFlight, listAllUsers } = require('../lib/resilience');
 const { cleanEnv } = require('../lib/env');
 const { writeLimiter } = require('../middleware/rateLimit');
 const meCache = makeCache({ ttlMs: 30 * 1000 });
@@ -207,10 +207,8 @@ router.post('/auto-confirm', writeLimiter, async (req, res, next) => {
         const { email } = req.body;
         if (!email) return res.status(400).json({ success: false, message: 'Email required' });
 
-        const { data, error: listError } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-        if (listError) throw listError;
-
-        const user = data?.users?.find((u) => u.email === email);
+        const target = String(email).trim().toLowerCase();
+        const user = (await listAllUsers()).find((u) => (u.email || '').toLowerCase() === target);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
         if (user.email_confirmed_at) {

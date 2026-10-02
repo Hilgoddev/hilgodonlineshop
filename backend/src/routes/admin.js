@@ -460,6 +460,20 @@ router.put('/promote', verifyToken, requireAdmin, async (req, res, next) => {
             .single();
         if (profileError || !profile) throw profileError || new Error('User not found');
 
+        // Never leave the platform without an admin: no self-demotion, and the
+        // last remaining admin can't be demoted.
+        if (profile.role === 'admin' && newRole !== 'admin') {
+            if (userId === req.user.id) {
+                return res.status(400).json({ success: false, error: 'You cannot remove your own admin role' });
+            }
+            const { count, error: countErr } = await supabase
+                .from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin');
+            if (countErr) throw countErr;
+            if ((count || 0) <= 1) {
+                return res.status(400).json({ success: false, error: 'Cannot demote the last admin' });
+            }
+        }
+
         const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
         if (error) throw error;
 
@@ -750,17 +764,27 @@ router.get('/payouts', verifyToken, requireAdmin, async (req, res, next) => {
 router.put('/payouts/:id', verifyToken, requireAdmin, async (req, res, next) => {
   try {
     const { status, admin_notes } = req.body;
-    if (!['approved','paid','rejected'].includes(status)) {
+    // Allowed moves: pending → approved | rejected | paid, approved → paid | rejected.
+    // Paid and rejected are final, so money can't be marked paid twice or a
+    // rejected request quietly revived.
+    const ALLOWED_FROM = { approved: ['pending'], rejected: ['pending', 'approved'], paid: ['pending', 'approved'] };
+    if (!ALLOWED_FROM[status]) {
       return res.status(400).json({ success: false, error: 'status must be approved, paid, or rejected' });
     }
+    // The status filter makes the check-and-update atomic.
     const { data, error } = await supabase
       .from('seller_payouts')
       .update({ status, admin_notes: admin_notes || null, processed_at: new Date().toISOString(), processed_by: req.user.id })
       .eq('id', req.params.id)
-      .select().single();
+      .in('status', ALLOWED_FROM[status])
+      .select();
     if (error) throw error;
-    if (!data) return res.status(404).json({ success: false, error: 'Payout not found' });
-    res.json({ success: true, data });
+    if (!data?.length) {
+      const { data: existing } = await supabase.from('seller_payouts').select('status').eq('id', req.params.id).maybeSingle();
+      if (!existing) return res.status(404).json({ success: false, error: 'Payout not found' });
+      return res.status(409).json({ success: false, error: `A ${existing.status} payout cannot be changed to ${status}` });
+    }
+    res.json({ success: true, data: data[0] });
   } catch (err) { next(err); }
 });
 

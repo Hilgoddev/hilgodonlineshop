@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const supabase = require('../config/supabase');
 const { greyRequest } = require('../config/grey');
 const { verifyToken } = require('./auth');
-const { handlePaymentSuccess } = require('../services/paymentSuccess');
+const { markOrderPaid } = require('../services/paymentSuccess');
 
 // POST /api/grey/create-payment
 // Creates a Grey payment link for an existing order.
@@ -27,13 +27,16 @@ router.post('/create-payment', verifyToken, async (req, res, next) => {
 
     const { data: order, error } = await supabase
       .from('orders')
-      .select('id, total_amount, user_id')
+      .select('id, total_amount, user_id, status')
       .eq('id', order_id)
       .eq('user_id', req.user.id)
       .single();
 
     if (error || !order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    if (order.status !== 'pending') {
+      return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
     }
 
     const amount = Number(order.total_amount);
@@ -109,6 +112,8 @@ router.post('/webhook', async (req, res) => {
 
     if (!order_id || !reference) return res.sendStatus(200);
 
+    const eventKey = event.id || `grey:${reference}`;
+    let ownsEvent = false;
     try {
       // Idempotency barrier
       const { error: insertError } = await supabase
@@ -116,7 +121,7 @@ router.post('/webhook', async (req, res) => {
         .insert({
           provider: 'grey',
           event_name: event.event,
-          event_key: event.id || `grey:${reference}`,
+          event_key: eventKey,
           reference,
           order_id,
           payload: event,
@@ -124,45 +129,42 @@ router.post('/webhook', async (req, res) => {
 
       if (insertError?.code === '23505') return res.sendStatus(200);
       if (insertError) throw insertError;
+      ownsEvent = true;
 
-      // Verify the paid amount matches the order total before marking paid
-      // (parity with Paystack/Stripe). Grey sends amount in major NGN units, the
-      // same units create-payment submitted. Skip only if Grey omitted an amount.
+      // The reference must be the one create-payment stored on this order.
       const { data: greyOrder, error: greyOrderErr } = await supabase
         .from('orders')
-        .select('total_amount')
+        .select('id')
         .eq('id', order_id)
         .eq('payment_reference', reference)
         .maybeSingle();
       if (greyOrderErr) throw greyOrderErr;
-      if (!greyOrder) return res.sendStatus(200);
 
-      const paidAmount = Number(event.data?.amount);
-      const orderAmount = Number(greyOrder.total_amount || 0);
-      if (Number.isFinite(paidAmount) && Math.abs(paidAmount - orderAmount) > 0.01) {
-        console.error(`[GREY] Amount mismatch for order ${order_id}: paid=${paidAmount}, expected=${orderAmount}`);
-        return res.sendStatus(400);
+      if (!greyOrder) {
+        console.error('[GREY] reference does not match order', { order_id, reference });
+      } else {
+        // Grey sends major NGN units (what create-payment submitted). A missing
+        // amount is rejected by markOrderPaid rather than trusted.
+        const result = await markOrderPaid({
+          orderId: order_id,
+          reference,
+          paidAmount: event.data?.amount,
+          currency: event.data?.currency,
+          provider: 'grey',
+        });
+        if (!result.ok) console.error('[GREY] payment not applied:', result.reason, { order_id });
       }
-
-      await supabase
-        .from('orders')
-        .update({ status: 'paid' })
-        .eq('id', order_id)
-        .eq('payment_reference', reference);
-
-      const userId = event.data?.metadata?.user_id;
-      if (userId) {
-        await supabase.from('cart_items').delete().eq('user_id', userId);
-      }
-
-      await handlePaymentSuccess(order_id, userId);
 
       await supabase
         .from('payment_events')
         .update({ processed_at: new Date().toISOString() })
-        .eq('event_key', event.id || `grey:${reference}`);
+        .eq('event_key', eventKey);
     } catch (err) {
       console.error('[GREY] Webhook processing error:', err);
+      if (ownsEvent) {
+        await supabase.from('payment_events').delete().eq('event_key', eventKey).is('processed_at', null)
+          .then(() => {}, (e) => console.error('[GREY] could not release event for retry:', e?.message));
+      }
       return res.sendStatus(500);
     }
   }

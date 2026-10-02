@@ -97,7 +97,8 @@ export default function Home({ products, categories = [], campaigns = [], catego
       id: 1,
       bg: 'linear-gradient(135deg,#2e1a3f 0%,#4a1a5e 50%,#1a0a2e 100%)',
       tag: { text: 'New Arrivals', icon: 'fas fa-star', color: '#ec4899' },
-      title: 'Elegant Dresses<br /><span>Style for All</span>',
+      title: 'Elegant Dresses',
+      titleSub: 'Style for All',
       sub: 'Discover the latest evening and casual dresses.',
       btnLink: '/products?category=womenswear',
       btnText: 'Shop Fashion',
@@ -107,7 +108,8 @@ export default function Home({ products, categories = [], campaigns = [], catego
       id: 3,
       bg: 'linear-gradient(135deg,#3d1a2d 0%,#5e1a3b 50%,#2e0a1a 100%)',
       tag: { text: 'Trending Now', icon: 'fas fa-sparkles', color: '#f43f5e' },
-      title: 'Beauty Essentials<br /><span>Glow Everyday</span>',
+      title: 'Beauty Essentials',
+      titleSub: 'Glow Everyday',
       sub: 'Top skincare and makeup from premium brands.',
       btnLink: '/products?category=beauty',
       btnText: 'Shop Beauty',
@@ -117,7 +119,8 @@ export default function Home({ products, categories = [], campaigns = [], catego
       id: 4,
       bg: 'linear-gradient(135deg,#0a1628 0%,#1a2d4d 50%,#0d3b6e 100%)',
       tag: { text: 'Hot Deal', icon: 'fas fa-laptop', color: '#f59e0b' },
-      title: `Premium Laptops<br /><span>From ${formatPrice(280000, 'NGN', false)}</span>`,
+      title: 'Premium Laptops',
+      titleSub: `From ${formatPrice(280000, 'NGN', false)}`,
       sub: 'MacBook Air, HP Pavilion, Dell XPS and more.',
       btnLink: '/products?category=electronics',
       btnText: 'Shop Laptops',
@@ -127,7 +130,8 @@ export default function Home({ products, categories = [], campaigns = [], catego
       id: 5,
       bg: 'linear-gradient(135deg,#064e3b 0%,#065f46 50%,#047857 100%)',
       tag: { text: 'Home Essentials', icon: 'fas fa-house', color: '#34d399' },
-      title: 'Home Supplies<br /><span>For Every Room</span>',
+      title: 'Home Supplies',
+      titleSub: 'For Every Room',
       sub: 'Quality home products for your kitchen, bedroom, and living space.',
       btnLink: '/products?category=home',
       btnText: 'Shop Home',
@@ -160,7 +164,8 @@ export default function Home({ products, categories = [], campaigns = [], catego
         id: `campaign-${type}`,
         bg: theme.heroBg,
         tag: { text: theme.tag, icon: `fas ${theme.icon}`, color: theme.accent },
-        title: `${prod.name || theme.title}<br /><span>${discountPct > 0 ? `Up to ${discountPct}% Off` : 'Limited Time Deal'}</span>`,
+        title: prod.name || theme.title,
+        titleSub: discountPct > 0 ? `Up to ${discountPct}% Off` : 'Limited Time Deal',
         sub: 'Limited-time offer. Grab it before the timer runs out!',
         btnLink: theme.href,
         btnText: `Shop ${theme.title}`,
@@ -299,9 +304,10 @@ export default function Home({ products, categories = [], campaigns = [], catego
                   <i className={slide.tag.icon}></i> {slide.tag.text}
                 </span>
                 <h1 className="hero-title"
-                  dangerouslySetInnerHTML={{ __html: slide.title }}
                   style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}
-                ></h1>
+                >
+                  {slide.title}<br /><span>{slide.titleSub}</span>
+                </h1>
                 <p className="hero-sub">{slide.sub}</p>
                 {/* Hero Button Section */}
                 <div className="hero-actions"

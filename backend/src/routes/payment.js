@@ -5,7 +5,7 @@ const supabase = require('../config/supabase');
 const paystack = require('../config/paystack');
 const { verifyToken } = require('./auth');
 const { paymentInitLimiter, writeLimiter } = require('../middleware/rateLimit');
-const { handlePaymentSuccess } = require('../services/paymentSuccess');
+const { markOrderPaid } = require('../services/paymentSuccess');
 const { cleanEnv } = require('../lib/env');
 const { withTimeout } = require('../lib/resilience');
 
@@ -25,7 +25,7 @@ const initializePayment = async (req, res, next) => {
             ({ data: order, error: orderError } = await withTimeout(
                 (signal) => supabase
                     .from('orders')
-                    .select('id, user_id, total_amount, shipping_address, payment_reference')
+                    .select('id, user_id, total_amount, shipping_address, payment_reference, status')
                     .eq('id', order_id)
                     .eq('user_id', req.user.id)
                     .abortSignal(signal)
@@ -40,6 +40,9 @@ const initializePayment = async (req, res, next) => {
 
         if (orderError || !order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
+        }
+        if (order.status !== 'pending') {
+            return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
         }
 
         const amount = Number(order.total_amount);
@@ -87,7 +90,7 @@ const initializePayment = async (req, res, next) => {
             response = await withTimeout(
                 () => paystack.transaction.initialize({
                     email: payerEmail,
-                    amount: amount * 100, // convert to subunits
+                    amount: Math.round(amount * 100), // convert to integer subunits (kobo)
                     reference: `ORD_${order_id}_${Date.now()}`,
                     callback_url: `${frontendUrl}/checkout`,
                     metadata: { order_id, user_id: req.user.id },
@@ -111,8 +114,8 @@ const initializePayment = async (req, res, next) => {
 
         res.status(200).json({ success: true, data: response.data });
     } catch (err) {
-        // Paystack (via paystack-api / request-promise) throws a StatusCodeError
-        // with the gateway's JSON in err.error. Surface a clean, actionable
+        // The Paystack client (config/paystack.js) throws an Error with the
+        // gateway's JSON in err.error. Surface a clean, actionable
         // message instead of a generic 500, and log enough to diagnose.
         const gateway = err?.error || err?.response?.body || null;
         const gatewayMsg = gateway?.message || err?.message;
@@ -156,12 +159,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     }
 
     // Parse the JSON event
+    let eventKey = null;
     try {
         const event = JSON.parse(rawBody.toString('utf8'));
         const eventName = event?.event;
         const eventReference = event?.data?.reference || null;
         const order_id = event?.data?.metadata?.order_id || null;
-        const eventKey = String(event?.data?.id || `${eventName || 'unknown'}:${eventReference || 'no-ref'}`);
+        const key = String(event?.data?.id || `${eventName || 'unknown'}:${eventReference || 'no-ref'}`);
 
         // Idempotency barrier: insert unique event key before processing.
         const { error: eventInsertError } = await supabase
@@ -169,75 +173,53 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             .insert({
                 provider: 'paystack',
                 event_name: eventName || 'unknown',
-                event_key: eventKey,
+                event_key: key,
                 reference: eventReference,
                 order_id,
                 payload: event,
             });
 
-        // Unique violation => already processed event (safe idempotent ack).
+        // Unique violation => already processed (or being processed) — ack.
         if (eventInsertError?.code === '23505') {
             return res.sendStatus(200);
         }
         if (eventInsertError) throw eventInsertError;
+        eventKey = key; // we own this event now; released below if processing fails
 
         if (event.event === 'charge.success') {
-            const { reference, metadata } = event.data;
-            const webhookOrderId = metadata?.order_id;
-            if (!webhookOrderId) throw new Error('Missing order_id in Paystack metadata');
-
-            const { data: dbOrder, error: dbOrderErr } = await supabase
-                .from('orders')
-                .select('id, user_id, total_amount, payment_reference, status')
-                .eq('id', webhookOrderId)
-                .single();
-            if (dbOrderErr || !dbOrder) throw dbOrderErr || new Error('Order not found for webhook');
-
-            // Verify paid amount from gateway against order total to prevent mismatched order updates.
-            const paidAmount = Number(event?.data?.amount || 0) / 100;
-            const orderAmount = Number(dbOrder.total_amount || 0);
-            if (!Number.isFinite(paidAmount) || Math.abs(paidAmount - orderAmount) > 0.01) {
-                throw new Error(`Amount mismatch on webhook for order ${webhookOrderId}: paid=${paidAmount}, expected=${orderAmount}`);
+            const webhookOrderId = event.data?.metadata?.order_id;
+            if (!webhookOrderId) {
+                console.error('[PAYSTACK] charge.success without order_id metadata', { reference: eventReference });
+            } else {
+                // Amount/currency checked and 'pending' claimed atomically, so this is
+                // exactly-once even if /verify also fires for the same payment.
+                const result = await markOrderPaid({
+                    orderId: webhookOrderId,
+                    reference: event.data.reference,
+                    paidAmount: Number(event.data.amount || 0) / 100,
+                    currency: event.data.currency,
+                    provider: 'paystack',
+                });
+                // A rejected payment (wrong amount/currency, unknown order) will not
+                // change on retry, so it is logged and acknowledged, not retried.
+                if (!result.ok) console.error('[PAYSTACK] payment not applied:', result.reason, { order_id: webhookOrderId });
             }
-
-            // Atomically claim the paid transition: only the FIRST caller to
-            // flip a not-yet-paid order to paid runs post-processing. This makes
-            // stock decrement + emails exactly-once even if the webhook AND the
-            // redirect /verify path both fire for the same payment.
-            const { data: claimed, error: updateErr } = await supabase
-                .from('orders')
-                .update({ status: 'paid', payment_reference: reference })
-                .eq('id', webhookOrderId)
-                .neq('status', 'paid')
-                .select('id');
-            if (updateErr) throw updateErr;
-
-            // Already processed by another path — ack and stop (idempotent).
-            if (!claimed || !claimed.length) {
-                await supabase.from('payment_events').update({ processed_at: new Date().toISOString() }).eq('event_key', eventKey);
-                return res.sendStatus(200);
-            }
-
-            // Clear user's cart
-            const userId = metadata?.user_id || dbOrder.user_id;
-            if (userId) {
-                await supabase
-                    .from('cart_items')
-                    .delete()
-                    .eq('user_id', userId);
-            }
-
-            await handlePaymentSuccess(webhookOrderId, userId);
         }
 
         await supabase
             .from('payment_events')
             .update({ processed_at: new Date().toISOString() })
-            .eq('event_key', eventKey);
-        
+            .eq('event_key', key);
+
         res.sendStatus(200);
     } catch (err) {
         console.error('Webhook processing error:', err);
+        // Release the idempotency row so Paystack's retry reprocesses this event
+        // instead of being acknowledged as an already-seen duplicate.
+        if (eventKey) {
+            await supabase.from('payment_events').delete().eq('event_key', eventKey).is('processed_at', null)
+                .then(() => {}, (e) => console.error('[PAYSTACK] could not release event for retry:', e?.message));
+        }
         res.sendStatus(500);
     }
 });
@@ -251,8 +233,7 @@ router.get('/verify/:reference', verifyToken, writeLimiter, async (req, res) => 
     if (!reference) return res.status(400).json({ success: false, message: 'reference is required' });
 
     try {
-        // Call Paystack's verify REST endpoint directly — more reliable than the
-        // paystack-api library's verify() with a raw string reference.
+        // Call Paystack's verify REST endpoint directly.
         const PAYSTACK_SECRET = cleanEnv(process.env.PAYSTACK_SECRET_KEY);
         const vres = await withTimeout(
             () => fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
@@ -270,27 +251,35 @@ router.get('/verify/:reference', verifyToken, writeLimiter, async (req, res) => 
         const status = txn.status; // 'success' | 'failed' | 'abandoned'
         const orderId = txn.metadata?.order_id || null;
 
-        // Sync order if it succeeded. Atomically claim the paid transition so
-        // post-processing (stock decrement + emails) runs exactly once even if
-        // the webhook also fires for this payment.
-        if (status === 'success' && orderId) {
-            const { data: order } = await supabase
+        // Only the order's owner may confirm it through this path.
+        if (orderId) {
+            const { data: owned, error: ownedErr } = await supabase
                 .from('orders')
-                .select('id, user_id, status')
+                .select('id')
                 .eq('id', orderId)
+                .eq('user_id', req.user.id)
                 .maybeSingle();
+            if (ownedErr) throw ownedErr;
+            if (!owned) return res.status(404).json({ success: false, message: 'Order not found' });
+        }
 
-            if (order && !['paid', 'shipped', 'delivered'].includes(order.status)) {
-                const { data: claimed } = await supabase
-                    .from('orders')
-                    .update({ status: 'paid', payment_reference: reference })
-                    .eq('id', orderId)
-                    .neq('status', 'paid')
-                    .select('id');
-                if (claimed && claimed.length) {
-                    const { handlePaymentSuccess } = require('../services/paymentSuccess');
-                    handlePaymentSuccess(orderId, order.user_id).catch(() => {});
-                }
+        // Sync the order if it succeeded — same checks as the webhook (amount,
+        // currency, pending-only atomic claim), so a cheap payment carrying this
+        // order's id in its metadata can never mark the order paid.
+        let applied = null;
+        if (status === 'success' && orderId) {
+            applied = await markOrderPaid({
+                orderId,
+                reference: txn.reference || reference,
+                paidAmount: Number(txn.amount || 0) / 100,
+                currency: txn.currency,
+                provider: 'paystack-verify',
+            });
+            if (!applied.ok) {
+                const message = applied.reason === 'order_cancelled'
+                    ? 'This order was cancelled before your payment arrived. Our team has been alerted and will refund you — please contact support if you have questions.'
+                    : 'This payment does not match your order. Please contact support.';
+                return res.status(409).json({ success: false, message });
             }
         }
 

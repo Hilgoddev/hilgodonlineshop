@@ -22,6 +22,7 @@ export default function SellerOrders() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState([]);
   const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [filter, setFilter] = useState('all');
   const [savingItemId, setSavingItemId] = useState(null);
   const [itemStatuses, setItemStatuses] = useState({});
@@ -87,6 +88,7 @@ export default function SellerOrders() {
     const fulfillmentStatus = itemStatuses[itemId];
     if (!fulfillmentStatus) return;
     setSavingItemId(itemId);
+    setSaveError('');
     try {
       const res = await apiFetch(`/api/seller/order-items/${itemId}/status`, {
         method: 'PATCH',
@@ -106,7 +108,9 @@ export default function SellerOrders() {
         }))
       );
     } catch (e) {
-      setError(e.message || 'Failed to update item status');
+      // Keep the orders list visible; show the reason and revert the dropdown.
+      setSaveError(e.message || 'Failed to update item status');
+      setItemStatuses((prev) => ({ ...prev, [itemId]: serverStatusRef.current[itemId] || 'pending' }));
     } finally {
       setSavingItemId(null);
     }
@@ -162,6 +166,14 @@ export default function SellerOrders() {
         </div>
 
         <div className="card" style={{ padding: '20px' }}>
+          {saveError && (
+            <div role="alert" style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', padding: '12px 16px', marginBottom: '16px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px' }}>
+              <span>{saveError}</span>
+              <button type="button" onClick={() => setSaveError('')} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+          )}
           {loading ? (
             <div style={{ textAlign: 'center', padding: '40px' }}>
               <i className="fas fa-spinner fa-spin" style={{ fontSize: '1.5rem', color: 'var(--primary)' }}></i>

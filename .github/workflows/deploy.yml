@@ -18,19 +18,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node 18
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
+      # Unit tests use an in-memory fake database (tests/setup.js) — no secrets
+      # needed. A failing test stops the deploy.
       - name: Run tests
-        run: npm test --if-present
-        continue-on-error: true
+        run: npm test
 
       - name: Deploy to Vercel (production)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -47,6 +48,7 @@ jobs:
   # ── Frontend: install, build, deploy ─────────────────────
   frontend:
     name: Frontend
+    needs: backend
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -64,6 +66,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Compile check only — Vercel does the real build with the real env.
+      # Placeholders satisfy the Supabase client during static prerendering.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NEXT_PUBLIC_API_URL: http://127.0.0.1:5000/api
 
       - name: Deploy to Vercel (production)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

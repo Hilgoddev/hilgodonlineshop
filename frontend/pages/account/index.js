@@ -44,7 +44,8 @@ export default function Account() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    // Wait for the URL query to be parsed, or ?tab=settings would read as absent.
+    if (!session?.user?.id || !router.isReady) return;
     const redirectByAuthoritativeRole = async () => {
       // Explicit ?tab=settings stays on /account for every role — it's the only
       // place password change lives, and admins/sellers need it too.
@@ -62,7 +63,7 @@ export default function Account() {
       }
     };
     redirectByAuthoritativeRole();
-  }, [session?.user?.id, session?.user?.role, router]);
+  }, [session?.user?.id, session?.user?.role, router.isReady, router.query.tab, router]);
 
   const fetchUserData = async () => {
     try {

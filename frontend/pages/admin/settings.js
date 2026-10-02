@@ -183,7 +183,9 @@ export default function AdminSettings() {
               </span>
             </div>
           </div>
-          {!editing && (
+          {/* Editing needs the real profile loaded — otherwise the form starts
+              empty and saving would overwrite the stored name/avatar with blanks. */}
+          {!editing && !profileFailed && profile && (
             <button onClick={() => setEditing(true)} style={{ border: '1px solid #e2e8f0', background: '#f8fafc', color: '#0f172a', padding: '9px 16px', borderRadius: '8px', fontWeight: 700, fontSize: '.85rem', cursor: 'pointer' }}>
               <i className="fas fa-pen" style={{ marginRight: '8px' }}></i>Edit
             </button>

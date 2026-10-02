@@ -370,8 +370,9 @@ export default function AdminFlashSales() {
           Add {typeMeta(campaignType).label}
         </h3>
 
-        {/* Mode tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+        {/* Mode tabs — flexWrap so the two pills (~365px together) don't overflow
+            the card on a phone (~288px of content at 360px). */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '24px' }}>
           {[
             { key: 'existing', label: 'Select Existing Product', icon: 'fa-list' },
             { key: 'new', label: 'Upload New Product', icon: 'fa-upload' },

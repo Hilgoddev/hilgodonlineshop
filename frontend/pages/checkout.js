@@ -143,7 +143,9 @@ export default function Checkout() {
           } else {
             // Payment failed or abandoned
             showToast(
-              `Payment ${result?.data?.status || 'could not be confirmed'}. Your order is saved — please retry.`,
+              result?.success === false && result?.message
+                ? result.message
+                : `Payment ${result?.data?.status || 'could not be confirmed'}. Your order is saved — please retry.`,
               'error'
             );
           }

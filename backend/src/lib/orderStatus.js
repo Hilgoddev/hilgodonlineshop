@@ -24,4 +24,17 @@ function isPayableOrder(status, paymentMethod) {
   return isPod ? status === 'delivered' : PAYABLE_STATUSES.includes(status);
 }
 
-module.exports = { REVENUE_STATUSES, PAYABLE_STATUSES, isRevenueOrder, isPayableOrder };
+// Whether an order in this status has already had its stock decremented (and
+// its one-time post-payment emails sent) by handlePaymentSuccess:
+//   online: at payment → paid / processing / shipped / delivered
+//   POD:    when it leaves for delivery → shipped / delivered
+// Side effects must run only on the transition INTO this state, and stock is
+// restored only when cancelling FROM it — this keeps both exactly-once.
+function stockWasTaken(status, paymentMethod) {
+  const isPod = String(paymentMethod || '').toLowerCase() === 'pod';
+  return isPod
+    ? ['shipped', 'delivered'].includes(status)
+    : REVENUE_STATUSES.includes(status);
+}
+
+module.exports = { REVENUE_STATUSES, PAYABLE_STATUSES, isRevenueOrder, isPayableOrder, stockWasTaken };

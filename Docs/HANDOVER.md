@@ -45,9 +45,12 @@ never put the service-role key here):
 
 ## 3. Apply database migrations
 Run every file in `backend/supabase/migrations/` **in numeric order** in the Supabase SQL
-editor (001 → 012, plus `20260524_add_order_items_fulfillment_status.sql`). They create the
+editor (001 → 021, plus `20260524_add_order_items_fulfillment_status.sql`). They create the
 schema, exchange rates, stock management, reviews, payouts, order payment method, seller bank
-details, platform settings, campaigns, and order item variant options.
+details, platform settings, campaigns, order item variant options, and security hardening.
+
+> **020 is a security migration** — it blocks direct browser writes to the database. Never skip it.
+> **021 must be applied before deploying the matching backend** — the backend's stock handling calls its functions.
 
 ## 4. Run locally
 ```

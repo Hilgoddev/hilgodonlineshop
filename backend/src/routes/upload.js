@@ -89,10 +89,26 @@ async function isPubliclyReadable(url) {
   }
 }
 
+// Only sellers and admins upload product images (the bucket is public, so
+// letting any account upload would make it free public file hosting).
+const requireSellerOrAdmin = async (req, res, next) => {
+  try {
+    const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', req.user.id).maybeSingle();
+    if (error) throw error;
+    if (!profile || !['seller', 'admin'].includes(profile.role)) {
+      return res.status(403).json({ success: false, error: 'Seller or Admin access required' });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
+
 // POST /api/upload/product-image
 router.post(
   '/product-image',
   verifyToken,
+  requireSellerOrAdmin,
   uploadLimiter,
   upload.single('image'),
   // 4-arg error handler right after multer: catches the enforced size/type

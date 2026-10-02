@@ -554,6 +554,63 @@ table {
     align-items: center;
     justify-content: center;
   }
+
+  /* ---- Invisible hit-area extensions ----
+     These controls render smaller than the 44px touch minimum. A transparent
+     ::after overlay enlarges what the finger can hit while leaving the control
+     itself exactly the same size, colour and position — nothing moves on
+     screen. Each inset is kept within the neighbouring gap so adjacent
+     targets never overlap (overlapping targets cause mis-taps):
+       product card wishlist 34px (absolute, no neighbours)   -> 44
+       add to cart 33px tall (row gap 8px, so vertical only)  -> 45 tall
+       pagination 38px (gap 6px)                              -> 44 x 42
+       social links 36px (gap 10px)                           -> 44
+       modal close 32px (corner, no neighbours)               -> 44
+       hero slider dots 8px (gap 8px, vertical is free)       -> 44 tall
+       password toggle ~26x28 (sits inside the field)         -> 44
+     Not fixable this way: .qty-control / .cart-qty-control steppers clip
+     their children (overflow: hidden), so an overlay would be cut off. */
+  .product-card__wishlist,
+  .btn-add-cart,
+  .page-btn,
+  .social-link,
+  .modal__close,
+  .slider-dot,
+  .toggle-password {
+    position: relative;
+  }
+
+  .product-card__wishlist::after,
+  .btn-add-cart::after,
+  .page-btn::after,
+  .social-link::after,
+  .modal__close::after,
+  .slider-dot::after,
+  .toggle-password::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+  }
+
+  .btn-add-cart::after {
+    inset: -6px 0;
+  }
+
+  .page-btn::after {
+    inset: -3px -2px;
+  }
+
+  .modal__close::after {
+    inset: -6px;
+  }
+
+  .slider-dot::after {
+    inset: -18px -4px;
+  }
+
+  .toggle-password::after {
+    inset: -8px;
+  }
 }
 
 /* Responsive Button Utilities */
