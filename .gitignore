@@ -47,6 +47,8 @@ credentials.json
 .cursor/
 .cursorignore
 .vercel
+AGENTS.md
+CLAUDE.md
 
 # ===========================================
 # DEPENDENCIES
