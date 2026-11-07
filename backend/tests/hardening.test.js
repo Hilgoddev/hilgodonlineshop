@@ -86,7 +86,7 @@ describe('newsletter + careers forms', () => {
 });
 
 describe('product validation', () => {
-  const base = { name: 'Lamp', category: 'home', price: 5000, stock: 3 };
+  const base = { name: 'Lamp', category: 'home', price: 5000, stock: 3, images: ['https://example.com/lamp.jpg'] };
 
   it('rejects a negative price', async () => {
     const res = await request(app).post('/api/products').send({ ...base, price: -1000 });

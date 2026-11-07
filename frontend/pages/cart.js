@@ -7,9 +7,12 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import ConfirmModal from '@/components/ConfirmModal';
 import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '@/lib/pricing';
 import { formatOptionValue } from '@/lib/colorName';
+import { needsColor, colorImage } from '@/lib/variants';
+import ColorSwatches from '@/components/ColorSwatches';
 
 export default function Cart() {
-  const { cart, cartOptions = {}, removeFromCart, updateCartQty, clearCart, showToast } = useShop();
+  const { cart, removeFromCart, updateCartQty, updateCartOptions, clearCart, showToast } = useShop();
+  const missingColor = cart.filter((item) => needsColor(item.product, item.options));
   const [promoCode, setPromoCode] = useState('');
   const [modal, setModal] = useState({ open: false });
   const closeModal = () => setModal(m => ({ ...m, open: false }));
@@ -18,14 +21,14 @@ export default function Cart() {
   const { formatPrice } = useCurrency();
 
   // Update item quantity
-  const updateQuantity = (itemId, newQuantity) => {
+  const updateQuantity = (item, newQuantity) => {
     if (newQuantity < 1) return;
-    updateCartQty(itemId, newQuantity);
+    updateCartQty(item.product._id, newQuantity, item.variantKey || '');
   };
 
   // Remove item from cart
-  const removeItem = (itemId) => {
-    removeFromCart(itemId);
+  const removeItem = (item) => {
+    removeFromCart(item.product._id, item.variantKey || '');
     showToast('Item removed from cart', 'info');
   };
 
@@ -126,14 +129,14 @@ export default function Cart() {
                 {cart.map(item => {
                   const itemPricing = normalizePricing(item.product || {});
                   return (
-                  <div key={item.product._id} className="cart-table-row">
+                  <div key={`${item.product._id}::${item.variantKey || ''}`} className="cart-table-row">
                     {/* Checkbox */}
                     <input type="checkbox" className="cart-item-check" />
-                    
+
                     {/* Product Info */}
                     <div className="cart-item-info" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <img 
-                        src={item.product.images?.[0] || item.product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
+                      <img
+                        src={colorImage(item.product, item.options?.color) || item.product.images?.[0] || item.product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
                         alt={item.product.name}
                         className="cart-item-img"
                         onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'; }}
@@ -144,7 +147,7 @@ export default function Cart() {
                         </Link>
                         <div className="cart-item-brand">{item.product.brand || item.product.category}</div>
                         {(() => {
-                          const opts = item.options || cartOptions[item.product._id];
+                          const opts = item.options;
                           if (!opts || !Object.keys(opts).length) return null;
                           return (
                             <div style={{ fontSize: '.78rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>
@@ -152,6 +155,18 @@ export default function Cart() {
                             </div>
                           );
                         })()}
+                        {needsColor(item.product, item.options) && (
+                          <div style={{ marginTop: '6px' }}>
+                            <ColorSwatches
+                              colors={item.product.color_options}
+                              value=""
+                              error
+                              compact
+                              size={26}
+                              onChange={(color) => updateCartOptions(item.product._id, item.variantKey || '', { ...(item.options || {}), color })}
+                            />
+                          </div>
+                        )}
                         <div className="cart-save-later" onClick={() => {
                           showToast('Saved for later!', 'info');
                         }}>
@@ -169,7 +184,7 @@ export default function Cart() {
                     <div className="cart-qty-control">
                       <div 
                         className="cart-qty-btn" 
-                        onClick={() => updateQuantity(item.product._id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item, item.quantity - 1)}
                         style={item.quantity <= 1 ? { opacity: 0.4, pointerEvents: 'none' } : {}}
                       >
                         −
@@ -177,7 +192,7 @@ export default function Cart() {
                       <div className="cart-qty-num">{item.quantity}</div>
                       <div 
                         className="cart-qty-btn" 
-                        onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item, item.quantity + 1)}
                       >
                         +
                       </div>
@@ -191,7 +206,7 @@ export default function Cart() {
                     {/* Remove */}
                     <div 
                       className="cart-remove" 
-                      onClick={() => removeItem(item.product._id)}
+                      onClick={() => removeItem(item)}
                       title="Remove item"
                     >
                       <i className="fas fa-trash-can"></i>
@@ -288,9 +303,16 @@ export default function Cart() {
                 )}
               </div> */}
 
-              <Link 
-                href="/checkout" 
+              {missingColor.length > 0 && (
+                <div style={{ fontSize: '.82rem', color: 'var(--danger)', fontWeight: 600, marginBottom: '8px' }}>
+                  <i className="fas fa-circle-exclamation"></i> Choose a colour for {missingColor.length === 1 ? missingColor[0].product.name : `${missingColor.length} items`} before checkout.
+                </div>
+              )}
+              <Link
+                href="/checkout"
                 className="btn btn-primary btn-full btn-lg cart-checkout-btn"
+                aria-disabled={missingColor.length > 0}
+                style={missingColor.length > 0 ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
               >
                 <i className="fas fa-lock"></i> Secure Checkout
               </Link>

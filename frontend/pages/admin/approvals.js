@@ -6,6 +6,7 @@ import { apiFetch } from '../../lib/apiClient';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import styles from '@/css/fix.module.css';
+import { colorName } from '../../lib/colorName';
 
 export default function ApprovalsPage() {
   const { formatPrice } = useCurrency();
@@ -308,7 +309,27 @@ export default function ApprovalsPage() {
                     <tbody>
                       {pendingProducts.map((product) => (
                         <tr key={product.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          <td style={{ padding: '12px 16px', fontWeight: 600 }}>{product.name}</td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ fontWeight: 600 }}>{product.name}</div>
+                            {/* Everything the buyer will see: every photo and colour */}
+                            {product.images?.length > 0 && (
+                              <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap', maxWidth: '360px' }}>
+                                {product.images.map((src, i) => (
+                                  <a key={src} href={src} target="_blank" rel="noreferrer" title={`Photo ${i + 1}`}>
+                                    <img src={src} alt="" style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: i === 0 ? '2px solid var(--primary)' : '1px solid #e2e8f0' }} />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                            {product.color_options?.length > 0 && (
+                              <div style={{ display: 'flex', gap: '4px', marginTop: '6px', flexWrap: 'wrap', alignItems: 'center', fontSize: '.72rem', color: '#64748b' }}>
+                                {product.color_options.map((c) => (
+                                  <span key={c} title={colorName(c)} style={{ width: '14px', height: '14px', borderRadius: '50%', background: c, border: '1px solid #cbd5e1', display: 'inline-block' }} />
+                                ))}
+                                <span>{product.color_options.length} colour{product.color_options.length === 1 ? '' : 's'}</span>
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: '12px 16px' }}>{formatPrice(product.price || 0, product.currency || 'NGN', false)}</td>
                           <td style={{ padding: '12px 16px', color: '#64748b' }}>
                             {product.created_at ? new Date(product.created_at).toLocaleDateString() : '—'}
