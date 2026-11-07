@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSession } from '../contexts/AuthContext';
 import { apiFetch } from '../lib/apiClient';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalizePricing } from '../lib/pricing';
-import { colorName } from '../lib/colorName';
+import { cleanOptions, variantKey, needsColor, colorImage } from '../lib/variants';
+import ColorSwatches from './ColorSwatches';
 
 import styles from '../css/fix.module.css';
 
@@ -16,19 +17,23 @@ export function useShop() {
 
 const GUEST_CART_KEY = 'hilgod_cart';
 const GUEST_WISHLIST_KEY = 'hilgod_wishlist';
-const CART_OPTIONS_KEY = 'hilgod_cart_options';
+// Older builds kept the chosen size/colour per product id under this key; it is
+// folded into the guest cart lines once and then removed.
+const LEGACY_CART_OPTIONS_KEY = 'hilgod_cart_options';
+
+// Cart lines are { product, quantity, options, variantKey }: the same product
+// can appear once per colour/size, and a line is identified by product id +
+// variantKey (see lib/variants.js; the server computes the same key).
+const sameLine = (item, productId, key = '') => item.product._id === productId && (item.variantKey || '') === key;
 
 export default function ShopProvider({ children }) {
   const { formatPrice } = useCurrency();
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState([]);
-  // Selected variant options (size/color/...) per product id. Kept client-side
-  // (the server cart only stores product + quantity) and persisted so they
-  // survive reloads; sent with each item at checkout and stored on the order.
-  const [cartOptions, setCartOptions] = useState({});
   const [toasts, setToasts] = useState([]);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [qvSelection, setQvSelection] = useState({ size: '', color: '' });
+  const [qvColorError, setQvColorError] = useState(false);
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated' && !!session?.user?.id;
 
@@ -38,22 +43,24 @@ export default function ShopProvider({ children }) {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), duration);
   };
 
-  // Load persisted cart options once on mount, and persist on every change.
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(CART_OPTIONS_KEY);
-      if (saved) setCartOptions(JSON.parse(saved) || {});
-    } catch { /* ignore */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(CART_OPTIONS_KEY, JSON.stringify(cartOptions)); } catch { /* ignore */ }
-  }, [cartOptions]);
+  // Guest cart/wishlist are written back to localStorage only after they have
+  // been read from it — otherwise the empty initial state (while auth is still
+  // loading) overwrote the saved cart on every page load.
+  const guestLoaded = useRef(false);
 
   const loadGuestData = useCallback(() => {
+    guestLoaded.current = true;
     try {
       const savedCart = localStorage.getItem(GUEST_CART_KEY);
       const savedWishlist = localStorage.getItem(GUEST_WISHLIST_KEY);
-      setCart(savedCart ? JSON.parse(savedCart) : []);
+      let legacyOptions = {};
+      try { legacyOptions = JSON.parse(localStorage.getItem(LEGACY_CART_OPTIONS_KEY) || '{}') || {}; } catch { /* ignore */ }
+      const lines = (savedCart ? JSON.parse(savedCart) : []).map((item) => {
+        const options = cleanOptions(item.options || legacyOptions[item.product?._id]);
+        return { ...item, options, variantKey: variantKey(options) };
+      });
+      try { localStorage.removeItem(LEGACY_CART_OPTIONS_KEY); } catch { /* ignore */ }
+      setCart(lines);
       setWishlist(savedWishlist ? JSON.parse(savedWishlist) : []);
     } catch (err) {
       console.error('Failed to load guest local storage data', err);
@@ -88,7 +95,7 @@ export default function ShopProvider({ children }) {
         if (item?.product?._id) {
           await apiFetch('/api/cart', {
             method: 'POST',
-            body: JSON.stringify({ productId: item.product._id, quantity: item.quantity || 1 }),
+            body: JSON.stringify({ productId: item.product._id, quantity: item.quantity || 1, selectedOptions: item.options || undefined }),
           });
         }
       }
@@ -112,6 +119,7 @@ export default function ShopProvider({ children }) {
   useEffect(() => {
     if (status === 'loading') return;
     if (isAuthenticated) {
+      guestLoaded.current = false;
       mergeGuestDataToServer().then(loadServerData);
     } else {
       loadGuestData();
@@ -119,76 +127,113 @@ export default function ShopProvider({ children }) {
   }, [status, isAuthenticated, loadGuestData, loadServerData, mergeGuestDataToServer]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && guestLoaded.current) {
       localStorage.setItem(GUEST_CART_KEY, JSON.stringify(cart));
     }
   }, [cart, isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && guestLoaded.current) {
       localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(wishlist));
     }
   }, [wishlist, isAuthenticated]);
 
+  // Adds one line per product + chosen variant. A product with colours must have
+  // one chosen: without it nothing is added, the buyer is told, and false is
+  // returned so the caller can point at the colour picker.
   const addToCart = async (product, quantity = 1, options = null) => {
-    // Remember the selected variant (size/color/...) for this product.
-    const cleanOpts = options && typeof options === 'object'
-      ? Object.fromEntries(Object.entries(options).filter(([, v]) => v != null && String(v).trim()))
-      : null;
-    if (cleanOpts && Object.keys(cleanOpts).length) {
-      setCartOptions((prev) => ({ ...prev, [product._id]: cleanOpts }));
+    const opts = cleanOptions(options);
+    if (needsColor(product, opts)) {
+      showToast('Please choose a colour first.', 'warning');
+      return false;
     }
+    const key = variantKey(opts);
     if (isAuthenticated) {
       try {
-        await apiFetch('/api/cart', {
+        const res = await apiFetch('/api/cart', {
           method: 'POST',
-          body: JSON.stringify({ productId: product._id, quantity }),
+          body: JSON.stringify({ productId: product._id, quantity, selectedOptions: opts || undefined }),
         });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          showToast(json.error || 'Could not add to cart. Please try again.', 'error');
+          return false;
+        }
         await loadServerData();
       } catch (err) {
         console.error('Failed to add to cart', err);
+        showToast('Could not add to cart. Please try again.', 'error');
+        return false;
       }
     } else {
       setCart((prev) => {
-        const existing = prev.find((item) => item.product._id === product._id);
-        if (existing) {
+        if (prev.some((item) => sameLine(item, product._id, key))) {
           return prev.map((item) =>
-            item.product._id === product._id ? { ...item, quantity: item.quantity + quantity } : item
+            sameLine(item, product._id, key) ? { ...item, quantity: item.quantity + quantity } : item
           );
         }
-        return [...prev, { product, quantity }];
+        return [...prev, { product, quantity, options: opts, variantKey: key }];
       });
     }
     showToast('Added to cart!', 'success');
+    return true;
   };
 
-  const removeFromCart = async (productId) => {
-    setCartOptions((prev) => { const next = { ...prev }; delete next[productId]; return next; });
+  const removeFromCart = async (productId, key = '') => {
     if (isAuthenticated) {
-      await apiFetch(`/api/cart?productId=${productId}`, { method: 'DELETE' });
+      await apiFetch(`/api/cart?productId=${encodeURIComponent(productId)}&variantKey=${encodeURIComponent(key)}`, { method: 'DELETE' });
       await loadServerData();
       return;
     }
-    setCart((prev) => prev.filter((item) => item.product._id !== productId));
+    setCart((prev) => prev.filter((item) => !sameLine(item, productId, key)));
   };
 
-  const updateCartQty = async (productId, quantity) => {
+  const updateCartQty = async (productId, quantity, key = '') => {
     const safeQty = Math.max(1, quantity);
     if (isAuthenticated) {
       await apiFetch('/api/cart', {
         method: 'PUT',
-        body: JSON.stringify({ productId, quantity: safeQty }),
+        body: JSON.stringify({ productId, variantKey: key, quantity: safeQty }),
       });
       await loadServerData();
       return;
     }
     setCart((prev) =>
-      prev.map((item) => (item.product._id === productId ? { ...item, quantity: safeQty } : item))
+      prev.map((item) => (sameLine(item, productId, key) ? { ...item, quantity: safeQty } : item))
     );
   };
 
+  // Change a line's chosen options (e.g. pick the colour for an older line that
+  // has none). Lands on an existing line for that variant if there is one.
+  const updateCartOptions = async (productId, key, options) => {
+    const opts = cleanOptions(options);
+    const newKey = variantKey(opts);
+    if (isAuthenticated) {
+      const res = await apiFetch('/api/cart', {
+        method: 'PUT',
+        body: JSON.stringify({ productId, variantKey: key, selectedOptions: opts }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        showToast(json.error || 'Could not update this item.', 'error');
+      }
+      await loadServerData();
+      return;
+    }
+    setCart((prev) => {
+      const line = prev.find((item) => sameLine(item, productId, key));
+      if (!line || newKey === key) {
+        return prev.map((item) => (sameLine(item, productId, key) ? { ...item, options: opts } : item));
+      }
+      const target = prev.find((item) => sameLine(item, productId, newKey));
+      return prev
+        .filter((item) => !sameLine(item, productId, key))
+        .map((item) => (item === target ? { ...item, quantity: item.quantity + line.quantity } : item))
+        .concat(target ? [] : [{ ...line, options: opts, variantKey: newKey }]);
+    });
+  };
+
   const clearCart = async () => {
-    setCartOptions({});
     if (isAuthenticated) {
       await apiFetch('/api/cart/clear', { method: 'DELETE' });
       setCart([]);
@@ -233,11 +278,13 @@ export default function ShopProvider({ children }) {
 
   const openQuickView = (product) => {
     setQuickViewProduct(product);
-    // Default the variant selection to the first available option, if any.
+    // Size defaults to the first option; colour is never pre-selected — the
+    // buyer has to pick one (a single-colour product is picked for them).
     setQvSelection({
       size: product?.size_options?.[0] || '',
-      color: product?.color_options?.[0] || '',
+      color: product?.color_options?.length === 1 ? product.color_options[0] : '',
     });
+    setQvColorError(false);
     document.body.style.overflow = 'hidden';
   };
 
@@ -271,10 +318,10 @@ export default function ShopProvider({ children }) {
     <ShopContext.Provider
       value={{
         cart,
-        cartOptions,
         addToCart,
         removeFromCart,
         updateCartQty,
+        updateCartOptions,
         clearCart,
         wishlist,
         toggleWishlist,
@@ -312,7 +359,7 @@ export default function ShopProvider({ children }) {
 
                 <div style={{ background: 'var(--gray-6)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '280px', padding: '20px' }}>
                   <img
-                    src={quickViewProduct.images?.[0] || quickViewProduct.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
+                    src={colorImage(quickViewProduct, qvSelection.color) || quickViewProduct.images?.[0] || quickViewProduct.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
                     alt={quickViewProduct.name}
                     style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
                     onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'; }}
@@ -369,19 +416,25 @@ export default function ShopProvider({ children }) {
                   )}
                   {quickViewProduct.color_options?.length > 0 && (
                     <div style={{ marginBottom: '16px' }}>
-                      <div style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: '6px' }}>Color: <strong>{qvSelection.color ? colorName(qvSelection.color) : 'Select'}</strong></div>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {quickViewProduct.color_options.map((color) => (
-                          <button key={color} type="button" onClick={() => setQvSelection((s) => ({ ...s, color }))}
-                            title={colorName(color)} aria-label={colorName(color)}
-                            style={{ width: '28px', height: '28px', borderRadius: '50%', background: color, cursor: 'pointer', border: qvSelection.color === color ? '2px solid var(--dark)' : '2px solid var(--gray-3)' }} />
-                        ))}
-                      </div>
+                      <ColorSwatches
+                        colors={quickViewProduct.color_options}
+                        value={qvSelection.color}
+                        onChange={(color) => { setQvSelection((s) => ({ ...s, color })); setQvColorError(false); }}
+                        error={qvColorError}
+                        size={28}
+                      />
                     </div>
                   )}
 
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="btn btn-primary btn-full" onClick={() => { addToCart(quickViewProduct, 1, quickViewOptions()); closeQuickView(); }} disabled={quickViewProduct.stock === 0}>
+                    <button
+                      className="btn btn-primary btn-full"
+                      onClick={async () => {
+                        if (needsColor(quickViewProduct, qvSelection)) { setQvColorError(true); return; }
+                        if (await addToCart(quickViewProduct, 1, quickViewOptions())) closeQuickView();
+                      }}
+                      disabled={quickViewProduct.stock === 0}
+                    >
                       <i className="fas fa-cart-plus"></i> {quickViewProduct.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                     </button>
                     <Link href={`/products/${quickViewProduct._id}${quickViewQuery()}`} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }} onClick={closeQuickView}>

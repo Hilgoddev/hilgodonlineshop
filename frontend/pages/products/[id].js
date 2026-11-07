@@ -9,6 +9,8 @@ import { normalizePricing } from '@/lib/pricing';
 import { resolveServerApiBase } from '@/lib/env';
 import { apiFetch } from '@/lib/apiClient';
 import { colorName } from '@/lib/colorName';
+import { needsColor, colorImage } from '@/lib/variants';
+import ColorSwatches from '@/components/ColorSwatches';
 
 export default function ProductDetail({ product, relatedProducts, loadError = false }) {
   const router = useRouter();
@@ -22,13 +24,25 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
   const qSize = typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size) ? router.query.size : '';
   const qColor = typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color) ? router.query.color : '';
   const [selectedSize, setSelectedSize] = useState(qSize || product?.size_options?.[0] || '');
-  const [selectedColor, setSelectedColor] = useState(qColor || product?.color_options?.[0] || '');
+  // Colour is never pre-selected (unless there's only one): the buyer must pick.
+  const onlyColor = product?.color_options?.length === 1 ? product.color_options[0] : '';
+  const [selectedColor, setSelectedColor] = useState(qColor || onlyColor);
+  const [colorError, setColorError] = useState(false);
+
+  // Picking a colour shows the photo the seller linked to it, if any.
+  const chooseColor = (color) => {
+    setSelectedColor(color);
+    setColorError(false);
+    const img = colorImage(product, color);
+    const idx = img ? (product?.images || []).indexOf(img) : -1;
+    if (idx >= 0) setSelectedImage(idx);
+  };
 
   // If the query carries a variant (e.g. arriving from Quick View after hydration), apply it.
   useEffect(() => {
     if (!router.isReady) return;
     if (typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size)) setSelectedSize(router.query.size);
-    if (typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color)) setSelectedColor(router.query.color);
+    if (typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color)) chooseColor(router.query.color);
     // eslint-disable-next-line
   }, [router.isReady, router.query.size, router.query.color]);
   
@@ -105,13 +119,23 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
     return Object.keys(o).length ? o : null;
   };
 
+  // A product with colours can't go in the cart until one is chosen: flag the
+  // picker and bring it into view instead.
+  const colorMissing = () => {
+    if (!needsColor(product, { color: selectedColor })) return false;
+    setColorError(true);
+    document.getElementById('pdp-colors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  };
+
   const handleAddToCart = () => {
+    if (colorMissing()) return;
     addToCart(product, quantity, buildSelectedOptions());
   };
 
-  const handleBuyNow = () => {
-    addToCart(product, quantity, buildSelectedOptions());
-    router.push('/checkout');
+  const handleBuyNow = async () => {
+    if (colorMissing()) return;
+    if (await addToCart(product, quantity, buildSelectedOptions())) router.push('/checkout');
   };
 
   const handleAddToWishlist = () => {
@@ -241,6 +265,19 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
                 </div>
               )}
               <div className="gallery-zoom" style={{ cursor: 'zoom-in' }} onClick={() => setLightboxOpen(true)}><i className="fas fa-search-plus"></i> Zoom</div>
+              {productImages.length > 1 && (
+                <>
+                  <button type="button" className="gallery-nav gallery-nav--prev" aria-label="Previous image"
+                    onClick={() => setSelectedImage((i) => (i - 1 + productImages.length) % productImages.length)}>
+                    <i className="fas fa-chevron-left"></i>
+                  </button>
+                  <button type="button" className="gallery-nav gallery-nav--next" aria-label="Next image"
+                    onClick={() => setSelectedImage((i) => (i + 1) % productImages.length)}>
+                    <i className="fas fa-chevron-right"></i>
+                  </button>
+                  <div className="gallery-counter">{selectedImage + 1} / {productImages.length}</div>
+                </>
+              )}
             </div>
 
             {lightboxOpen && productImages[selectedImage] && (
@@ -337,25 +374,16 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
               </div>
             )}
 
-            {/* Color Selector */}
+            {/* Color Selector — required before adding to cart */}
             {product.color_options?.length > 0 && (
-              <div className="pdp-variants">
-                <div className="variant-label">
-                  Color: <strong>{selectedColor ? colorName(selectedColor) : 'Select color'}</strong>
-                </div>
-                <div className="variant-options">
-                  {product.color_options.map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      className={`variant-btn color-variant ${selectedColor === color ? 'selected' : ''}`}
-                      onClick={() => setSelectedColor(color)}
-                      style={{ background: color, border: selectedColor === color ? '2px solid var(--dark)' : '2px solid var(--gray-3)' }}
-                      title={colorName(color)}
-                      aria-label={colorName(color)}
-                    />
-                  ))}
-                </div>
+              <div className="pdp-variants" id="pdp-colors">
+                <ColorSwatches
+                  colors={product.color_options}
+                  value={selectedColor}
+                  onChange={chooseColor}
+                  error={colorError}
+                  size={36}
+                />
               </div>
             )}
 

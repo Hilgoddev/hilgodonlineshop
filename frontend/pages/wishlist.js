@@ -28,15 +28,22 @@ export default function Wishlist() {
       message: `Move all ${wishlist.length} items to your cart?`,
       onConfirm: () => {
         closeModal();
+        // Bulk move: sizes default to the first option, but a colour is the
+        // buyer's choice — products with several colours stay here to be picked
+        // on their product page (a single-colour product uses that colour).
+        const needPick = [];
         wishlist.forEach(product => {
-          // Bulk move: default variant products to their first size/color so the
-          // order still records a variant (buyer can change it on the product page).
           const opts = {};
           if (product.size_options?.length) opts.size = product.size_options[0];
-          if (product.color_options?.length) opts.color = product.color_options[0];
+          if (product.color_options?.length === 1) opts.color = product.color_options[0];
+          if (product.color_options?.length > 1) { needPick.push(product.name); return; }
           addToCart(product, 1, Object.keys(opts).length ? opts : undefined);
         });
-        showToast('All items moved to cart successfully!', 'success');
+        if (needPick.length) {
+          showToast(`Choose a colour for ${needPick.length === 1 ? `"${needPick[0]}"` : `${needPick.length} items`} on the product page to add ${needPick.length === 1 ? 'it' : 'them'}.`, 'warning', 6000);
+        } else {
+          showToast('All items moved to cart successfully!', 'success');
+        }
       },
     });
   };

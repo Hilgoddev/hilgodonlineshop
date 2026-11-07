@@ -7,6 +7,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { apiFetch, safeJson } from '../lib/apiClient';
 import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '../lib/pricing';
 import { formatOptionValue } from '../lib/colorName';
+import { needsColor, colorImage } from '../lib/variants';
 import { cleanEnv } from '../lib/env';
 import { GEO_DATA } from '../lib/geoData';
 import { loadStripe } from '@stripe/stripe-js';
@@ -104,7 +105,7 @@ function StripePaymentForm({ amount, onSuccess }) {
 }
 
 export default function Checkout() {
-  const { cart, cartOptions = {}, clearCart, showToast } = useShop();
+  const { cart, clearCart, showToast } = useShop();
   const { formatPrice } = useCurrency();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -202,6 +203,11 @@ export default function Checkout() {
 
   const handlePlaceOrder = async () => {
     if (!isFormValid) { showToast('Please fill in all required fields.', 'error'); return; }
+    const missingColor = cart.find((i) => needsColor(i.product, i.options));
+    if (missingColor) {
+      showToast(`Choose a colour for "${missingColor.product.name}" in your cart first.`, 'error');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -217,7 +223,7 @@ export default function Checkout() {
               productId: i.product._id,
               quantity: i.quantity,
               price: itemPricing.price,
-              selectedOptions: i.options || cartOptions[i.product._id] || null,
+              selectedOptions: i.options || null,
             };
           }),
           shippingAddress: { ...formData },
@@ -686,10 +692,10 @@ export default function Checkout() {
                 {cart.map(item => {
                   const itemPricing = normalizePricing(item.product || {});
                   return (
-                  <div key={item.product._id} className="order-summary-item">
+                  <div key={`${item.product._id}::${item.variantKey || ''}`} className="order-summary-item">
                     <img
                       className="order-summary-img"
-                      src={item.product.images?.[0] || item.product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
+                      src={colorImage(item.product, item.options?.color) || item.product.images?.[0] || item.product.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'}
                       alt={item.product.name}
                       onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80&auto=format'; }}
                     />
@@ -697,7 +703,7 @@ export default function Checkout() {
                       <div className="order-summary-name">{item.product.name}</div>
                       <div className="order-summary-qty">Qty: {item.quantity || 1}</div>
                       {(() => {
-                        const opts = item.options || cartOptions[item.product._id];
+                        const opts = item.options;
                         if (!opts || !Object.keys(opts).length) return null;
                         return (
                           <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginTop: '2px', textTransform: 'capitalize' }}>

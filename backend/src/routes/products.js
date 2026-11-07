@@ -6,6 +6,7 @@ const { getActiveFlashSaleMap, getEffectiveProductPricing } = require('../utils/
 const { withTimeout, makeCache } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
 const { getSetting } = require('../lib/settings');
+const { sanitizeImages, sanitizeColors, sanitizeColorImages } = require('../lib/variants');
 const allCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Canonical category ids — must match the frontend taxonomy (pages/categories.js).
@@ -61,7 +62,46 @@ async function storeBelongsTo(storeId, userId) {
 // Edits to these fields change what buyers see, so a seller editing an already
 // approved product sends it back for review (unless auto-approve is on).
 // Stock and price edits don't — price is validated by validateProductNumbers.
-const REVIEWED_FIELDS = ['name', 'description', 'images', 'category', 'subcategory', 'brand', 'size_options', 'color_options'];
+const REVIEWED_FIELDS = ['name', 'description', 'images', 'category', 'subcategory', 'brand', 'size_options', 'color_options', 'color_images'];
+
+// Clean the media/variant fields of a create or update body onto `out`.
+// Images and colours have no count limit; colour photos must be product images.
+// `stored` holds the saved values a partial update leaves unchanged, so colour
+// photos can be checked against them. Returns an error message or null.
+function applyMediaFields(body, out, stored = {}) {
+    if (body.images !== undefined) {
+        const images = sanitizeImages(body.images);
+        if (!images || images.length === 0) return 'Add at least one product image.';
+        out.images = images;
+    }
+    if (body.color_options !== undefined) {
+        const colors = body.color_options == null ? [] : sanitizeColors(body.color_options);
+        if (!colors) return 'Colours must be a list.';
+        out.color_options = colors.length ? colors : null;
+    }
+    // Recompute colour photos whenever images or colours change, so a removed
+    // image or colour never leaves a dangling link behind.
+    if (body.color_images !== undefined || out.images || out.color_options !== undefined) {
+        const raw = body.color_images !== undefined ? body.color_images : stored.color_images;
+        const colors = out.color_options !== undefined ? out.color_options : stored.color_options;
+        const colorImages = sanitizeColorImages(raw, colors, out.images || stored.images);
+        if (body.color_images !== undefined || JSON.stringify(colorImages) !== JSON.stringify(stored.color_images ?? null)) {
+            out.color_images = colorImages;
+        }
+    }
+    return null;
+}
+
+// Run a products insert/update; if migration 022 (color_images) isn't applied
+// yet, retry without that column so saving never breaks.
+async function writeWithoutMissingColumns(run, row) {
+    let result = await run(row);
+    if (result.error && String(result.error.message || '').includes('color_images')) {
+        const { color_images, ...legacy } = row;
+        result = await run(legacy);
+    }
+    return result;
+}
 
 // Short-lived in-memory cache for the public product list. Supabase (free tier)
 // can be cold/slow on the first hit, which makes SSR and serverless requests
@@ -635,7 +675,7 @@ const verifySellerOrAdmin = async (req, res, next) => {
 // POST /api/products
 router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
     try {
-        const { name, description, price, currency, category, subcategory, category_id, store_id, images, stock, brand, original_price, size_options, color_options } = req.body;
+        const { name, description, price, currency, category, subcategory, category_id, store_id, stock, brand, original_price, size_options } = req.body;
         // Category is required and must be a known category — reject otherwise so a
         // product can't land in an invalid/empty bucket (and disappear from its page).
         const normalizedCategory = normalizeCategory(category);
@@ -644,6 +684,9 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         }
         const numberError = validateProductNumbers(req.body, { requirePrice: true });
         if (numberError) return res.status(400).json({ success: false, error: numberError });
+        const media = {};
+        const mediaError = applyMediaFields({ ...req.body, images: req.body.images ?? [] }, media);
+        if (mediaError) return res.status(400).json({ success: false, error: mediaError });
         if (store_id && req.userRole !== 'admin' && !(await storeBelongsTo(store_id, req.user.id))) {
             return res.status(403).json({ success: false, error: 'You can only add products to your own store.' });
         }
@@ -659,18 +702,18 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             currency: currency || 'NGN',
             category: normalizedCategory, subcategory,
             category_id: category_id || null,
-            images, stock, status,
+            stock, status,
             is_active: true,
+            ...media,
         };
         if (brand          !== undefined) insertData.brand          = brand || null;
         if (original_price !== undefined) insertData.original_price = original_price || null;
         if (size_options   !== undefined) insertData.size_options   = size_options || null;
-        if (color_options  !== undefined) insertData.color_options  = color_options || null;
 
-        const { data, error } = await supabase
-            .from('products')
-            .insert([insertData])
-            .select();
+        const { data, error } = await writeWithoutMissingColumns(
+            (row) => supabase.from('products').insert([row]).select(),
+            insertData,
+        );
 
         if (error) throw error;
 
@@ -683,7 +726,7 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
 // PUT /api/products/:id — partial-update safe (only applies provided fields)
 router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
     try {
-        const { name, description, price, currency, category, subcategory, category_id, store_id, images, stock, is_active, brand, original_price, size_options, color_options } = req.body;
+        const { name, description, price, currency, category, subcategory, category_id, store_id, stock, is_active, brand, original_price, size_options } = req.body;
 
         const updateData = {};
         if (name           !== undefined) updateData.name           = name;
@@ -698,15 +741,24 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             updateData.category = normalizedCategory;
         }
         if (subcategory    !== undefined) updateData.subcategory    = subcategory;
-        if (images         !== undefined) updateData.images         = images;
         if (stock          !== undefined) updateData.stock          = stock;
         if (category_id    !== undefined) updateData.category_id    = category_id;
         if (store_id       !== undefined) updateData.store_id       = store_id;
         if (brand          !== undefined) updateData.brand          = brand || null;
         if (original_price !== undefined) updateData.original_price = original_price || null;
         if (size_options   !== undefined) updateData.size_options   = size_options || null;
-        if (color_options  !== undefined) updateData.color_options  = color_options || null;
         if (typeof is_active === 'boolean') updateData.is_active = is_active;
+        if (req.body.images !== undefined || req.body.color_options !== undefined || req.body.color_images !== undefined) {
+            let { data: stored, error: storedErr } = await supabase
+                .from('products').select('images, color_options, color_images').eq('id', req.params.id).maybeSingle();
+            if (storedErr && String(storedErr.message || '').includes('color_images')) {
+                ({ data: stored, error: storedErr } = await supabase
+                    .from('products').select('images, color_options').eq('id', req.params.id).maybeSingle());
+            }
+            if (storedErr) throw storedErr;
+            const mediaError = applyMediaFields(req.body, updateData, stored || {});
+            if (mediaError) return res.status(400).json({ success: false, error: mediaError });
+        }
 
         if (Object.keys(updateData).length === 0) {
             return res.status(400).json({ success: false, error: 'No fields to update' });
@@ -721,25 +773,30 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         // for approval, so an approved listing can't be swapped for something else.
         // Compared against stored values, so a form that re-sends unchanged fields
         // doesn't trigger a review.
-        if (req.userRole === 'seller' && REVIEWED_FIELDS.some((f) => updateData[f] !== undefined)) {
+        const reviewed = REVIEWED_FIELDS.filter((f) => updateData[f] !== undefined);
+        if (req.userRole === 'seller' && reviewed.length) {
             const { data: current, error: currentErr } = await supabase
                 .from('products')
-                .select(REVIEWED_FIELDS.join(', '))
+                .select(reviewed.join(', '))
                 .eq('id', req.params.id)
                 .eq('seller_id', req.user.id)
                 .maybeSingle();
-            if (currentErr) throw currentErr;
-            const changed = current && REVIEWED_FIELDS.some((f) =>
+            // Before migration 022 there is no color_images column to compare —
+            // treat the edit as a change, so it is reviewed.
+            const missingColumn = currentErr && String(currentErr.message || '').includes('color_images');
+            if (currentErr && !missingColumn) throw currentErr;
+            const changed = missingColumn || current && reviewed.some((f) =>
                 updateData[f] !== undefined && JSON.stringify(updateData[f] ?? null) !== JSON.stringify(current[f] ?? null));
             if (changed && (await getSetting('auto_approve_products', false)) !== true) {
                 updateData.status = 'pending';
             }
         }
 
-        let updateQuery = supabase.from('products').update(updateData).eq('id', req.params.id);
-        if (req.userRole === 'seller') updateQuery = updateQuery.eq('seller_id', req.user.id).eq('is_active', true);
-
-        const { data, error } = await updateQuery.select('*');
+        const { data, error } = await writeWithoutMissingColumns((row) => {
+            let updateQuery = supabase.from('products').update(row).eq('id', req.params.id);
+            if (req.userRole === 'seller') updateQuery = updateQuery.eq('seller_id', req.user.id).eq('is_active', true);
+            return updateQuery.select('*');
+        }, updateData);
         if (error) throw error;
         if (!data?.length) return res.status(404).json({ success: false, error: 'Product not found or access denied' });
 

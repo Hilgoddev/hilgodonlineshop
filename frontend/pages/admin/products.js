@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch } from '../../lib/apiClient';
 import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
-import { supabase as supabaseClient } from '../../lib/supabaseClient';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
-import { colorName } from '../../lib/colorName';
 import { parseSizeInput } from '../../lib/parseSizes';
 import styles from '@/css/fix.module.css';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import ProductImagesField, { emptyImageSlots, DEFAULT_IMAGE_SLOTS } from '@/components/product-form/ProductImagesField';
+import ProductColorsField from '@/components/product-form/ProductColorsField';
 
-const EMPTY_FORM = {
+const emptyForm = () => ({
   name: '',
   description: '',
   price: '',
@@ -22,10 +22,11 @@ const EMPTY_FORM = {
   subcategory: '',
   brand: '',
   stock: '',
-  images: ['', '', ''],
+  images: emptyImageSlots(),
   sizes: '',
   colors: [],
-};
+  colorImages: {},
+});
 
 export default function AdminProducts() {
   const { formatPrice } = useCurrency();
@@ -34,20 +35,15 @@ export default function AdminProducts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [imageUploading, setImageUploading] = useState([false, false, false]);
-  const [imagePreviews, setImagePreviews] = useState(['', '', '']);
-  const [uploadedFilenames, setUploadedFilenames] = useState(['', '', '']);
+  const [imagesBusy, setImagesBusy] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [modal, setModal] = useState({ open: false });
   const [activatingId, setActivatingId] = useState(null);
   const closeModal = () => setModal(m => ({ ...m, open: false }));
-
-  const fileRef0 = useRef(null);
-  const fileRef1 = useRef(null);
-  const fileRef2 = useRef(null);
-  const fileRefs = [fileRef0, fileRef1, fileRef2];
+  const setImages = useCallback((update) => setForm((f) => ({ ...f, images: update(f.images) })), []);
+  const showImageError = useCallback((text) => setMessage({ type: 'error', text }), []);
 
   const subcategoryOptions = categoriesData.find(c => c.id === form.category)?.subs || [];
 
@@ -66,51 +62,9 @@ export default function AdminProducts() {
   useEffect(() => { fetchProducts(); }, []);
   useAutoRefresh(fetchProducts, { table: 'products' });
 
-  const handleImageFile = async (index, e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const localUrl = URL.createObjectURL(file);
-    setImagePreviews(prev => { const n = [...prev]; n[index] = localUrl; return n; });
-    setImageUploading(prev => { const n = [...prev]; n[index] = true; return n; });
-    setMessage({ type: '', text: '' });
-    try {
-      const { data: sessionData } = await supabaseClient.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const fd = new FormData();
-      fd.append('image', file);
-      const res = await fetch('/api/upload/product-image', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-      const json = await res.json();
-      if (json.success) {
-        setForm(f => { const imgs = [...f.images]; imgs[index] = json.url; return { ...f, images: imgs }; });
-        setImagePreviews(prev => { const n = [...prev]; n[index] = json.url; return n; });
-        setUploadedFilenames(prev => { const n = [...prev]; n[index] = file.name; return n; });
-      } else {
-        console.error('[image-upload] backend response:', JSON.stringify(json));
-        setMessage({ type: 'error', text: json.message || json.error || 'Image upload failed' });
-        setImagePreviews(prev => { const n = [...prev]; n[index] = ''; return n; });
-        setUploadedFilenames(prev => { const n = [...prev]; n[index] = ''; return n; });
-      }
-    } catch {
-      setMessage({ type: 'error', text: 'Network error during image upload' });
-      setImagePreviews(prev => { const n = [...prev]; n[index] = ''; return n; });
-      setUploadedFilenames(prev => { const n = [...prev]; n[index] = ''; return n; });
-    } finally {
-      setImageUploading(prev => { const n = [...prev]; n[index] = false; return n; });
-    }
-  };
-
-  const clearImage = (index) => {
-    setForm(f => { const imgs = [...f.images]; imgs[index] = ''; return { ...f, images: imgs }; });
-    setImagePreviews(prev => { const n = [...prev]; n[index] = ''; return n; });
-    setUploadedFilenames(prev => { const n = [...prev]; n[index] = ''; return n; });
-    if (fileRefs[index].current) fileRefs[index].current.value = '';
-  };
-
   const handleEdit = (product) => {
+    const images = product.images?.length ? [...product.images] : [];
+    while (images.length < DEFAULT_IMAGE_SLOTS) images.push('');
     setEditingId(product._id);
     setForm({
       name: product.name || '',
@@ -122,23 +76,18 @@ export default function AdminProducts() {
       subcategory: product.subcategory || '',
       brand: product.brand || '',
       stock: product.stock ?? '',
-      images: product.images?.length ? [...product.images, '', ''].slice(0, 3) : ['', '', ''],
+      images,
       sizes: (product.size_options || []).join(', '),
       colors: product.color_options || [],
+      colorImages: product.color_images || {},
     });
-    const previews = product.images?.length ? [...product.images, '', ''].slice(0, 3) : ['', '', ''];
-    setImagePreviews(previews);
-    setUploadedFilenames(['', '', '']);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const resetForm = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
-    setImagePreviews(['', '', '']);
-    setUploadedFilenames(['', '', '']);
-    fileRefs.forEach(r => { if (r?.current) r.current.value = ''; });
+    setForm(emptyForm());
     setShowForm(false);
     setMessage({ type: '', text: '' });
   };
@@ -165,7 +114,9 @@ export default function AdminProducts() {
         stock: Number(form.stock),
         images: uploadedImages,
         size_options: form.sizes ? parseSizeInput(form.sizes) : undefined,
-        color_options: form.colors.length > 0 ? form.colors : undefined,
+        // Sent even when empty on edit, so removing every colour sticks.
+        color_options: form.colors.length > 0 || editingId ? form.colors : undefined,
+        color_images: form.colorImages,
       };
 
       const url = editingId ? `/api/products/${editingId}` : '/api/products';
@@ -176,12 +127,7 @@ export default function AdminProducts() {
       if (res.ok && json.success) {
         setMessage({ type: 'success', text: `Product ${editingId ? 'updated' : 'added'} successfully!` });
         fetchProducts();
-        if (!editingId) {
-          setForm(EMPTY_FORM);
-          setImagePreviews(['', '', '']);
-          setUploadedFilenames(['', '', '']);
-          fileRefs.forEach(r => { if (r?.current) r.current.value = ''; });
-        }
+        if (!editingId) setForm(emptyForm());
       } else {
         setMessage({ type: 'error', text: json.error || 'Operation failed' });
       }
@@ -325,114 +271,27 @@ export default function AdminProducts() {
               </div>
             </div>
 
-            {/* Row 4: Sizes + Colors */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-              <div className="form-group">
-                <label className="form-label">Sizes (optional)</label>
-                <input className="form-input" placeholder="e.g. S, M, L, XL, XXL" value={form.sizes} onChange={e => setForm(f => ({ ...f, sizes: e.target.value }))} />
-                <div style={{ fontSize: '.72rem', color: 'var(--gray-2)', marginTop: '4px' }}>Comma-separated</div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Colors (optional)</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', minHeight: '40px' }}>
-                  {form.colors.map((color, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      title={`Remove ${colorName(color)} (${color})`}
-                      onClick={() => setForm(f => ({ ...f, colors: f.colors.filter((_, ci) => ci !== i) }))}
-                      style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid var(--gray-3)', background: color, cursor: 'pointer', position: 'relative', flexShrink: 0 }}
-                    >
-                      <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', borderRadius: '50%', width: '14px', height: '14px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, fontWeight: 700 }}>×</span>
-                    </button>
-                  ))}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '5px 10px', border: '1px dashed var(--gray-3)', borderRadius: '6px', fontSize: '.78rem', color: 'var(--gray-1)' }}>
-                    <input
-                      type="color"
-                      defaultValue="#000000"
-                      style={{ width: '22px', height: '22px', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '3px' }}
-                      onChange={e => {
-                        const hex = e.target.value;
-                        setForm(f => f.colors.includes(hex) ? f : { ...f, colors: [...f.colors, hex] });
-                      }}
-                    />
-                    Add color
-                  </label>
-                </div>
-                <div style={{ fontSize: '.72rem', color: 'var(--gray-2)', marginTop: '4px' }}>Click the colored circle to remove it</div>
-              </div>
+            {/* Row 4: Sizes */}
+            <div className="form-group" style={{ marginBottom: '12px' }}>
+              <label className="form-label">Sizes (optional)</label>
+              <input className="form-input" placeholder="e.g. S, M, L, XL, XXL" value={form.sizes} onChange={e => setForm(f => ({ ...f, sizes: e.target.value }))} />
+              <div style={{ fontSize: '.72rem', color: 'var(--gray-2)', marginTop: '4px' }}>Comma-separated</div>
             </div>
 
-            {/* Images */}
-            <div style={{ marginBottom: '12px', padding: '16px', background: 'var(--gray-6)', borderRadius: '8px', border: '1px solid var(--gray-4)' }}>
-              <div style={{ fontWeight: 600, fontSize: '.88rem', marginBottom: '10px', color: 'var(--dark)' }}>
-                <i className="fas fa-images" style={{ color: 'var(--primary)', marginRight: '6px' }}></i>
-                Product Images <span style={{ color: 'var(--danger)' }}>*</span>
-                <span style={{ fontWeight: 400, color: 'var(--gray-1)', fontSize: '.78rem', marginLeft: '8px' }}>Upload 1–3 images</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {[0, 1, 2].map((index) => (
-                  <div key={index} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '12px', background: 'var(--white)', borderRadius: '8px', border: index === 0 ? '1.5px solid var(--primary)' : '1px solid var(--gray-4)' }}>
-                    <div
-                      style={{ width: '80px', height: '80px', borderRadius: '6px', flexShrink: 0, border: '1.5px dashed var(--gray-3)', background: 'var(--gray-6)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', cursor: 'pointer' }}
-                      onClick={() => !imageUploading[index] && fileRefs[index].current?.click()}
-                    >
-                      {imageUploading[index] ? (
-                        <i className="fas fa-spinner fa-spin" style={{ color: 'var(--primary)', fontSize: '1.2rem' }} />
-                      ) : imagePreviews[index] ? (
-                        <img src={imagePreviews[index]} alt={`preview ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
-                      ) : (
-                        <div style={{ textAlign: 'center', color: 'var(--gray-2)', fontSize: '.68rem', padding: '6px' }}>
-                          <i className="fas fa-image" style={{ fontSize: '1.4rem', display: 'block', marginBottom: '3px' }} />
-                          {index === 0 ? 'Main' : `#${index + 1}`}
-                        </div>
-                      )}
-                    </div>
-                    <input ref={fileRefs[index]} type="file" accept="image/jpeg,image/png,image/webp" onChange={e => handleImageFile(index, e)} style={{ display: 'none' }} />
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--dark)' }}>
-                        {index === 0 ? 'Main Image' : `Image ${index + 1}`}
-                        {index === 0 && <span style={{ color: 'var(--danger)', marginLeft: '4px' }}>*</span>}
-                      </div>
-                      {uploadedFilenames[index] ? (
-                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          <div style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', background: '#dcfce7', color: '#15803d', fontSize: '.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                            <i className="fas fa-check-circle" style={{ flexShrink: 0 }}></i>
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{uploadedFilenames[index]}</span>
-                          </div>
-                          <button type="button" onClick={() => clearImage(index)} className="btn btn-sm" style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '4px 8px', flexShrink: 0 }} title="Remove">
-                            <i className="fas fa-times"></i>
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <input
-                            className="form-input"
-                            placeholder="Paste image URL..."
-                            value={form.images[index]}
-                            onChange={e => {
-                              const url = e.target.value;
-                              setForm(f => { const imgs = [...f.images]; imgs[index] = url; return { ...f, images: imgs }; });
-                              setImagePreviews(prev => { const n = [...prev]; n[index] = url; return n; });
-                            }}
-                            style={{ flex: 1, fontSize: '.82rem', padding: '7px 10px' }}
-                            disabled={imageUploading[index]}
-                          />
-                          {imagePreviews[index] && (
-                            <button type="button" onClick={() => clearImage(index)} className="btn btn-sm" style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', padding: '4px 8px', flexShrink: 0 }}>
-                              <i className="fas fa-times"></i>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <button type="button" className="btn btn-outline btn-sm" onClick={() => fileRefs[index].current?.click()} disabled={imageUploading[index]} style={{ fontSize: '.75rem', alignSelf: 'flex-start' }}>
-                        {imageUploading[index] ? <><i className="fas fa-spinner fa-spin"></i> Uploading...</> : <><i className="fas fa-folder-open"></i> Upload from device</>}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ fontSize: '.72rem', color: 'var(--gray-2)', marginTop: '10px' }}>JPEG, PNG or WebP · Max 5 MB · Or paste any public image URL</div>
+            {/* Colours — any number; buyers must pick one */}
+            <div style={{ marginBottom: '12px' }}>
+              <ProductColorsField
+                colors={form.colors}
+                onChange={(colors) => setForm(f => ({ ...f, colors }))}
+                colorImages={form.colorImages}
+                onColorImagesChange={(colorImages) => setForm(f => ({ ...f, colorImages }))}
+                images={form.images}
+              />
+            </div>
+
+            {/* Images — no limit */}
+            <div style={{ marginBottom: '12px' }}>
+              <ProductImagesField images={form.images} onChange={setImages} onBusyChange={setImagesBusy} onError={showImageError} />
             </div>
 
             {/* Description */}
@@ -442,7 +301,7 @@ export default function AdminProducts() {
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="submit" className="btn btn-primary" disabled={saving || imageUploading.some(Boolean)}>
+              <button type="submit" className="btn btn-primary" disabled={saving || imagesBusy}>
                 {saving ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : editingId ? 'Save Changes' : 'Add Product'}
               </button>
               <button type="button" className="btn btn-outline" onClick={resetForm} disabled={saving}>Cancel</button>

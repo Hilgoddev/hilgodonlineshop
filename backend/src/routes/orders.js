@@ -12,6 +12,7 @@ const { isRevenueOrder, stockWasTaken } = require('../lib/orderStatus');
 const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
 const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
+const { cleanOptions, variantKey, resolveOptionsForProduct } = require('../lib/variants');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Effective per-item status for display. An item that's been individually
@@ -149,30 +150,17 @@ router.post('/', verifyToken, async (req, res, next) => {
         }
 
         // Normalize payload:
-        // - aggregate duplicate productIds
+        // - one order line per product + chosen variant (the same product in two
+        //   colours is two lines); duplicates of the same variant are merged
         // - cap per-line quantity
         // - require client-provided price to match DB price (tamper resistance)
         const maxDistinctItems = 100;
         const maxQuantityPerLine = 20;
         const EPS = 0.01;
 
-        const productQuantityMap = new Map(); // productId -> quantity (aggregated)
+        const productQuantityMap = new Map(); // productId -> quantity across all its lines (stock check)
         const productClientPriceMap = new Map(); // productId -> price provided by client (major units)
-        const productOptionsMap = new Map(); // productId -> { size, color, ... } selected variant
-
-        // Keep only short string values for known/option keys, so a client can't
-        // stuff arbitrary large data onto the order line.
-        const sanitizeOptions = (raw) => {
-            if (!raw || typeof raw !== 'object') return null;
-            const clean = {};
-            for (const [k, v] of Object.entries(raw)) {
-                if (v == null) continue;
-                const key = String(k).slice(0, 30);
-                const val = String(v).trim().slice(0, 60);
-                if (val) clean[key] = val;
-            }
-            return Object.keys(clean).length ? clean : null;
-        };
+        const lineMap = new Map(); // `${productId}::${variantKey}` -> { productId, quantity, options }
 
         for (const it of items) {
             const productId = it?.productId || it?.product_id;
@@ -201,8 +189,11 @@ router.post('/', verifyToken, async (req, res, next) => {
             }
             productClientPriceMap.set(productId, clientPrice);
 
-            const opts = sanitizeOptions(it?.selectedOptions || it?.selected_options);
-            if (opts && !productOptionsMap.has(productId)) productOptionsMap.set(productId, opts);
+            const opts = cleanOptions(it?.selectedOptions || it?.selected_options);
+            const lineKey = `${productId}::${variantKey(opts)}`;
+            const line = lineMap.get(lineKey) || { productId, quantity: 0, options: opts };
+            line.quantity += quantity;
+            lineMap.set(lineKey, line);
         }
 
         if (productQuantityMap.size > maxDistinctItems) {
@@ -222,7 +213,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 withTimeout(
                     (signal) => supabase
                         .from('products')
-                        .select('id, name, images, price, stock, is_active, status, seller_id')
+                        .select('id, name, images, price, stock, is_active, status, seller_id, size_options, color_options')
                         .in('id', productIds)
                         .abortSignal(signal),
                     8 * 1000,
@@ -246,15 +237,13 @@ router.post('/', verifyToken, async (req, res, next) => {
         const orderItems = [];
         const responseItems = [];
 
+        const unitPriceMap = new Map(); // productId -> server unit price
         for (const [productId, quantity] of productQuantityMap.entries()) {
             const p = productMap.get(productId);
             if (!p || p.is_active !== true || p.status !== 'approved') {
                 return res.status(400).json({ success: false, error: `Product not available: ${productId}` });
             }
-            if (quantity > maxQuantityPerLine) {
-                // Aggregated duplicates can exceed the per-line cap.
-                return res.status(400).json({ success: false, error: `Max quantity per line is ${maxQuantityPerLine}` });
-            }
+            // Stock is per product, so all of its colours/sizes together must fit.
             if (!Number.isFinite(Number(p.stock)) || Number(p.stock) < quantity) {
                 return res.status(409).json({ success: false, error: `Insufficient stock for product ${productId}` });
             }
@@ -285,6 +274,31 @@ router.post('/', verifyToken, async (req, res, next) => {
                 });
             }
 
+            unitPriceMap.set(productId, serverUnitPrice);
+        }
+
+        // Check each line's variant against its product (a product with colours
+        // needs one chosen) and merge lines that resolve to the same variant.
+        const resolvedLines = new Map();
+        for (const line of lineMap.values()) {
+            const p = productMap.get(line.productId);
+            const { options, error: optionsError } = resolveOptionsForProduct(p, line.options);
+            if (optionsError) {
+                return res.status(400).json({ success: false, error: optionsError, code: 'OPTIONS_REQUIRED', productId: line.productId });
+            }
+            const key = `${line.productId}::${variantKey(options)}`;
+            const merged = resolvedLines.get(key) || { productId: line.productId, quantity: 0, options };
+            merged.quantity += line.quantity;
+            resolvedLines.set(key, merged);
+        }
+
+        for (const { productId, quantity, options } of resolvedLines.values()) {
+            if (quantity > maxQuantityPerLine) {
+                // Merged duplicates can exceed the per-line cap.
+                return res.status(400).json({ success: false, error: `Max quantity per line is ${maxQuantityPerLine}` });
+            }
+            const p = productMap.get(productId);
+            const serverUnitPrice = unitPriceMap.get(productId);
             total_amount += serverUnitPrice * quantity;
 
             orderItems.push({
@@ -292,7 +306,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 quantity,
                 unit_price: serverUnitPrice,
                 seller_id: p.seller_id || null, // Include seller_id from product
-                selected_options: productOptionsMap.get(productId) || null,
+                selected_options: options,
             });
 
             responseItems.push({
@@ -302,7 +316,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 price: serverUnitPrice,
                 quantity,
                 sellerId: p.seller_id || null,
-                selectedOptions: productOptionsMap.get(productId) || null,
+                selectedOptions: options,
             });
         }
 
