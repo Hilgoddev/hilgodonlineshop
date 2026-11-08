@@ -7,7 +7,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { apiFetch, safeJson } from '../lib/apiClient';
 import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '../lib/pricing';
 import { formatOptionValue } from '../lib/colorName';
-import { needsColor, colorImage } from '../lib/variants';
+import { needsColor, needsSize, colorImage } from '../lib/variants';
 import { cleanEnv } from '../lib/env';
 import { GEO_DATA } from '../lib/geoData';
 import { loadStripe } from '@stripe/stripe-js';
@@ -203,9 +203,9 @@ export default function Checkout() {
 
   const handlePlaceOrder = async () => {
     if (!isFormValid) { showToast('Please fill in all required fields.', 'error'); return; }
-    const missingColor = cart.find((i) => needsColor(i.product, i.options));
+    const missingColor = cart.find((i) => needsColor(i.product, i.options) || needsSize(i.product, i.options));
     if (missingColor) {
-      showToast(`Choose a colour for "${missingColor.product.name}" in your cart first.`, 'error');
+      showToast(`Choose the required size and colour for "${missingColor.product.name}" in your cart first.`, 'error');
       return;
     }
     setSubmitting(true);

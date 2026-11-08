@@ -709,7 +709,7 @@ export default function Home({ products, categories = [], campaigns = [], catego
                 <div className="contact-card-value">hilgodonline@gmail.com</div>
               </div>
             </a>
-            <a href="https://wa.me/+2348080535728" target="_blank" rel="noopener noreferrer" className="contact-card">
+            <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" className="contact-card">
               <div className="contact-card-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>
                 <i className="fab fa-whatsapp"></i>
               </div>

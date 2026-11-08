@@ -129,7 +129,7 @@ export default function ReturnRequest() {
 
         <div style={{ marginTop: 'var(--space-8)', padding: '20px', background: 'var(--gray-6)', borderRadius: 'var(--radius)', border: '1px solid var(--gray-4)', fontSize: '.85rem', color: 'var(--gray-1)' }}>
           <strong style={{ color: 'var(--dark)' }}>Need help faster?</strong> Contact us directly at <a href="mailto:hilgodonline@gmail.com" style={{ color: 'var(--primary)' }}>hilgodonline@gmail.com</a> or{' '}
-          <a href="https://wa.me/2348080535728" style={{ color: 'var(--primary)' }} target="_blank" rel="noopener noreferrer">WhatsApp us</a>.
+          <a href="https://wa.me/35795130549" style={{ color: 'var(--primary)' }} target="_blank" rel="noopener noreferrer">WhatsApp us</a>.
         </div>
       </div>
     </Layout>

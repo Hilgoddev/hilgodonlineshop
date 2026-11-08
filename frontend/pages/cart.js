@@ -7,12 +7,12 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import ConfirmModal from '@/components/ConfirmModal';
 import { normalizePricing, computeDeliveryFee, FREE_DELIVERY_THRESHOLD } from '@/lib/pricing';
 import { formatOptionValue } from '@/lib/colorName';
-import { needsColor, colorImage } from '@/lib/variants';
+import { needsColor, needsSize, colorImage } from '@/lib/variants';
 import ColorSwatches from '@/components/ColorSwatches';
 
 export default function Cart() {
   const { cart, removeFromCart, updateCartQty, updateCartOptions, clearCart, showToast } = useShop();
-  const missingColor = cart.filter((item) => needsColor(item.product, item.options));
+  const missingColor = cart.filter((item) => needsColor(item.product, item.options) || needsSize(item.product, item.options));
   const [promoCode, setPromoCode] = useState('');
   const [modal, setModal] = useState({ open: false });
   const closeModal = () => setModal(m => ({ ...m, open: false }));
@@ -155,6 +155,13 @@ export default function Cart() {
                             </div>
                           );
                         })()}
+                        {needsSize(item.product, item.options) && (
+                          <div role="alert" style={{ marginTop: 8 }}>
+                            <p>Please choose a size before checkout.</p>
+                            <Link className="btn btn-outline btn-sm" href={'/products/' + item.product._id}>Choose size</Link>
+                            <p style={{ fontSize: '.78rem' }}>Add your chosen size, then remove this incomplete item.</p>
+                          </div>
+                        )}
                         {needsColor(item.product, item.options) && (
                           <div style={{ marginTop: '6px' }}>
                             <ColorSwatches
@@ -305,13 +312,14 @@ export default function Cart() {
 
               {missingColor.length > 0 && (
                 <div style={{ fontSize: '.82rem', color: 'var(--danger)', fontWeight: 600, marginBottom: '8px' }}>
-                  <i className="fas fa-circle-exclamation"></i> Choose a colour for {missingColor.length === 1 ? missingColor[0].product.name : `${missingColor.length} items`} before checkout.
+                  <i className="fas fa-circle-exclamation"></i> Choose the required size and colour for {missingColor.length === 1 ? missingColor[0].product.name : `${missingColor.length} items`} before checkout.
                 </div>
               )}
               <Link
                 href="/checkout"
                 className="btn btn-primary btn-full btn-lg cart-checkout-btn"
                 aria-disabled={missingColor.length > 0}
+                onClick={(event) => { if (missingColor.length) { event.preventDefault(); showToast("Choose the required size and colour before checkout.", "warning"); } }}
                 style={missingColor.length > 0 ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
               >
                 <i className="fas fa-lock"></i> Secure Checkout

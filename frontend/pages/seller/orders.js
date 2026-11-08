@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Layout from '@/components/Layout';
+import ShipmentTracking from '@/components/ShipmentTracking';
 import SellerGuard from '@/components/SellerGuard';
 import Link from 'next/link';
 import { apiFetch } from '../../lib/apiClient';
@@ -138,9 +139,9 @@ export default function SellerOrders() {
             <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{orders.length}</div>
           </div>
           <div className="card" style={{ padding: '20px' }}>
-            <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Your Revenue</div>
+            <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Order value (all statuses)</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
-              {formatPrice(orders.reduce((s, o) => s + o.sellerTotal, 0), 'NGN', false)}
+              {[...new Set(orders.map(o=>o.currency||'NGN'))].map(currency=><div key={currency}>{formatPrice(orders.filter(o=>(o.currency||'NGN')===currency).reduce((s,o)=>s+o.sellerTotal,0),currency,false)}</div>)}
             </div>
           </div>
           <div className="card" style={{ padding: '20px' }}>
@@ -210,7 +211,7 @@ export default function SellerOrders() {
                     </div>
                     <div style={{ padding: '12px 16px' }}>
                       {order.items.map((item, i) => (
-                        <div key={item.id || i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: i < order.items.length - 1 ? '1px solid var(--gray-4)' : 'none' }}>
+                        <div key={item.id || i} style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '8px 0', borderBottom: i < order.items.length - 1 ? '1px solid var(--gray-4)' : 'none' }}>
                           {item.image ? (
                             <img src={item.image} alt={item.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
                           ) : (
@@ -218,9 +219,10 @@ export default function SellerOrders() {
                               <i className="fas fa-image" style={{ color: 'var(--gray-2)' }} />
                             </div>
                           )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ flex: 1, minWidth: 160 }}>
+                            <ShipmentTracking item={item} editable={item.fulfillmentStatus !== "cancelled" && order.status !== "cancelled"} onSaved={tracking => setOrders(prev=>prev.map(o=>({...o,items:o.items.map(it=>it.id===item.id?{...it,tracking}:it)})))} />
                             <div style={{ fontWeight: 600, fontSize: '.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-                            <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(Number(item.price), item.currency || 'NGN', false)} each</div>
+                            <div style={{ fontSize: '.78rem', color: 'var(--gray-1)' }}>Qty: {item.quantity} · {formatPrice(Number(item.price), order.currency || 'NGN', false)} each</div>
                             {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
                               <div style={{ fontSize: '.74rem', color: 'var(--primary)', marginTop: '2px', textTransform: 'capitalize', fontWeight: 600 }}>
                                 {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
@@ -237,7 +239,7 @@ export default function SellerOrders() {
                               <option value="pending">pending</option>
                               <option value="packed">packed</option>
                               <option value="shipped">shipped</option>
-                              <option value="delivered">delivered</option>
+                              <option value="delivered" disabled={order.paymentMethod === "pod"}>delivered{order.paymentMethod === "pod" ? " (admin confirms cash)" : ""}</option>
                               <option value="cancelled">cancelled</option>
                             </select>
                             {(itemStatuses[item.id] || item.fulfillmentStatus || 'pending') !== (item.fulfillmentStatus || 'pending') && (
@@ -250,7 +252,7 @@ export default function SellerOrders() {
                                 {savingItemId === item.id ? <i className="fas fa-spinner fa-spin"></i> : 'Save'}
                               </button>
                             )}
-                            <div style={{ fontWeight: 700, fontSize: '.9rem', flexShrink: 0 }}>{formatPrice(item.price * item.quantity, item.currency || 'NGN', false)}</div>
+                            <div style={{ fontWeight: 700, fontSize: '.9rem', flexShrink: 0 }}>{formatPrice(item.price * item.quantity, order.currency || 'NGN', false)}</div>
                           </div>
                         </div>
                       ))}

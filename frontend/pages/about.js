@@ -95,7 +95,7 @@ export default function AboutUs() {
                   <a href="https://www.linkedin.com/in/hilary-g" title="Hilary on LinkedIn" className="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer">
                     <i className="fab fa-linkedin"></i> LinkedIn
                   </a>
-                  <a href="https://wa.me/2348080535728" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">WhatsApp</a>
+                  <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">WhatsApp</a>
                 </div>
                 {/*
                 <div className="owner-stats">
@@ -214,7 +214,7 @@ export default function AboutUs() {
           <a href="mailto:hilgodonline@gmail.com" className="btn btn-primary btn-mobile-full">
             <i className="fas fa-envelope"></i> hilgodonline@gmail.com
           </a>
-          <a href="https://wa.me/2348080535728" className="btn btn-outline btn-mobile-full" target="_blank" rel="noopener noreferrer">
+          <a href="https://wa.me/35795130549" className="btn btn-outline btn-mobile-full" target="_blank" rel="noopener noreferrer">
             <i className="fab fa-whatsapp"></i> WhatsApp
           </a>
         </div>

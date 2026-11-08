@@ -99,7 +99,7 @@ export default function FlashSales({ flashSales = [] }) {
             <p style={{textAlign:'center', fontSize: '.82rem', color: 'rgba(255,255,255,.75)', marginBottom: '12px' }}>
               Flash sales are announced first via newsletter and WhatsApp.
             </p>
-            <a href="https://wa.me/2348080535728" className="btn" style={{ background: '#25d366', color: '#fff', border: 'none', fontSize: '.85rem' }} target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/35795130549" className="btn" style={{ background: '#25d366', color: '#fff', border: 'none', fontSize: '.85rem' }} target="_blank" rel="noopener noreferrer">
               <i className="fab fa-whatsapp"></i> Join WhatsApp Channel
             </a>
           </div>

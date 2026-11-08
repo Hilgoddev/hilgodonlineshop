@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
+import ShipmentTracking from '@/components/ShipmentTracking';
 import AuthGuard from '@/components/AuthGuard';
 import { apiFetch, safeJson } from '../lib/apiClient';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -152,6 +153,7 @@ function TrackOrderPage() {
                         <img src={it.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=60'} alt={it.name} style={{ width: '38px', height: '38px', borderRadius: '6px', objectFit: 'cover', flexShrink: 0 }} onError={(e) => { e.target.onerror = null; e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=60&q=60'; }} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600 }}>{it.name}</div>
+                          <ShipmentTracking item={it} />
                           <div style={{ color: 'var(--gray-1)', fontSize: '.78rem' }}>
                             Qty: {it.quantity}
                             {it.selectedOptions && Object.keys(it.selectedOptions).length > 0 && (

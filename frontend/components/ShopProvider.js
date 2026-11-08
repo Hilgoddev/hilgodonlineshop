@@ -4,7 +4,7 @@ import { useSession } from '../contexts/AuthContext';
 import { apiFetch } from '../lib/apiClient';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalizePricing } from '../lib/pricing';
-import { cleanOptions, variantKey, needsColor, colorImage } from '../lib/variants';
+import { cleanOptions, variantKey, needsColor, needsSize, colorImage } from '../lib/variants';
 import ColorSwatches from './ColorSwatches';
 
 import styles from '../css/fix.module.css';
@@ -143,6 +143,10 @@ export default function ShopProvider({ children }) {
   // returned so the caller can point at the colour picker.
   const addToCart = async (product, quantity = 1, options = null) => {
     const opts = cleanOptions(options);
+    if (needsSize(product, opts)) {
+      showToast('Please choose an available size first.', 'warning');
+      return false;
+    }
     if (needsColor(product, opts)) {
       showToast('Please choose a colour first.', 'warning');
       return false;
@@ -278,10 +282,10 @@ export default function ShopProvider({ children }) {
 
   const openQuickView = (product) => {
     setQuickViewProduct(product);
-    // Size defaults to the first option; colour is never pre-selected — the
+    // Size requires an explicit choice; colour is never pre-selected — the
     // buyer has to pick one (a single-colour product is picked for them).
     setQvSelection({
-      size: product?.size_options?.[0] || '',
+      size: '',
       color: product?.color_options?.length === 1 ? product.color_options[0] : '',
     });
     setQvColorError(false);
@@ -406,8 +410,8 @@ export default function ShopProvider({ children }) {
                       <div style={{ fontSize: '.8rem', fontWeight: 600, marginBottom: '6px' }}>Size: <strong>{qvSelection.size || 'Select'}</strong></div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         {quickViewProduct.size_options.map((size) => (
-                          <button key={size} type="button" onClick={() => setQvSelection((s) => ({ ...s, size }))}
-                            style={{ padding: '5px 12px', borderRadius: '6px', border: qvSelection.size === size ? '2px solid var(--primary)' : '1px solid var(--gray-3)', background: qvSelection.size === size ? 'var(--primary-light)' : '#fff', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600 }}>
+                          <button key={size} type="button" aria-pressed={qvSelection.size === size} onClick={() => setQvSelection((s) => ({ ...s, size }))}
+                            style={{ minHeight: '44px', minWidth: '44px', padding: '8px 12px', borderRadius: '6px', border: qvSelection.size === size ? '2px solid var(--primary)' : '1px solid var(--gray-3)', background: qvSelection.size === size ? 'var(--primary-light)' : '#fff', cursor: 'pointer', fontSize: '.82rem', fontWeight: 600 }}>
                             {size}
                           </button>
                         ))}

@@ -7,8 +7,10 @@ import { categoriesData } from '@/pages/categories';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { colorName } from '../../lib/colorName';
 import { parseSizeInput } from '../../lib/parseSizes';
+import ProductSizesField from '@/components/product-form/ProductSizesField';
 import ProductImagesField, { emptyImageSlots, DEFAULT_IMAGE_SLOTS } from '@/components/product-form/ProductImagesField';
 import ProductColorsField from '@/components/product-form/ProductColorsField';
+import CatalogImport from '@/components/CatalogImport';
 
 const emptyForm = () => ({
   name: '',
@@ -142,7 +144,7 @@ export default function SellerProducts() {
         brand: form.brand || undefined,
         stock: Number(form.stock),
         images: uploadedImages,
-        size_options: form.sizes ? parseSizeInput(form.sizes) : undefined,
+        size_options: parseSizeInput(form.sizes),
         // Sent even when empty on edit, so removing every colour sticks.
         color_options: form.colors.length > 0 || editingId ? form.colors : undefined,
         color_images: form.colorImages,
@@ -193,6 +195,8 @@ export default function SellerProducts() {
             {message.text}
           </div>
         ) : null}
+
+        <CatalogImport products={data.products || []} onComplete={load} />
 
         <div className="seller-metrics-grid">
           <div className="card" style={{ padding: '20px' }}>
@@ -260,7 +264,7 @@ export default function SellerProducts() {
                 <option value="EUR">EUR — Euro (€)</option>
               </select>
               <input className="form-input" type="number" min="0" placeholder="Stock" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} required />
-              <input className="form-input" placeholder="Sizes — comma separated e.g. S, M, L, XL (optional)" value={form.sizes} onChange={(e) => setForm((f) => ({ ...f, sizes: e.target.value }))} />
+              <ProductSizesField value={form.sizes} onChange={sizes => setForm(f => ({...f,sizes}))} />
             </div>
 
             <div style={{ marginTop: '16px' }}>

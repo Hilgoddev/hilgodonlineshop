@@ -160,7 +160,7 @@ export default function Footer() {
             </div>
             <div className="footer-contact-item">
               <i className="fas fa-phone"></i>
-              <span>+234 808 053 5728, +357 95 130549</span>
+              <span><a href="tel:+2348080535728">+234 808 053 5728</a><br /><a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" aria-label="Chat with Hilgod on WhatsApp">WhatsApp: +357 95 130549</a></span>
             </div>
             <div className="footer-contact-item">
               <i className="fas fa-envelope"></i>
@@ -176,7 +176,7 @@ export default function Footer() {
               <a href="https://x.com/Hilgodhub" className="social-link" aria-label="X (Twitter)" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-x-twitter"></i>
               </a>
-              <a href="https://wa.me/+2348080535728" className="social-link" aria-label="WhatsApp" target="_blank" rel="noopener noreferrer">
+              <a href="https://wa.me/35795130549" className="social-link" aria-label="WhatsApp" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-whatsapp"></i>
               </a>
             </div>

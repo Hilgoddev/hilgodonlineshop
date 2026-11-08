@@ -26,6 +26,11 @@ export function needsColor(product, options) {
   return (product?.color_options?.length || 0) > 0 && !options?.color;
 }
 
+export function needsSize(product, options) {
+  const sizes = Array.isArray(product?.size_options) ? product.size_options : [];
+  return sizes.length > 0 && !sizes.some(size => String(size).trim().toLowerCase() === String(options?.size || '').trim().toLowerCase());
+}
+
 // The photo a seller linked to a colour, if any.
 export function colorImage(product, color) {
   if (!color || !product?.color_images) return null;

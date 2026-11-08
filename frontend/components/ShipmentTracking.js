@@ -1,0 +1,17 @@
+import {useEffect,useState} from 'react';
+import {apiFetch} from '../lib/apiClient';
+export default function ShipmentTracking({item,editable=false,onSaved}) {
+ const [editing,setEditing]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [saved,setSaved]=useState(item.tracking||null);
+ const [carrier,setCarrier]=useState(item.tracking?.carrier||'GIG Logistics');
+ const [number,setNumber]=useState(item.tracking?.trackingNumber||'');
+ useEffect(()=>{setSaved(item.tracking||null);if(!editing){setCarrier(item.tracking?.carrier||'GIG Logistics');setNumber(item.tracking?.trackingNumber||'');}},[item.tracking,editing]);
+ const save=async()=>{if(busy)return;setBusy(true);setError('');try{const res=await apiFetch('/api/seller/order-items/'+item.id+'/tracking',{method:'PATCH',body:JSON.stringify({carrier,trackingNumber:number})});const json=await res.json();if(!res.ok||!json.success)throw new Error(json.error||'Could not save tracking');setSaved(json.data);setEditing(false);onSaved?.(json.data);}catch(e){setError(e.message);}finally{setBusy(false);}};
+ if(!editable&&!saved)return null;
+ return <div style={{marginTop:10,fontSize:'.82rem',overflowWrap:'anywhere'}}>
+ {saved&&<p><strong>{saved.carrier}</strong> · Tracking/reference: <strong>{saved.trackingNumber}</strong></p>}
+ {editable&&!editing&&<button type="button" className="btn btn-outline btn-sm" onClick={()=>setEditing(true)}>{saved?'Edit tracking':'Add delivery tracking'}</button>}
+ {editable&&editing&&<div style={{display:'grid',gap:8,maxWidth:420}}><label>Delivery provider<select className="form-input" value={carrier} onChange={e=>setCarrier(e.target.value)} disabled={busy}>{['GIG Logistics','Other courier','Seller delivery'].map(c=><option key={c}>{c}</option>)}</select></label><label>Tracking or delivery reference<input className="form-input" maxLength={80} value={number} onChange={e=>setNumber(e.target.value)} disabled={busy} placeholder="Enter the courier-issued tracking ID"/></label><p>Book with your courier, then add its reference here. GIG booking and automatic updates are not connected yet. Update each item's delivery status as it progresses.</p><div style={{display:'flex',gap:8}}><button type="button" className="btn btn-primary btn-sm" disabled={busy||number.trim().length<3} onClick={save}>{busy?'Saving…':'Save tracking'}</button><button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={()=>{setEditing(false);setError('');}}>Cancel</button></div></div>}
+ {error&&<p role="alert" style={{color:'var(--danger)'}}>{error}</p>}
+ </div>;
+}

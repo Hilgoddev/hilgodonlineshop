@@ -15,17 +15,18 @@ export default function ProductImagesField({ images, onChange, onBusyChange, onE
   const [dragOver, setDragOver] = useState(false);
   const slotInputs = useRef({});
   const bulkInput = useRef(null);
+  const activeSlots = useRef(new Set());
 
   useEffect(() => { onBusyChange?.(uploading.size > 0); }, [uploading, onBusyChange]);
 
   const filled = images.filter(Boolean).length;
   const busy = uploading.size > 0;
 
-  const setUploadingAt = (index, on) => setUploading((prev) => {
-    const next = new Set(prev);
-    if (on) next.add(index); else next.delete(index);
-    return next;
-  });
+  const setUploadingAt = (index, on) => {
+    if (on) activeSlots.current.add(index); else activeSlots.current.delete(index);
+    setUploading(new Set(activeSlots.current));
+    onBusyChange?.(activeSlots.current.size > 0);
+  };
 
   const uploadInto = async (index, file) => {
     setUploadingAt(index, true);
@@ -41,6 +42,7 @@ export default function ProductImagesField({ images, onChange, onBusyChange, onE
 
   // Several files: fill the empty slots first, then add new slots for the rest.
   const uploadMany = (fileList) => {
+    if (activeSlots.current.size) { onError?.("Please wait for the current photos to finish uploading."); return; }
     const files = [...(fileList || [])].filter((f) => f.type.startsWith('image/'));
     if (!files.length) return;
     const targets = [];
@@ -48,7 +50,11 @@ export default function ProductImagesField({ images, onChange, onBusyChange, onE
     let next = images.length;
     while (targets.length < files.length) targets.push(next++);
     if (next > images.length) onChange((prev) => [...prev, ...Array(next - prev.length).fill('')]);
-    files.forEach((file, k) => uploadInto(targets[k], file));
+    targets.forEach(index => setUploadingAt(index, true));
+    const queue = files.map((file, k) => ({file,index:targets[k]}));
+    const worker = async () => { while (queue.length) { const job = queue.shift(); await uploadInto(job.index, job.file); } };
+    // Limit resizing and network activity on phones.
+    Promise.all(Array.from({length:Math.min(3,queue.length)},worker));
   };
 
   const setUrl = (index, url) => onChange((prev) => { const n = [...prev]; n[index] = url; return n; });
@@ -86,7 +92,7 @@ export default function ProductImagesField({ images, onChange, onBusyChange, onE
             {filled} photo{filled === 1 ? '' : 's'} added · no limit · the first photo is the main one
           </div>
         </div>
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => bulkInput.current?.click()}>
+        <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => bulkInput.current?.click()}>
           <i className="fas fa-upload"></i> Upload several
         </button>
         <input ref={bulkInput} type="file" accept={ACCEPTED_TYPES} multiple style={{ display: 'none' }}
@@ -101,7 +107,7 @@ export default function ProductImagesField({ images, onChange, onBusyChange, onE
               <button
                 type="button"
                 className="pf-slot__preview"
-                onClick={() => !isUploading && slotInputs.current[index]?.click()}
+                disabled={busy} onClick={() => !busy && slotInputs.current[index]?.click()}
                 title={url ? 'Replace this photo' : 'Choose a photo'}
               >
                 {isUploading ? (
@@ -121,7 +127,7 @@ export default function ProductImagesField({ images, onChange, onBusyChange, onE
                 type="file"
                 accept={ACCEPTED_TYPES}
                 style={{ display: 'none' }}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadInto(index, f); e.target.value = ''; }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f && !activeSlots.current.size) uploadInto(index, f); e.target.value = ''; }}
               />
               <input
                 className="form-input pf-slot__url"

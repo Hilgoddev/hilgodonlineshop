@@ -64,7 +64,7 @@ describe('variants lib', () => {
   it('requires a colour on a multi-colour product and rejects unknown ones', () => {
     expect(resolveOptionsForProduct(SHIRT, { size: 'M' }).error).toMatch(/choose a colour/i);
     expect(resolveOptionsForProduct(SHIRT, { color: '#123456' }).error).toMatch(/not available/i);
-    expect(resolveOptionsForProduct(SHIRT, { color: '#FF0000' }).options).toEqual({ color: RED });
+    expect(resolveOptionsForProduct(SHIRT, { color: '#FF0000', size: 'M' }).options).toEqual({ color: RED, size: 'M' });
     expect(resolveOptionsForProduct({ name: 'Mug' }, { color: RED }).options).toBeNull();
   });
 });
@@ -130,9 +130,9 @@ describe('cart lines per colour', () => {
   });
 
   it('keeps red and blue as separate lines and merges repeats', async () => {
-    await request(app).post('/api/cart').send({ productId: PRODUCT_ID, quantity: 1, selectedOptions: { color: RED } });
-    await request(app).post('/api/cart').send({ productId: PRODUCT_ID, quantity: 2, selectedOptions: { color: BLUE } });
-    await request(app).post('/api/cart').send({ productId: PRODUCT_ID, quantity: 1, selectedOptions: { color: '#FF0000' } });
+    await request(app).post('/api/cart').send({ productId: PRODUCT_ID, quantity: 1, selectedOptions: { color: RED, size: 'M' } });
+    await request(app).post('/api/cart').send({ productId: PRODUCT_ID, quantity: 2, selectedOptions: { color: BLUE, size: 'M' } });
+    await request(app).post('/api/cart').send({ productId: PRODUCT_ID, quantity: 1, selectedOptions: { color: '#FF0000', size: 'M' } });
     expect(rows.map((r) => [r.selected_options.color, r.quantity])).toEqual([[RED, 2], [BLUE, 2]]);
   });
 });
@@ -168,9 +168,28 @@ describe('orders with colours', () => {
 
   it('checks stock across all colours of a product', async () => {
     const res = await order([
-      { productId: PRODUCT_ID, quantity: 6, price: 5000, selectedOptions: { color: RED } },
-      { productId: PRODUCT_ID, quantity: 6, price: 5000, selectedOptions: { color: BLUE } },
+      { productId: PRODUCT_ID, quantity: 6, price: 5000, selectedOptions: { color: RED, size: 'M' } },
+      { productId: PRODUCT_ID, quantity: 6, price: 5000, selectedOptions: { color: BLUE, size: 'M' } },
     ]);
     expect(res.statusCode).toBe(409);
   });
+});
+describe('required sizes', () => {
+ it('rejects missing and invalid sizes while preserving valid spelling', () => {
+  expect(resolveOptionsForProduct(SHIRT, {color: RED}).error).toMatch(/choose a size/i);
+  expect(resolveOptionsForProduct(SHIRT, {color: RED, size: 'XL'}).error).toMatch(/not available/i);
+  expect(resolveOptionsForProduct(SHIRT, {color: RED, size: 'm'}).options.size).toBe('M');
+  expect(resolveOptionsForProduct({name:'Mug'}, null).error).toBeNull();
+ });
+ it('rejects a size-only product before cart insertion', async () => {
+  fake.reset(); fake.handler=({table})=>({data:table==='products'?{...SHIRT,color_options:[]}:null,error:null});
+  const res=await request(app).post('/api/cart').send({productId:PRODUCT_ID,quantity:1});
+  expect(res.statusCode).toBe(400);expect(res.body.error).toMatch(/choose a size/i);
+  expect(fake.calls.some(c=>c.table==='cart_items'&&c.op==='insert')).toBe(false);
+ });
+ it('rejects a missing size at order submission',async()=>{
+  fake.reset();fake.handler=({table})=>({data:table==='products'?[SHIRT]:null,error:null});
+  const res=await request(app).post('/api/orders').send({items:[{productId:PRODUCT_ID,quantity:1,price:5000,selectedOptions:{color:RED}}],shippingAddress:{line1:'x'},paymentMethod:'pod'});
+  expect(res.statusCode).toBe(400);expect(res.body.error).toMatch(/choose a size/i);
+ });
 });

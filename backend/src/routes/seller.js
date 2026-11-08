@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const {cleanTracking,canSellerTransition}=require('../lib/shippingTracking');
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const { writeLimiter } = require('../middleware/rateLimit');
@@ -241,7 +242,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
   try {
     let { data: orderItems, error: oiErr } = await supabase
       .from('order_items')
-      .select('id, order_id, product_id, seller_id, quantity, unit_price, fulfillment_status, selected_options, product:products(name, images)')
+      .select('id, order_id, product_id, seller_id, quantity, unit_price, fulfillment_status, selected_options, shipping_tracking, product:products(name, images)')
       .eq('seller_id', req.user.id);
     if (oiErr && (String(oiErr.message || '').includes('fulfillment_status') || String(oiErr.message || '').includes('selected_options'))) {
       ({ data: orderItems, error: oiErr } = await supabase
@@ -280,6 +281,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
         price: Number(oi.unit_price),
         fulfillmentStatus: oi.fulfillment_status || 'pending',
         selectedOptions: oi.selected_options || null,
+        tracking: oi.shipping_tracking || null,
       });
       map.set(oi.order_id, list);
       return map;
@@ -295,6 +297,7 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
         totalAmount: Number(o.total_amount),
         currency: o.currency || 'NGN',
         createdAt: o.created_at,
+        deliveryAddress: o.shipping_address || null,
         buyer: {
           name: buyer?.full_name || buyer?.username || 'Customer',
           email: emailMap.get(o.user_id) || buyer?.username || '',
@@ -309,6 +312,25 @@ router.get('/orders', verifyToken, requireSellerOrAdmin, async (req, res, next) 
   } catch (err) {
     next(err);
   }
+});
+
+// Manual shipment references now; a future GIG adapter can use the same record.
+router.patch('/order-items/:id/tracking', verifyToken, requireSellerOrAdmin, async (req,res,next) => {
+ try {
+  let tracking;
+  try { tracking=cleanTracking(req.body); } catch(e) {return res.status(400).json({success:false,error:e.message});}
+  const {data:item,error}=await supabase.from('order_items').select('id,order_id,seller_id,fulfillment_status').eq('id',req.params.id).maybeSingle();
+  if(error)throw error;
+  if(!item)return res.status(404).json({success:false,error:'Order item not found'});
+  if(req.userRole!=='admin' && item.seller_id!==req.user.id)return res.status(403).json({success:false,error:'Access denied for this order item'});
+  const {data:order,error:orderErr}=await supabase.from('orders').select('status,payment_method').eq('id',item.order_id).maybeSingle();
+  if(orderErr)throw orderErr;
+  if(!order || order.status==='cancelled' || item.fulfillment_status==='cancelled')return res.status(409).json({success:false,error:'Cancelled orders cannot receive tracking details'});
+  if(req.userRole!=='admin' && order.payment_method!=='pod' && !isRevenueOrder(order.status,order.payment_method))return res.status(409).json({success:false,error:'Wait for confirmed payment before arranging delivery'});
+  const {error:saveErr}=await supabase.from('order_items').update({shipping_tracking:tracking}).eq('id',item.id);
+  if(saveErr)throw saveErr;
+  return res.json({success:true,data:tracking});
+ } catch(err){next(err);}
 });
 
 router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
@@ -337,6 +359,10 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
     if (productErr) throw productErr;
     if (!product || (req.userRole !== 'admin' && product.seller_id !== req.user.id)) {
       return res.status(403).json({ success: false, error: 'Access denied for this order item' });
+    }
+
+    if (req.userRole !== 'admin' && !canSellerTransition(item.fulfillment_status || 'pending', fulfillmentStatus)) {
+      return res.status(409).json({success:false,error:'Move items from pending to packed, shipped, then delivered. Contact an admin for cancellations after shipping or status corrections.'});
     }
 
     // Sellers may only fulfil orders that are actually paid for. Without this a

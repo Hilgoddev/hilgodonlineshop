@@ -21,7 +21,7 @@ app.use((err, req, res, next) => res.status(500).json({ error: err.message }));
 // `lineStatus` is the item's current status; `orderMoves` decides whether the
 // conditional order-status update wins (true) or loses a race (false).
 function orderScenario({ role = 'seller', status, payment_method, lineStatus = 'pending', orderMoves = true }) {
-  const line = { id: 'item-1', order_id: 'order-1', product_id: 'prod-1', quantity: 1, unit_price: 1000, fulfillment_status: lineStatus };
+  const line = { id: 'item-1', order_id: 'order-1', product_id: 'prod-1', seller_id: 'seller-1', quantity: 1, unit_price: 1000, fulfillment_status: lineStatus };
   return ({ table, op, filters, payload }) => {
     if (table === 'profiles') return { data: { role }, error: null };
     if (table === 'order_items' && op === 'select') {
@@ -56,7 +56,7 @@ describe('PATCH /api/seller/order-items/:id/status', () => {
   });
 
   it('blocks a seller from marking a POD order delivered', async () => {
-    fake.handler = orderScenario({ status: 'shipped', payment_method: 'pod' });
+    fake.handler = orderScenario({ status: 'shipped', payment_method: 'pod', lineStatus: 'shipped' });
     const res = await patchStatus('delivered');
     expect(res.statusCode).toBe(403);
     expect(fake.calls.some((c) => c.op === 'update')).toBe(false);
@@ -69,7 +69,7 @@ describe('PATCH /api/seller/order-items/:id/status', () => {
   });
 
   it('lets a seller ship a paid online order', async () => {
-    fake.handler = orderScenario({ status: 'paid', payment_method: 'paystack' });
+    fake.handler = orderScenario({ status: 'paid', payment_method: 'paystack', lineStatus: 'packed' });
     const res = await patchStatus('shipped');
     expect(res.statusCode).toBe(200);
   });
@@ -88,21 +88,21 @@ describe('PATCH /api/seller/order-items/:id/status', () => {
   });
 
   it('reopening a cancelled line on a paid order takes its stock again', async () => {
-    fake.handler = orderScenario({ status: 'paid', payment_method: 'paystack', lineStatus: 'cancelled' });
+    fake.handler = orderScenario({ role: 'admin', status: 'paid', payment_method: 'paystack', lineStatus: 'cancelled' });
     const res = await patchStatus('packed');
     expect(res.statusCode).toBe(200);
     expect(fake.supabase.rpc).toHaveBeenCalledWith('take_order_stock', { p_order_id: 'order-1' });
   });
 
   it('a POD order leaving for delivery takes stock once', async () => {
-    fake.handler = orderScenario({ status: 'pending', payment_method: 'pod' });
+    fake.handler = orderScenario({ status: 'pending', payment_method: 'pod', lineStatus: 'packed' });
     await patchStatus('shipped');
     for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
     expect(fake.supabase.rpc.mock.calls.filter(([fn]) => fn === 'take_order_stock')).toHaveLength(1);
   });
 
   it('a seller who loses the status race does not repeat the first-shipment actions', async () => {
-    fake.handler = orderScenario({ status: 'pending', payment_method: 'pod', orderMoves: false });
+    fake.handler = orderScenario({ status: 'pending', payment_method: 'pod', lineStatus: 'packed', orderMoves: false });
     await patchStatus('shipped');
     for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r));
     expect(fake.supabase.rpc).not.toHaveBeenCalledWith('take_order_stock', expect.anything());
@@ -146,4 +146,10 @@ describe('seller balance', () => {
     const res = await request(app).post('/api/seller/payouts/request').send({ amount: 500 });
     expect(res.statusCode).toBe(409);
   });
+});
+describe('shipment tracking',()=>{
+ const track=()=>request(app).patch('/api/seller/order-items/item-1/tracking').send({carrier:'GIG Logistics',trackingNumber:'GIG-12345'});
+ it('saves the seller reference without changing payment or status',async()=>{fake.handler=orderScenario({status:'paid',payment_method:'paystack'});const res=await track();expect(res.statusCode).toBe(200);expect(res.body.data.trackingNumber).toBe('GIG-12345');expect(fake.calls.filter(c=>c.op==='update').map(c=>Object.keys(c.payload))).toEqual([['shipping_tracking']]);});
+ it('blocks another seller and unpaid orders',async()=>{const base=orderScenario({status:'paid',payment_method:'paystack'});fake.handler=q=>{const r=base(q);if(q.table==='order_items'&&q.op==='select')r.data.seller_id='someone-else';return r;};expect((await track()).statusCode).toBe(403);fake.reset();fake.handler=orderScenario({status:'pending',payment_method:'paystack'});expect((await track()).statusCode).toBe(409);});
+ it('rejects malformed references and backward transitions',async()=>{fake.handler=orderScenario({status:'shipped',payment_method:'paystack',lineStatus:'shipped'});expect((await patchStatus('packed')).statusCode).toBe(409);expect((await request(app).patch('/api/seller/order-items/item-1/tracking').send({carrier:'GIG Logistics',trackingNumber:'<script>'})).statusCode).toBe(400);});
 });

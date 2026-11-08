@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { signOut, useSession } from '../../contexts/AuthContext';
 import Layout from '@/components/Layout';
+import ShipmentTracking from '@/components/ShipmentTracking';
 import AuthGuard from '@/components/AuthGuard';
 import { apiFetch } from '../../lib/apiClient';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -121,7 +122,7 @@ export default function Account() {
     }
   };
 
-  useEffect(() => { if (session) fetchUserData(); }, [session]);
+  useEffect(() => { if (session?.user?.id) fetchUserData(); }, [session?.user?.id]);
   useEffect(() => { if (router.query.tab) setActiveTab(router.query.tab); }, [router.query.tab]);
 
   // Real-time order status updates: subscribe when on orders tab, fall back to 30s poll.
@@ -143,10 +144,12 @@ export default function Account() {
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    if (profileSaving) return;
+    if (!profileData.firstName.trim()) { setProfileMsg({type:'error',text:'Enter your first name.'}); return; }
     setProfileSaving(true);
     setProfileMsg({ type: '', text: '' });
     try {
-      const res = await apiFetch('/api/user/profile', { method: 'PUT', body: JSON.stringify(profileData) });
+      const res = await apiFetch('/api/user/profile', { method: 'PUT', body: JSON.stringify({...profileData,firstName:profileData.firstName.trim(),lastName:profileData.lastName.trim()}) });
       const data = await res.json();
       if (data.success) {
         setUser(data.data);
@@ -233,7 +236,7 @@ export default function Account() {
   });
 
   const msgBox = (msg) => msg.text ? (
-    <div style={{
+    <div role="status" aria-live="polite" style={{
       padding: '12px 16px', borderRadius: 'var(--radius)', marginBottom: '16px', fontSize: '.88rem', fontWeight: 600,
       background: msg.type === 'success' ? 'var(--success-light)' : 'var(--danger-light)',
       color: msg.type === 'success' ? 'var(--success)' : 'var(--danger)',
@@ -534,6 +537,7 @@ export default function Account() {
                                           {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
                                         </div>
                                       )}
+                                      <ShipmentTracking item={item} />
                                       {item.seller && (
                                         <div style={{ fontSize: '.72rem', color: 'var(--primary)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                           <i className="fas fa-store" style={{ fontSize: '.6rem' }}></i>

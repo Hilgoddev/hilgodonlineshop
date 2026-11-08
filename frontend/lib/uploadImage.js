@@ -9,24 +9,40 @@ const MAX_EDGE_PX = 2000;
 export const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp';
 
 async function shrinkIfNeeded(file) {
-  if (typeof createImageBitmap !== 'function' || !/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
-  let bitmap;
-  try { bitmap = await createImageBitmap(file); } catch { return file; }
-  const scale = Math.min(1, MAX_EDGE_PX / Math.max(bitmap.width, bitmap.height));
-  if (scale === 1 && file.size <= SHRINK_ABOVE_BYTES) { bitmap.close?.(); return file; }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
-  // PNGs may be transparent, so they stay PNG unless still too large.
-  const tryType = async (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-  let blob = file.type === 'image/png' ? await tryType('image/png') : null;
-  if (!blob || blob.size > MAX_UPLOAD_BYTES) blob = await tryType('image/jpeg', 0.85);
-  if (!blob || blob.size >= file.size) return file;
-  const ext = blob.type === 'image/png' ? 'png' : 'jpg';
-  return new File([blob], file.name.replace(/\.[^.]+$/, '') + `.${ext}`, { type: blob.type });
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) throw new Error('Choose a JPG, PNG or WebP image.');
+  if (file.size > 30 * 1024 * 1024) throw new Error('Choose a photo under 30 MB so your device can resize it safely.');
+  let bitmap, release = () => {};
+  try {
+    if (typeof createImageBitmap === 'function') bitmap = await createImageBitmap(file);
+    else {
+      const url = URL.createObjectURL(file); release = () => URL.revokeObjectURL(url);
+      bitmap = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = url; });
+    }
+    const width = bitmap.width, height = bitmap.height;
+    if (!width || !height) throw new Error('Invalid image');
+    if (Math.max(width,height) <= MAX_EDGE_PX && file.size <= SHRINK_ABOVE_BYTES) return file;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Image resizing is unavailable');
+    // WebP preserves transparency. Browsers without WebP encoding fall back to PNG.
+    const type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const scale = Math.min(1, MAX_EDGE_PX * Math.pow(0.8, attempt) / Math.max(width,height));
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, type, Math.max(0.65,0.88-attempt*0.05)));
+      if (blob && blob.size <= SHRINK_ABOVE_BYTES) {
+        const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
+        return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.' + ext, {type:blob.type});
+      }
+    }
+    if (file.size <= MAX_UPLOAD_BYTES) return file;
+    throw new Error('The photo is still too large after resizing. Try a smaller image.');
+  } catch (error) {
+    if (file.size <= MAX_UPLOAD_BYTES) return file;
+    throw new Error(error?.message || 'Could not resize this photo. Try exporting it as JPG or WebP.');
+  } finally { bitmap?.close?.(); release(); }
 }
 
 // Upload one product image; resolves to its public URL or throws an Error with
@@ -50,7 +66,7 @@ export async function uploadProductImage(file) {
     throw new Error('Network error during image upload');
   }
   const json = await res.json().catch(() => ({}));
-  if (!json.success || !json.url) {
+  if (!res.ok || !json.success || !json.url) {
     console.error('[image-upload] backend response:', JSON.stringify(json));
     throw new Error(json.message || json.error || 'Image upload failed');
   }

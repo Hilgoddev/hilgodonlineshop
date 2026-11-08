@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { safeRedirect } from '../../lib/safeRedirect';
 import { supabase } from '../../lib/supabaseClient';
 import { apiFetch, syncProfile } from '../../lib/apiClient';
 import { useSession } from '../../contexts/AuthContext';
@@ -25,9 +26,9 @@ export default function Login() {
   };
 
   const redirectByRole = async (userId, accessToken) => {
-    const redirectTo = router.query.redirect;
+    const redirectTo = safeRedirect(router.query.redirect);
     // startsWith('/') also passes for protocol-relative URLs like //evil.com — block those explicitly
-    if (redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
+    if (redirectTo) {
       router.replace(redirectTo);
       return;
     }
@@ -67,12 +68,13 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError('');
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
@@ -124,7 +126,7 @@ export default function Login() {
         </div>
 
         {error && (
-          <div className="auth-alert auth-alert-error">
+          <div className="auth-alert auth-alert-error" role="alert">
             <i className="fas fa-exclamation-circle"></i> {error}
           </div>
         )}
@@ -167,7 +169,7 @@ export default function Login() {
               />
               <button 
                 type="button"
-                className="toggle-password"
+                className="toggle-password" aria-label="Show or hide password"
                 onClick={(e) => {
                   const input = e.currentTarget.previousElementSibling;
                   if (input.type === 'password') {

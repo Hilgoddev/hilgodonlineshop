@@ -103,7 +103,8 @@ function resolveOptionsForProduct(product, raw) {
     delete options.color;
   }
 
-  if (sizes.length && options.size) {
+  if (sizes.length) {
+    if (!options.size) return { options: null, error: `Please choose a size for ${label}.` };
     const match = sizes.find((s) => String(s).toLowerCase() === String(options.size).toLowerCase());
     if (!match) return { options: null, error: `The size ${options.size} is not available for ${label}.` };
     options.size = match;

@@ -6,6 +6,7 @@ import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
+import ProductSizesField from '@/components/product-form/ProductSizesField';
 import { parseSizeInput } from '../../lib/parseSizes';
 import styles from '@/css/fix.module.css';
 import { useCurrency } from '@/contexts/CurrencyContext';
@@ -113,7 +114,7 @@ export default function AdminProducts() {
         brand: form.brand || undefined,
         stock: Number(form.stock),
         images: uploadedImages,
-        size_options: form.sizes ? parseSizeInput(form.sizes) : undefined,
+        size_options: parseSizeInput(form.sizes),
         // Sent even when empty on edit, so removing every colour sticks.
         color_options: form.colors.length > 0 || editingId ? form.colors : undefined,
         color_images: form.colorImages,
@@ -274,7 +275,7 @@ export default function AdminProducts() {
             {/* Row 4: Sizes */}
             <div className="form-group" style={{ marginBottom: '12px' }}>
               <label className="form-label">Sizes (optional)</label>
-              <input className="form-input" placeholder="e.g. S, M, L, XL, XXL" value={form.sizes} onChange={e => setForm(f => ({ ...f, sizes: e.target.value }))} />
+              <ProductSizesField value={form.sizes} onChange={sizes => setForm(f => ({...f,sizes}))} />
               <div style={{ fontSize: '.72rem', color: 'var(--gray-2)', marginTop: '4px' }}>Comma-separated</div>
             </div>
 

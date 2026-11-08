@@ -93,7 +93,7 @@ router.get('/', verifyToken, async (req, res, next) => {
         if (orderIds.length) {
             let { data: items, error: itemErr } = await supabase
                 .from('order_items')
-                .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(id, name, images, store:stores(name, logo_url)), seller:profiles(id, full_name, phone_number)')
+                .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, shipping_tracking, seller_id, product:products(id, name, images, store:stores(name, logo_url)), seller:profiles(id, full_name, phone_number)')
                 .in('order_id', orderIds);
             if (itemErr && (String(itemErr.message || '').includes('fulfillment_status') || String(itemErr.message || '').includes('selected_options'))) {
                 ({ data: items, error: itemErr } = await supabase
@@ -114,6 +114,7 @@ router.get('/', verifyToken, async (req, res, next) => {
                     quantity: it.quantity,
                     fulfillmentStatus: it.fulfillment_status || 'pending',
                 selectedOptions: it.selected_options || null,
+                tracking: it.shipping_tracking || null,
                     seller: it.seller ? {
                         id: it.seller.id,
                         name: it.seller.full_name || it.product?.store?.name || 'Seller',
@@ -453,7 +454,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
                 let itemErr;
                 ({ data: items, error: itemErr } = await supabase
                     .from('order_items')
-                    .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
+                    .select('id, order_id, quantity, unit_price, fulfillment_status, selected_options, shipping_tracking, seller_id, product:products(name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
                     .in('order_id', orderIds));
                 if (itemErr && (String(itemErr.message || '').includes('fulfillment_status') || String(itemErr.message || '').includes('selected_options'))) {
                     ({ data: items, error: itemErr } = await supabase
@@ -484,6 +485,7 @@ router.get('/all', verifyToken, async (req, res, next) => {
                 quantity: it.quantity,
                 fulfillmentStatus: it.fulfillment_status || 'pending',
                 selectedOptions: it.selected_options || null,
+                tracking: it.shipping_tracking || null,
                 seller: it.product?.seller ? {
                     id: it.product.seller.id,
                     name: it.product.seller.full_name || it.product.store?.name || 'Seller',
@@ -553,7 +555,7 @@ router.get('/:id', verifyToken, async (req, res, next) => {
 
         let { data: items, error: itemsErr } = await supabase
             .from('order_items')
-            .select('id, quantity, unit_price, fulfillment_status, selected_options, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
+            .select('id, quantity, unit_price, fulfillment_status, selected_options, shipping_tracking, seller_id, product:products(id, name, images, seller:profiles(id, full_name, phone_number), store:stores(name, logo_url))')
             .eq('order_id', order.id);
         if (itemsErr && (String(itemsErr.message || '').includes('fulfillment_status') || String(itemsErr.message || '').includes('selected_options'))) {
             ({ data: items, error: itemsErr } = await supabase
@@ -572,6 +574,7 @@ router.get('/:id', verifyToken, async (req, res, next) => {
             quantity: it.quantity,
             fulfillmentStatus: it.fulfillment_status || 'pending',
             selectedOptions: it.selected_options || null,
+                tracking: it.shipping_tracking || null,
             seller: it.product?.seller ? {
                 id: it.product?.seller?.id,
                 name: it.product?.seller?.full_name || it.product?.store?.name || 'Seller',

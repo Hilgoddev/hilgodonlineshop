@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { safeRedirect } from '../../lib/safeRedirect';
 import { supabase } from '../../lib/supabaseClient';
 import { syncProfile } from '../../lib/apiClient';
 
@@ -47,6 +48,8 @@ export default function Signup() {
     setError('');
     setLoading(true);
 
+    if (!formData.firstName.trim() || !formData.lastName.trim()) { setError('Enter your first and last name.'); setLoading(false); return; }
+    if (calculatePasswordStrength(formData.password) < 4) { setError('Use at least 8 characters with an uppercase letter, number and special character.'); setLoading(false); return; }
     // Validate passwords match
     if (formData.password !== formData.confirm) {
       setError('Passwords do not match');
@@ -56,7 +59,7 @@ export default function Signup() {
 
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email: formData.email,
+        email: formData.email.trim(),
         password: formData.password,
         options: {
           data: {
@@ -65,7 +68,7 @@ export default function Signup() {
         }
       });
 
-      const postSignupRedirect = router.query.redirect && router.query.redirect.startsWith('/') && !router.query.redirect.startsWith('//') ? router.query.redirect : '/account';
+      const postSignupRedirect = safeRedirect(router.query.redirect, '/account');
       if (signUpError) {
         setError(signUpError.message || 'Registration failed. Please try again.');
       } else if (data.session) {
@@ -84,7 +87,7 @@ export default function Signup() {
           if (confirmRes.ok) {
             // Confirmed — sign in immediately
             const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-              email: formData.email,
+              email: formData.email.trim(),
               password: formData.password,
             });
             if (signInError) throw signInError;
@@ -134,11 +137,11 @@ export default function Signup() {
             <img src="/logo.png" alt="Hilgod" />
           </Link>
           <h2>Create Account</h2>
-          <p>Join millions of happy Hilgod shoppers</p>
+          <p>Create your Hilgod shopping account</p>
         </div>
 
         {error && (
-          <div className="auth-alert auth-alert-error">
+          <div className="auth-alert auth-alert-error" role="alert">
             <i className="fas fa-exclamation-circle"></i> {error}
           </div>
         )}
@@ -201,7 +204,7 @@ export default function Signup() {
               <input
                 type="password"
                 id="password"
-                name="password"
+                name="password" autoComplete="new-password" minLength={8}
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="Create a strong password"
@@ -210,7 +213,7 @@ export default function Signup() {
               />
               <button 
                 type="button"
-                className="toggle-password"
+                className="toggle-password" aria-label="Show or hide password"
                 onClick={(e) => {
                   const input = e.currentTarget.previousElementSibling;
                   if (input.type === 'password') {
@@ -261,7 +264,7 @@ export default function Signup() {
               />
               <button 
                 type="button"
-                className="toggle-password"
+                className="toggle-password" aria-label="Show or hide password"
                 onClick={(e) => {
                   const input = e.currentTarget.previousElementSibling;
                   if (input.type === 'password') {

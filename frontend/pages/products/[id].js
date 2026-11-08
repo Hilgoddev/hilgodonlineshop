@@ -9,11 +9,13 @@ import { normalizePricing } from '@/lib/pricing';
 import { resolveServerApiBase } from '@/lib/env';
 import { apiFetch } from '@/lib/apiClient';
 import { colorName } from '@/lib/colorName';
-import { needsColor, colorImage } from '@/lib/variants';
+import { needsColor, needsSize, colorImage } from '@/lib/variants';
 import ColorSwatches from '@/components/ColorSwatches';
 
 export default function ProductDetail({ product, relatedProducts, loadError = false }) {
   const router = useRouter();
+  const { addToCart, toggleWishlist, isInWishlist, showToast } = useShop();
+  const { formatPrice } = useCurrency();
   const [selectedImage, setSelectedImage] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -23,7 +25,7 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
   // resetting it (so a buyer can't accidentally check out the wrong variant).
   const qSize = typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size) ? router.query.size : '';
   const qColor = typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color) ? router.query.color : '';
-  const [selectedSize, setSelectedSize] = useState(qSize || product?.size_options?.[0] || '');
+  const [selectedSize, setSelectedSize] = useState(qSize);
   // Colour is never pre-selected (unless there's only one): the buyer must pick.
   const onlyColor = product?.color_options?.length === 1 ? product.color_options[0] : '';
   const [selectedColor, setSelectedColor] = useState(qColor || onlyColor);
@@ -41,10 +43,12 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
   // If the query carries a variant (e.g. arriving from Quick View after hydration), apply it.
   useEffect(() => {
     if (!router.isReady) return;
-    if (typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size)) setSelectedSize(router.query.size);
+    setSelectedSize(typeof router.query.size === 'string' && product?.size_options?.includes(router.query.size) ? router.query.size : '');
+    setSelectedImage(0);
+    setSelectedColor(product?.color_options?.length === 1 ? product.color_options[0] : '');
     if (typeof router.query.color === 'string' && product?.color_options?.includes(router.query.color)) chooseColor(router.query.color);
     // eslint-disable-next-line
-  }, [router.isReady, router.query.size, router.query.color]);
+  }, [router.isReady, router.query.size, router.query.color, product?._id]);
   
   // Review form state
   const [reviewForm, setReviewForm] = useState({
@@ -108,8 +112,7 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
       </Layout>
     );
   }
-  const { addToCart, toggleWishlist, isInWishlist, showToast } = useShop();
-  const { formatPrice } = useCurrency();
+  
 
   // Collect the buyer's chosen variant (only keys the product actually offers).
   const buildSelectedOptions = () => {
@@ -122,6 +125,11 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
   // A product with colours can't go in the cart until one is chosen: flag the
   // picker and bring it into view instead.
   const colorMissing = () => {
+    if (needsSize(product, { size: selectedSize })) {
+      showToast('Please choose an available size first.', 'warning');
+      document.getElementById('pdp-sizes')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return true;
+    }
     if (!needsColor(product, { color: selectedColor })) return false;
     setColorError(true);
     document.getElementById('pdp-colors')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -355,7 +363,7 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
 
             {/* Size Selector */}
             {product.size_options?.length > 0 && (
-              <div className="pdp-variants">
+              <div className="pdp-variants" id="pdp-sizes">
                 <div className="variant-label">
                   Size: <strong>{selectedSize || 'Select size'}</strong>
                 </div>
@@ -364,6 +372,8 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
                     <button
                       key={size}
                       className={`variant-btn ${selectedSize === size ? 'selected' : ''}`}
+                      aria-pressed={selectedSize === size}
+                      style={{ minHeight: 44, minWidth: 44 }}
                       onClick={() => setSelectedSize(size)}
                       type="button"
                     >

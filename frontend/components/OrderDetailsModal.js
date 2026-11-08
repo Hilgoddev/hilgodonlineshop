@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import ShipmentTracking from './ShipmentTracking';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatOptionValue } from '@/lib/colorName';
 
@@ -112,6 +113,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
                       {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${formatOptionValue(k, v)}`).join(' · ')}
                     </div>
                   )}
+                  <ShipmentTracking item={item} />
                   {item.fulfillmentStatus && (
                     <div style={{ fontSize: '.75rem', color: '#475569', textTransform: 'capitalize' }}>
                       Item status: {item.fulfillmentStatus}

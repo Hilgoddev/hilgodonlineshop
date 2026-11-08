@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
@@ -32,6 +33,10 @@ export default function App({ Component, pageProps }) {
 
   return (
     <SessionProvider>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {new RegExp('^/(admin|seller|account|auth)(/|$)|^/(cart|checkout|wishlist|track-order|return-request)(/|$)').test(router.pathname) && <meta name="robots" content="noindex, nofollow" key="robots" />}
+      </Head>
       <CurrencyProvider>
         <ShopProvider>
           {getLayout(<Component {...pageProps} />)}
