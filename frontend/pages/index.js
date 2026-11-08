@@ -709,13 +709,17 @@ export default function Home({ products, categories = [], campaigns = [], catego
                 <div className="contact-card-value">hilgodonline@gmail.com</div>
               </div>
             </a>
+            <a href="tel:+35795130549" className="contact-card">
+              <div className="contact-card-icon" style={{background:'#fee2e2',color:'#b91c1c'}}><i className="fas fa-phone" aria-hidden="true" /></div>
+              <div><div className="contact-card-label">Call Us</div><div className="contact-card-value">+357 95 130549</div></div>
+            </a>
             <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" className="contact-card">
               <div className="contact-card-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>
                 <i className="fab fa-whatsapp"></i>
               </div>
               <div>
                 <div className="contact-card-label">WhatsApp</div>
-                <div className="contact-card-value">Chat with us</div>
+                <div className="contact-card-value">+357 95 130549</div>
               </div>
             </a>
             <a href="/account?tab=orders" className="contact-card">

@@ -22,6 +22,11 @@ export default function Layout({ children, title = 'Hilgod Online Store', descri
       </Head>
       <div className="wrapper">
         <Navbar />
+        <aside aria-label="Hilgod customer support" style={{display:'flex',alignItems:'center',justifyContent:'center',flexWrap:'wrap',gap:'4px 16px',padding:'8px 16px',background:'#fff5f5',borderBottom:'1px solid #fee2e2',fontSize:'.85rem'}}>
+          <span style={{fontWeight:600}}>Need help? +357 95 130549</span>
+          <a href="tel:+35795130549" style={{display:'inline-flex',alignItems:'center',gap:6,minHeight:44,fontWeight:700,color:'#b91c1c'}}><i className="fas fa-phone" aria-hidden="true" /> Call us</a>
+          <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" style={{display:'inline-flex',alignItems:'center',gap:6,minHeight:44,fontWeight:700,color:'#15803d'}}><i className="fab fa-whatsapp" aria-hidden="true" /> WhatsApp</a>
+        </aside>
         <main>{children}</main>
         <Footer />
       </div>

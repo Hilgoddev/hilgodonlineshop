@@ -77,7 +77,7 @@ const EMAIL_FROM_MAP = {
  */
 function getEmailFooter() {
   const supportEmail = cleanEnv(process.env.SUPPORT_EMAIL) || 'support@hilgod.com';
-  const supportPhone = cleanEnv(process.env.SUPPORT_PHONE) || '+123';
+  const supportPhone = '+35795130549';
   const website = cleanEnv(process.env.COMPANY_WEBSITE) || 'hilgod.com';
   // Use the lightweight (~5KB) email logo, not the 2MB site logo.png that many
   // email clients refuse to render. EMAIL_LOGO_URL can override if needed.
@@ -91,7 +91,7 @@ function getEmailFooter() {
       </div>
       <p style="margin:8px 0">
         <strong>Need help?</strong><br/>
-        Contact us at <a href="mailto:${supportEmail}" style="color:#E31C1C;text-decoration:none">${supportEmail}</a> or call <a href="tel:${supportPhone}" style="color:#E31C1C;text-decoration:none">${supportPhone}</a>
+        Contact us at <a href="mailto:${supportEmail}" style="color:#E31C1C;text-decoration:none">${supportEmail}</a> or call <a href="tel:${supportPhone}" style="color:#E31C1C;text-decoration:none">+357 95 130549</a> · <a href="https://wa.me/35795130549" style="color:#15803d;text-decoration:none">WhatsApp</a>
       </p>
       <p style="margin:8px 0">
         <strong>${companyName}</strong><br/>

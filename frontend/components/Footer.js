@@ -160,7 +160,7 @@ export default function Footer() {
             </div>
             <div className="footer-contact-item">
               <i className="fas fa-phone"></i>
-              <span><a href="tel:+2348080535728">+234 808 053 5728</a><br /><a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" aria-label="Chat with Hilgod on WhatsApp">WhatsApp: +357 95 130549</a></span>
+              <span><a href="tel:+35795130549" aria-label="Call Hilgod on +357 95 130549">Call: +357 95 130549</a><br /><a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer" aria-label="Chat with Hilgod on WhatsApp">WhatsApp: +357 95 130549</a></span>
             </div>
             <div className="footer-contact-item">
               <i className="fas fa-envelope"></i>
