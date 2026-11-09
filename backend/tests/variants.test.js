@@ -29,6 +29,7 @@ const fake = require('./helpers/fakeSupabase');
 const app = require('../src/index');
 const { sanitizeImages, sanitizeColors, sanitizeColorImages, variantKey, resolveOptionsForProduct } = require('../src/lib/variants');
 
+const ADDRESS = { firstName: 'Ada', lastName: 'Obi', email: 'ada@example.com', phone: '+234 803 123 4567', country: 'Nigeria', state: 'Lagos', city: 'Ikeja', street: '12 Allen Avenue', landmark: 'Opposite the bank' };
 const PRODUCT_ID = '33333333-3333-4333-8333-333333333333';
 const RED = '#ff0000';
 const BLUE = '#0000ff';
@@ -149,7 +150,7 @@ describe('orders with colours', () => {
       return { data: null, error: null };
     };
   });
-  const order = (items) => request(app).post('/api/orders').send({ items, shippingAddress: { line1: 'x' }, paymentMethod: 'pod' });
+  const order = (items) => request(app).post('/api/orders').send({ items, shippingAddress: ADDRESS, paymentMethod: 'pod' });
 
   it('records one line per colour of the same product', async () => {
     const res = await order([
@@ -189,7 +190,7 @@ describe('required sizes', () => {
  });
  it('rejects a missing size at order submission',async()=>{
   fake.reset();fake.handler=({table})=>({data:table==='products'?[SHIRT]:null,error:null});
-  const res=await request(app).post('/api/orders').send({items:[{productId:PRODUCT_ID,quantity:1,price:5000,selectedOptions:{color:RED}}],shippingAddress:{line1:'x'},paymentMethod:'pod'});
+  const res=await request(app).post('/api/orders').send({items:[{productId:PRODUCT_ID,quantity:1,price:5000,selectedOptions:{color:RED}}],shippingAddress:ADDRESS,paymentMethod:'pod'});
   expect(res.statusCode).toBe(400);expect(res.body.error).toMatch(/choose a size/i);
  });
 });

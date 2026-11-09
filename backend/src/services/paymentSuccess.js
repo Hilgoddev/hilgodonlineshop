@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { dispatchOrderToGig } = require('./gig');
 const { sendEmail, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml } = require('./email');
 
 async function handlePaymentSuccess(order_id, user_id) {
@@ -189,6 +190,9 @@ async function markOrderPaid({ orderId, reference, paidAmount, currency, provide
     await supabase.from('cart_items').delete().eq('user_id', order.user_id);
   }
   await handlePaymentSuccess(orderId, order.user_id);
+  // Paid → ready to ship: hand the delivery details to GIG Logistics. Bounded
+  // so a slow courier API never holds up the payment confirmation.
+  await Promise.race([dispatchOrderToGig(orderId), new Promise((r) => setTimeout(r, 4000))]);
   return { ok: true, claimed: true };
 }
 
