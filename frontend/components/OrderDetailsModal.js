@@ -1,5 +1,50 @@
-import { useEffect } from 'react';
-import ShipmentTracking from './ShipmentTracking';
+import { useEffect, useState } from 'react';
+import ShipmentTracking, { GigStatus } from './ShipmentTracking';
+import { apiFetch } from '@/lib/apiClient';
+
+// Admin: the order's hand-off to GIG Logistics. Orders go to GIG on their own
+// once ready to ship; from here an admin can resend one (e.g. after a failed
+// booking) or record the waybill after booking with GIG by hand.
+function GigPanel({ order }) {
+  const orderId = order._id || order.id;
+  const firstTracking = (order.items || []).map((i) => i.tracking).find(Boolean) || null;
+  const [tracking, setTracking] = useState(firstTracking);
+  const [waybill, setWaybill] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({ type: '', text: '' });
+  useEffect(() => { setTracking(firstTracking); setMsg({ type: '', text: '' }); setWaybill(''); /* eslint-disable-next-line */ }, [orderId]);
+  if (order.status === 'cancelled') return null;
+
+  const call = async (method, body) => {
+    setBusy(true); setMsg({ type: '', text: '' });
+    try {
+      const res = await apiFetch(`/api/admin/orders/${orderId}/gig`, { method, body: body ? JSON.stringify(body) : undefined });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || 'GIG update failed');
+      setTracking(json.data);
+      setWaybill('');
+      setMsg({ type: 'ok', text: json.data.trackingNumber ? 'Saved — the buyer can now track it on GIG.' : 'Order queued for GIG booking.' });
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message });
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div style={{ margin: '0 0 18px', padding: '12px 14px', border: '1px solid var(--gray-4)', borderRadius: 10, background: 'var(--gray-6)' }}>
+      <div style={{ fontSize: '.75rem', textTransform: 'uppercase', color: 'var(--gray-1)', fontWeight: 700, letterSpacing: '.5px' }}>GIG Logistics</div>
+      {tracking ? <GigStatus tracking={tracking} /> : <div style={{ fontSize: '.82rem', color: 'var(--gray-1)', marginTop: 6 }}>Not sent to GIG yet (sent automatically once paid, or at once for Pay on Delivery).</div>}
+      {tracking?.error && <div style={{ fontSize: '.75rem', color: 'var(--danger)', marginTop: 4 }}>{tracking.error}</div>}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+        <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => call('POST')}>
+          <i className="fas fa-paper-plane"></i> {tracking ? 'Resend to GIG' : 'Send to GIG'}
+        </button>
+        <input className="form-input" style={{ flex: '1 1 160px', minWidth: 0, padding: '6px 10px', fontSize: '.82rem' }} placeholder="GIG waybill number" value={waybill} onChange={(e) => setWaybill(e.target.value)} disabled={busy} />
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy || waybill.trim().length < 4} onClick={() => call('PUT', { waybill })}>Save waybill</button>
+      </div>
+      {msg.text && <div style={{ fontSize: '.78rem', marginTop: 6, color: msg.type === 'ok' ? 'var(--success)' : 'var(--danger)' }}>{msg.text}</div>}
+    </div>
+  );
+}
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { formatOptionValue } from '@/lib/colorName';
 
@@ -82,12 +127,16 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
               <div>
                 <div style={{ fontSize: '.75rem', textTransform: 'uppercase', color: 'var(--gray-1)', fontWeight: '700', letterSpacing: '.5px', marginBottom: '4px' }}>Delivery</div>
                 <div style={{ fontSize: '.85rem', color: 'var(--gray-1)' }}>
-                  {[addr.street, addr.city, addr.state, addr.zipCode, addr.country].filter(Boolean).join(', ')}
-                  {addr.phone && <><br />Phone: {addr.phone}</>}
+                  {[addr.firstName, addr.lastName].filter(Boolean).join(' ')}{addr.firstName ? <br /> : null}
+                  {[addr.street, addr.landmark && `near ${addr.landmark}`, addr.city, addr.state, addr.postalCode || addr.zipCode, addr.country].filter(Boolean).join(', ')}
+                  {addr.phone && <><br />Phone: {addr.phone}{addr.altPhone ? ` / ${addr.altPhone}` : ''}</>}
+                  {addr.instructions && <><br />Note: {addr.instructions}</>}
                 </div>
               </div>
             )}
           </div>
+
+          <GigPanel order={order} />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <strong>Items ({order.items?.length || 0})</strong>

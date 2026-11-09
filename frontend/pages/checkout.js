@@ -114,9 +114,11 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [showBankComingSoon, setShowBankComingSoon] = useState(false);
 
+  // Everything GIG Logistics needs to deliver: who, how to reach them, and
+  // where (country → state → city → address + landmark).
   const [formData, setFormData] = useState({
-    firstName: '', lastName: '', email: '', phone: '',
-    street: '', city: '', country: 'Nigeria', state: 'Lagos', instructions: '',
+    firstName: '', lastName: '', email: '', phone: '', altPhone: '',
+    country: 'Nigeria', state: '', city: '', street: '', landmark: '', postalCode: '', instructions: '',
   });
 
   // GEO_DATA is bundled locally — no external API call needed
@@ -166,11 +168,13 @@ export default function Checkout() {
     }
   }, []);
 
-  const countries = [...new Map(GEO_DATA.map(c => [c.name, c])).values()].map(c => c.name);
-  const currentCountryData = GEO_DATA.find(c => c.name === formData.country);
-  const states = currentCountryData
-    ? [...new Set(currentCountryData.states?.map(s => s.name) || [])]
-    : [];
+  // Nigeria first (most orders), then the rest alphabetically.
+  const countries = [...new Set(GEO_DATA.map(c => c.name))]
+    .sort((a, b) => (a === 'Nigeria' ? -1 : b === 'Nigeria' ? 1 : a.localeCompare(b)));
+  // Pay on Delivery is collected by GIG, which only does cash collection here
+  // (keep in sync with COD_COUNTRIES in backend/src/lib/deliveryAddress.js).
+  const COD_COUNTRIES = ['Nigeria'];
+  const codAvailable = COD_COUNTRIES.includes(formData.country);
 
   // Saved when order is placed so views after cart-clear still have correct values
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
@@ -181,7 +185,8 @@ export default function Checkout() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     if (name === 'country') {
-      setFormData(prev => ({ ...prev, country: value, state: '' }));
+      setFormData(prev => ({ ...prev, country: value, state: '', city: '' }));
+      if (selectedPayment === 'pod' && !COD_COUNTRIES.includes(value)) setSelectedPayment('paystack');
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -199,10 +204,19 @@ export default function Checkout() {
 
   const totals = calculateTotals();
   const displayTotals = orderTotals || totals;
-  const isFormValid = formData.firstName && formData.lastName && formData.email && formData.phone && formData.street && formData.city && formData.state;
+  const filled = (k) => String(formData[k] || '').trim().length > 0;
+  const isFormValid = ['firstName', 'lastName', 'email', 'phone', 'country', 'state', 'city', 'street'].every(filled);
+  // Pay on Delivery: GIG collects cash, so the country must be supported and
+  // the rider needs a landmark to find the door.
+  const codReady = codAvailable && filled('landmark');
 
   const handlePlaceOrder = async () => {
     if (!isFormValid) { showToast('Please fill in all required fields.', 'error'); return; }
+    if (selectedPayment === 'pod' && !codReady) {
+      showToast(codAvailable ? 'Pay on Delivery needs a nearest landmark.' : `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}.`, 'error');
+      setCurrentStep(2);
+      return;
+    }
     const missingColor = cart.find((i) => needsColor(i.product, i.options) || needsSize(i.product, i.options));
     if (missingColor) {
       showToast(`Choose the required size and colour for "${missingColor.product.name}" in your cart first.`, 'error');
@@ -234,6 +248,7 @@ export default function Checkout() {
 
       if (!orderResult.success) {
         showToast(orderResult.error || orderResult.message || 'Failed to place order. Please try again.', 'error');
+        if (orderResult.code === 'DELIVERY_DETAILS') setCurrentStep(1);
         setSubmitting(false);
         return;
       }
@@ -554,30 +569,37 @@ export default function Checkout() {
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Street Address *</label>
-                <input className="form-input" type="text" placeholder="House number, street name" name="street" value={formData.street} onChange={handleInputChange} />
+                <label className="form-label">Alternative Phone (optional)</label>
+                <input className="form-input" type="tel" placeholder="Another number the rider can call" name="altPhone" value={formData.altPhone} onChange={handleInputChange} />
               </div>
               <div className="form-group">
-                <label className="form-label">Country</label>
+                <label className="form-label">Country *</label>
                 <select className="form-select form-input" name="country" value={formData.country} onChange={handleInputChange}>
-                  {countries.map((c, i) => <option key={`${c}-${i}`} value={c}>{c}</option>)}
+                  {countries.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">City / Town *</label>
-                  <input className="form-input" type="text" placeholder="City" name="city" value={formData.city} onChange={handleInputChange} />
+                  <label className="form-label">State / Region *</label>
+                  <input className="form-input" type="text" placeholder="e.g. Lagos" name="state" value={formData.state} onChange={handleInputChange} autoComplete="address-level1" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">State / Province *</label>
-                  {states.length > 0 ? (
-                    <select className="form-select form-input" name="state" value={formData.state} onChange={handleInputChange} required>
-                      <option value="">Select state</option>
-                      {states.map((s, i) => <option key={`${s}-${i}`} value={s}>{s}</option>)}
-                    </select>
-                  ) : (
-                    <input className="form-input" type="text" placeholder="State / Province" name="state" value={formData.state} onChange={handleInputChange} required />
-                  )}
+                  <label className="form-label">City / Town *</label>
+                  <input className="form-input" type="text" placeholder="e.g. Ikeja" name="city" value={formData.city} onChange={handleInputChange} autoComplete="address-level2" />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Delivery Address *</label>
+                <input className="form-input" type="text" placeholder="House number, street name, area" name="street" value={formData.street} onChange={handleInputChange} autoComplete="street-address" />
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Nearest Landmark {selectedPayment === 'pod' ? '*' : '(required for Pay on Delivery)'}</label>
+                  <input className="form-input" type="text" placeholder="e.g. Opposite GTBank" name="landmark" value={formData.landmark} onChange={handleInputChange} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Postal Code (optional)</label>
+                  <input className="form-input" type="text" placeholder="Postal / ZIP code" name="postalCode" value={formData.postalCode} onChange={handleInputChange} autoComplete="postal-code" />
                 </div>
               </div>
               <div className="form-group">
@@ -599,8 +621,14 @@ export default function Checkout() {
                   <label
                     key={pm.id}
                     className={`payment-option ${selectedPayment === pm.id ? 'selected' : ''}`}
+                    style={pm.id === 'pod' && !codAvailable ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    title={pm.id === 'pod' && !codAvailable ? `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}` : undefined}
                     onClick={() => {
                       if (pm.id === 'bank_transfer' && !bankTransferEnabled) { setShowBankComingSoon(true); return; }
+                      if (pm.id === 'pod' && !codAvailable) {
+                        showToast(`Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}.`, 'warning');
+                        return;
+                      }
                       setSelectedPayment(pm.id);
                     }}
                   >
@@ -615,6 +643,18 @@ export default function Checkout() {
                   </label>
                 ))}
               </div>
+
+              {selectedPayment === 'pod' && (
+                <div className="cod-box">
+                  <div className="cod-box__title"><i className="fas fa-truck-fast"></i> Pay on Delivery with GIG Logistics</div>
+                  <p>GIG delivers your order and collects <strong>{formatPrice(displayTotals.total || 0, 'NGN', false)}</strong> when it arrives. Please have the exact amount ready.</p>
+                  <div className="form-group" style={{ marginBottom: 8 }}>
+                    <label className="form-label">Nearest Landmark *</label>
+                    <input className="form-input" type="text" placeholder="e.g. Opposite GTBank" name="landmark" value={formData.landmark} onChange={handleInputChange} />
+                  </div>
+                  <p className="cod-box__check">The rider will call <strong>{formData.phone || 'your phone number'}</strong>{formData.altPhone ? ` or ${formData.altPhone}` : ''} before delivery.</p>
+                </div>
+              )}
 
               {selectedPayment === 'stripe' && !stripeEnabled && (
                 <div style={{
@@ -643,7 +683,7 @@ export default function Checkout() {
                   className="btn btn-primary btn-lg"
                   style={{ flex: 1 }}
                   onClick={() => setCurrentStep(3)}
-                  disabled={(selectedPayment === 'stripe' && !stripeEnabled) || (selectedPayment === 'bank_transfer' && !bankTransferEnabled)}
+                  disabled={(selectedPayment === 'stripe' && !stripeEnabled) || (selectedPayment === 'bank_transfer' && !bankTransferEnabled) || (selectedPayment === 'pod' && !codReady)}
                 >
                   Review Order <i className="fas fa-arrow-right"></i>
                 </button>
@@ -666,10 +706,13 @@ export default function Checkout() {
                 </div>
                 <p style={{ fontSize: '.85rem', color: 'var(--gray-1)', lineHeight: '1.6', margin: 0 }}>
                   {formData.firstName} {formData.lastName}<br />
-                  {formData.street}, {formData.city}{formData.state ? `, ${formData.state}` : ''}<br />
-                  {formData.country}<br />
-                  {formData.phone} · {formData.email}
+                  {formData.street}{formData.landmark ? ` (near ${formData.landmark})` : ''}<br />
+                  {formData.city}, {formData.state}{formData.postalCode ? ` ${formData.postalCode}` : ''}, {formData.country}<br />
+                  {formData.phone}{formData.altPhone ? ` / ${formData.altPhone}` : ''} · {formData.email}
                 </p>
+                <div style={{ fontSize: '.78rem', color: 'var(--gray-1)', marginTop: 6 }}>
+                  <i className="fas fa-truck-fast" style={{ color: 'var(--primary)' }}></i> Delivered by GIG Logistics — you'll get a tracking number on your order.
+                </div>
               </div>
 
               {/* Payment summary */}

@@ -8,6 +8,8 @@ const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { getSetting, setSetting } = require('../lib/settings');
 const { REVENUE_STATUSES, isRevenueOrder } = require('../lib/orderStatus');
 const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
+const { isUuid } = require('../lib/validate');
+const { dispatchOrderToGig, setManualWaybill } = require('../services/gig');
 const statsCache = makeCache({ ttlMs: 30 * 1000 });
 const listCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -807,6 +809,29 @@ router.put('/settings', verifyToken, requireAdmin, async (req, res, next) => {
     const autoApproveProducts = (await getSetting('auto_approve_products', false)) === true;
     res.json({ success: true, data: { autoApproveProducts } });
   } catch (err) { next(err); }
+});
+
+// ── GIG Logistics ───────────────────────────────────────────────────────────
+// POST: (re)send an order to GIG — books via the API when configured.
+// PUT { waybill }: record a waybill after booking with GIG by hand.
+router.post('/orders/:id/gig', verifyToken, requireAdmin, async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid order id' });
+    const tracking = await dispatchOrderToGig(req.params.id, { force: true });
+    if (!tracking) return res.status(409).json({ success: false, error: 'This order cannot be sent to GIG (cancelled or no items).' });
+    res.json({ success: true, data: tracking });
+  } catch (err) { next(err); }
+});
+
+router.put('/orders/:id/gig', verifyToken, requireAdmin, async (req, res, next) => {
+  try {
+    if (!isUuid(req.params.id)) return res.status(400).json({ success: false, error: 'Invalid order id' });
+    const tracking = await setManualWaybill(req.params.id, req.body?.waybill);
+    res.json({ success: true, data: tracking });
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ success: false, error: err.message });
+    next(err);
+  }
 });
 
 module.exports = router;

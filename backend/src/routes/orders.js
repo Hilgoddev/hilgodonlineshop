@@ -13,6 +13,8 @@ const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../
 const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const { cleanOptions, variantKey, resolveOptionsForProduct } = require('../lib/variants');
+const { cleanShippingAddress } = require('../lib/deliveryAddress');
+const { dispatchOrderToGig } = require('../services/gig');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Effective per-item status for display. An item that's been individually
@@ -139,9 +141,9 @@ router.get('/', verifyToken, async (req, res, next) => {
 
 router.post('/', verifyToken, async (req, res, next) => {
     try {
-        const { items = [], shippingAddress, paymentMethod } = req.body;
+        const { items = [], paymentMethod } = req.body;
 
-        if (!Array.isArray(items) || !items.length || !shippingAddress) {
+        if (!Array.isArray(items) || !items.length || !req.body.shippingAddress) {
             return res.status(400).json({ success: false, error: 'items and shippingAddress are required' });
         }
 
@@ -149,6 +151,10 @@ router.post('/', verifyToken, async (req, res, next) => {
         if (!allowedPaymentMethods.includes(paymentMethod)) {
             return res.status(400).json({ success: false, error: 'Invalid paymentMethod' });
         }
+
+        // Delivery details go to GIG Logistics as-is, so they must be complete.
+        const { address: shippingAddress, error: addressError } = cleanShippingAddress(req.body.shippingAddress, paymentMethod);
+        if (addressError) return res.status(400).json({ success: false, error: addressError, code: 'DELIVERY_DETAILS' });
 
         // Normalize payload:
         // - one order line per product + chosen variant (the same product in two
@@ -387,6 +393,12 @@ router.post('/', verifyToken, async (req, res, next) => {
         // Decrementing at order creation would wrongly reduce stock for orders
         // that are abandoned before payment, and would double-count against the
         // payment-success decrement. Stock availability is still validated above.
+
+        // Pay on Delivery orders are ready to ship now (GIG collects the cash);
+        // prepaid ones go to GIG once payment is confirmed (paymentSuccess.js).
+        // Awaited (bounded) because serverless functions may stop once the
+        // response is sent; an unfinished booking can be retried by an admin.
+        if (paymentMethod === 'pod') await Promise.race([dispatchOrderToGig(order.id), new Promise((r) => setTimeout(r, 4000))]);
 
         const response = mapOrder(order, responseItems);
         res.status(201).json({ success: true, data: response });

@@ -1681,3 +1681,18 @@ main { padding: 1rem; }
 .color-swatches--compact { padding: 6px 8px; display: inline-block; max-width: 100%; }
 .color-swatches--compact .color-swatches__row { gap: 6px; }
 .color-swatches__prompt { font-size: .76rem; font-weight: 600; color: var(--danger); margin-bottom: 6px; white-space: nowrap; }
+
+/* ── Checkout: Pay on Delivery (GIG) box ───────────────────────────────── */
+.cod-box { margin-top: var(--space-3); padding: var(--space-4); border-radius: var(--radius); border: 1px solid #bbf7d0; background: #f0fdf4; font-size: .85rem; }
+.cod-box__title { font-weight: 700; color: #15803d; margin-bottom: 6px; }
+.cod-box__title i { margin-right: 6px; }
+.cod-box p { margin: 0 0 10px; color: var(--dark-3); line-height: 1.5; }
+.cod-box__check { font-size: .8rem; color: var(--gray-1) !important; margin: 0 !important; }
+
+/* ── Shipment tracking (GIG) ──────────────────────────────────────────── */
+.shipment-tracking { margin-top: 10px; font-size: .82rem; overflow-wrap: anywhere; }
+.shipment-tracking__badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: .76rem; }
+.shipment-tracking__badge--booked { background: #dcfce7; color: #15803d; }
+.shipment-tracking__badge--waiting { background: #fef3c7; color: #92400e; }
+.shipment-tracking__badge--failed { background: #fee2e2; color: #b91c1c; }
+.shipment-tracking__link { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-weight: 600; color: var(--primary); }
