@@ -45,6 +45,7 @@ function resetDb({ status = 'pending', payment_method = 'paystack', total = 5000
     ],
     stock: { 'prod-a': START_STOCK['prod-a'] - taken[0], 'prod-b': START_STOCK['prod-b'] - taken[1] },
     events: new Map(),
+    cartDeletes: [],
     failNextOrderRead: false,
   };
   fake.rpcHandler = (fn, { p_order_id, p_item_id }) => {
@@ -61,6 +62,7 @@ function resetDb({ status = 'pending', payment_method = 'paystack', total = 5000
     return { data: total, error: null };
   };
   fake.handler = ({ table, op, filters, payload }) => {
+    if (table === 'cart_items' && op === 'delete') db.cartDeletes.push(filters);
     if (table === 'profiles') return { data: { role: 'admin' }, error: null };
     if (table === 'orders') {
       const matches = filters.id === db.order.id
@@ -330,5 +332,22 @@ describe('POST /api/payment/initialize (Paystack client over fetch)', () => {
     const res = await request(app).post('/api/payment/initialize').send({ order_id: ORDER_ID, email: 'b@example.com' });
     expect(res.statusCode).toBe(409);
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkout cart isolation', () => {
+  it('leaves the saved cart untouched after Buy Now payment', async () => {
+    db.order.shipping_address = { checkout_mode: 'buy_now' };
+    await markOrderPaid({ orderId: ORDER_ID, reference: 'buy-now', paidAmount: 5000, currency: 'NGN', provider: 'test' });
+    expect(db.cartDeletes).toEqual([]);
+  });
+  it('only clears matching purchased variants and unchanged quantities', async () => {
+    db.order.shipping_address = { checkout_mode: 'cart' };
+    db.items[0].selected_options = { size: 'L', color: 'Black' };
+    await markOrderPaid({ orderId: ORDER_ID, reference: 'cart-pay', paidAmount: 5000, currency: 'NGN', provider: 'test' });
+    expect(db.cartDeletes).toHaveLength(2);
+    expect(db.cartDeletes[0]).toMatchObject({ user_id: 'buyer-1', product_id: 'prod-a', quantity: 2 });
+    expect(db.cartDeletes[0].variant_key).toBeTruthy();
+    expect(db.cartDeletes.every(f => f.product_id && f.quantity && 'variant_key' in f)).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { buildBuyNowUrl } from '../../lib/checkoutIntent';
 import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { useShop } from '@/components/ShopProvider';
@@ -143,7 +144,7 @@ export default function ProductDetail({ product, relatedProducts, loadError = fa
 
   const handleBuyNow = async () => {
     if (colorMissing()) return;
-    if (await addToCart(product, quantity, buildSelectedOptions())) router.push('/checkout');
+    router.push(buildBuyNowUrl(product._id, quantity, buildSelectedOptions()));
   };
 
   const handleAddToWishlist = () => {

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { readBuyNowQuery } from '../lib/checkoutIntent';
 import Layout from '@/components/Layout';
 import AuthGuard from '@/components/AuthGuard';
 import { useShop } from '@/components/ShopProvider';
@@ -18,7 +20,8 @@ const stripePublishableKey = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE
 // a misconfigured NEXT_PUBLIC_STRIPE_ENABLED doesn't silently hide Stripe).
 const stripeEnabled = cleanEnv(process.env.NEXT_PUBLIC_STRIPE_ENABLED)?.toLowerCase() === 'true'
   || (!!stripePublishableKey && stripePublishableKey.startsWith('pk_'));
-const bankTransferEnabled = cleanEnv(process.env.NEXT_PUBLIC_BANK_TRANSFER_ENABLED)?.toLowerCase() === 'true';
+// Direct bank transfer is intentionally unavailable until enabled by Hilgod.
+const bankTransferEnabled = false;
 // Catch a failed Stripe.js load (commonly blocked by ad-blockers / Firefox
 // tracking protection, or offline) so it degrades to "Stripe unavailable"
 // instead of throwing an uncaught promise rejection. Paystack/POD still work.
@@ -32,7 +35,7 @@ const stripePromise = stripePublishableKey?.startsWith('pk_')
 const PAYMENT_METHODS = [
   { id: 'paystack', label: 'Paystack', desc: 'Card & bank transfer via Paystack', color: '#0ba4db' },
   { id: 'stripe', label: 'Stripe', desc: 'Credit / debit card via Stripe', color: '#635bff' },
-  { id: 'bank_transfer', label: 'Bank Transfer', desc: 'Transfer directly to our bank account', color: '#2563eb' },
+  { id: 'bank_transfer', label: 'Bank Transfer', desc: 'Currently unavailable', color: '#6b7280' },
   { id: 'pod', label: 'Pay on Delivery', desc: 'Pay cash when your order arrives', color: '#16a34a' },
 ];
 
@@ -51,7 +54,7 @@ function StripePaymentForm({ amount, onSuccess }) {
     setProcessing(true);
     setStripeError('');
 
-    const { error } = await stripe.confirmPayment({
+    const { error, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: `${window.location.origin}/checkout` },
       redirect: 'if_required',
@@ -61,7 +64,7 @@ function StripePaymentForm({ amount, onSuccess }) {
       setStripeError(error.message || 'Payment failed. Please try again.');
       setProcessing(false);
     } else {
-      onSuccess();
+      onSuccess(paymentIntent?.id);
     }
   };
 
@@ -105,7 +108,25 @@ function StripePaymentForm({ amount, onSuccess }) {
 }
 
 export default function Checkout() {
-  const { cart, clearCart, showToast } = useShop();
+  const { cart: savedCart, clearCart, showToast, refreshCart } = useShop();
+  const router = useRouter();
+  const direct = readBuyNowQuery(router.query);
+  const [directProduct, setDirectProduct] = useState(null);
+  const [directError, setDirectError] = useState('');
+  const cart = direct ? (directProduct ? [{ product: directProduct, quantity: direct.quantity, options: direct.options }] : []) : savedCart;
+  useEffect(() => {
+    if (!router.isReady || !direct) return;
+    let active = true;
+    setDirectProduct(null); setDirectError('');
+    apiFetch('/api/products/' + encodeURIComponent(direct.productId)).then(safeJson).then(result => {
+      if (!active) return;
+      if (!result.success || !result.data) throw new Error('This product is unavailable. Return to the product page and try again.');
+      setDirectProduct(result.data);
+    }).catch(() => { if (active) setDirectError('Unable to load this product. Please return to the product page and try again.'); });
+    return () => { active = false; };
+  }, [router.isReady, router.query.buy, router.query.quantity, router.query.size, router.query.color]);
+  const clearCheckout = () => { if (!direct) return clearCart(); };
+  const placingOrder = useRef(false);
   const { formatPrice } = useCurrency();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -134,48 +155,34 @@ export default function Checkout() {
   // GEO_DATA is bundled locally — no external API call needed
 
 
-  // Detect return from Paystack redirect or Stripe 3DS redirect.
-  // For Paystack we MUST call verify/:reference to sync the order status —
-  // just showing the success screen without verifying leaves the order as
-  // 'pending' whenever the webhook fires late or not at all.
+  const [paymentMessage, setPaymentMessage] = useState('');
+  const [confirmation, setConfirmation] = useState(null);
+  const verifyPayment = async (provider, reference) => {
+    setView('confirming');
+    setConfirmation({ provider, reference });
+    setPaymentMessage('Checking your payment securely. Please do not pay again.');
+    try {
+      const response = await apiFetch('/api/' + provider + '/verify/' + encodeURIComponent(reference));
+      const result = await safeJson(response);
+      if (response.ok && result.success && result.data?.status === 'success') {
+        if (result.data.orderId) setPlacedOrderId(result.data.orderId);
+        await refreshCart();
+        setView('success');
+      } else {
+        setPaymentMessage(result.message || 'Payment has not been confirmed yet. Check again or view your order before trying another payment.');
+        setView('payment_pending');
+      }
+    } catch {
+      setPaymentMessage('We could not confirm payment because of a connection problem. If you were charged, do not pay again. Check again or view My Orders.');
+      setView('payment_pending');
+    }
+  };
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paystackRef = params.get('reference') || params.get('trxref');
     const stripeIntent = params.get('payment_intent');
-    const stripeStatus = params.get('redirect_status');
-
-    if (paystackRef) {
-      window.history.replaceState({}, '', '/checkout');
-      // Verify with backend — syncs order to 'paid' and fires emails
-      apiFetch(`/api/payment/verify/${encodeURIComponent(paystackRef)}`)
-        .then(r => r.json())
-        .then(result => {
-          if (result?.data?.status === 'success') {
-            clearCart();
-            setView('success');
-          } else {
-            // Payment failed or abandoned
-            showToast(
-              result?.success === false && result?.message
-                ? result.message
-                : `Payment ${result?.data?.status || 'could not be confirmed'}. Your order is saved — please retry.`,
-              'error'
-            );
-          }
-        })
-        .catch(() => {
-          // Network error — still show success; webhook will sync later
-          clearCart();
-          setView('success');
-        });
-      return;
-    }
-
-    if (stripeIntent && stripeStatus === 'succeeded') {
-      clearCart();
-      setView('success');
-      window.history.replaceState({}, '', '/checkout');
-    }
+    if (paystackRef) verifyPayment('payment', paystackRef);
+    else if (stripeIntent) verifyPayment('stripe', stripeIntent);
   }, []);
 
   // Nigeria first (most orders), then the rest alphabetically.
@@ -208,7 +215,7 @@ export default function Checkout() {
       const itemPricing = normalizePricing(item.product || {});
       subtotal += itemPricing.price * (item.quantity || 1);
     });
-    const deliveryFee = computeDeliveryFee(subtotal);
+    const deliveryFee = cart.length ? computeDeliveryFee(subtotal) : 0;
     return { subtotal, deliveryFee, total: subtotal + deliveryFee };
   };
 
@@ -221,6 +228,7 @@ export default function Checkout() {
   const codReady = codAvailable && filled('landmark');
 
   const handlePlaceOrder = async () => {
+    if (placingOrder.current || !cart.length) return;
     if (!isFormValid) { showToast('Please fill in all required fields.', 'error'); return; }
     if (selectedPayment === 'pod' && !codReady) {
       showToast(codAvailable ? 'Pay on Delivery needs a nearest landmark.' : `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}.`, 'error');
@@ -232,11 +240,12 @@ export default function Checkout() {
       showToast(`Choose the required size and colour for "${missingColor.product.name}" in your cart first.`, 'error');
       return;
     }
+    placingOrder.current = true;
     setSubmitting(true);
 
     try {
       const snapshot = calculateTotals();
-      const cartSnapshot = [...cart];
+
 
       const orderRes = await apiFetch('/api/orders', {
         method: 'POST',
@@ -252,6 +261,7 @@ export default function Checkout() {
           }),
           shippingAddress: { ...formData },
           paymentMethod: selectedPayment,
+          checkoutMode: direct ? 'buy_now' : 'cart',
         }),
       });
       const orderResult = await safeJson(orderRes);
@@ -265,7 +275,7 @@ export default function Checkout() {
 
       const orderId = orderResult.data._id;
       setPlacedOrderId(orderId);
-      setOrderTotals(snapshot);
+      setOrderTotals({ ...snapshot, total: Number(orderResult.data.totalAmount) || snapshot.total });
       // NOTE: clearCart() is called only on each payment's SUCCESS path below,
       // so if payment fails the user still has their cart and can retry.
 
@@ -276,11 +286,13 @@ export default function Checkout() {
         });
         const payResult = await safeJson(payRes);
         if (payResult.success) {
-          clearCart(); // clear only on successful redirect to Paystack
+          // Keep the cart until the server confirms payment.
           window.location.href = payResult.data.authorization_url;
         } else {
           const reason = payResult.message ? ` (${payResult.message})` : '';
           showToast(`Payment initialization failed${reason}. Your order is saved — please retry or choose a different payment method.`, 'error');
+          setPaymentMessage('Your order is saved, but payment could not be started. View My Orders before placing another order.');
+          setView('payment_pending');
           setSubmitting(false);
         }
 
@@ -291,7 +303,7 @@ export default function Checkout() {
         });
         const piResult = await safeJson(piRes);
         if (piResult.success) {
-          clearCart(); // clear when entering Stripe payment flow
+          // Keep the cart while payment is still pending.
           setStripeClientSecret(piResult.clientSecret);
           setView('stripe');
         } else {
@@ -306,20 +318,35 @@ export default function Checkout() {
         const bdRes = await apiFetch('/api/payment/bank-details');
         const bdResult = await safeJson(bdRes);
         if (bdResult.success) setBankDetails(bdResult.data);
-        clearCart(); // order placed, awaiting bank transfer confirmation
+        await clearCheckout(); // this saved order now appears in My Orders
         setView('bank_transfer');
 
       } else {
         // Pay on delivery — order confirmed
-        clearCart();
+        await clearCheckout();
         setView('success');
       }
     } catch (err) {
       console.error('Order error:', err);
-      showToast('An error occurred. Please try again.', 'error');
+      setPaymentMessage('We could not confirm whether your order was saved. Please check My Orders before trying again to avoid a duplicate order.');
+      setView('payment_pending');
       setSubmitting(false);
+    } finally {
+      placingOrder.current = false;
     }
   };
+
+  if (view === 'confirming' || view === 'payment_pending') {
+    return <Layout title="Payment status — Hilgod"><section style={{ maxWidth: 600, margin: '40px auto', padding: 24 }}>
+      <h1>{view === 'confirming' ? 'Confirming payment' : 'Check your order status'}</h1>
+      <p role="status" style={{ margin: '24px 0', lineHeight: 1.7 }}>{paymentMessage}</p>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {confirmation && <button type="button" className="btn btn-primary" disabled={view === 'confirming'} onClick={() => verifyPayment(confirmation.provider, confirmation.reference)}>Check payment again</button>}
+        <Link className="btn btn-outline" href="/account">My Orders</Link>
+        <a className="btn btn-outline" href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer">WhatsApp support</a>
+      </div>
+    </section></Layout>;
+  }
 
   // ── SUCCESS VIEW ────────────────────────────────────────────────────────────
   if (view === 'success') {
@@ -385,7 +412,7 @@ export default function Checkout() {
             >
               <StripePaymentForm
                 amount={displayTotals.total}
-                onSuccess={() => setView('success')}
+                onSuccess={(id) => id ? verifyPayment('stripe', id) : (setPaymentMessage('Please check My Orders for the payment status.'), setView('payment_pending'))}
               />
             </Elements>
           </div>
@@ -494,6 +521,14 @@ export default function Checkout() {
     );
   }
 
+  if (!cart.length && view === 'checkout') {
+    return <Layout title="Checkout — Hilgod"><section style={{ padding: '48px 20px', textAlign: 'center' }}>
+      <h1>{direct ? 'Buy Now' : 'Your cart is empty'}</h1>
+      <p role="status">{direct ? (directError || 'Loading the selected product…') : 'Add a product to your cart before checking out.'}</p>
+      <Link className="btn btn-primary" href={direct ? '/products/' + direct.productId : '/products'}>{direct ? 'Back to product' : 'Browse products'}</Link>
+    </section></Layout>;
+  }
+
   // ── MAIN CHECKOUT (Steps 1–3) ───────────────────────────────────────────────
   return (
     <Layout
@@ -508,34 +543,11 @@ export default function Checkout() {
         <span className="current">Checkout</span>
       </nav>
 
-      {/* Secure banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, var(--dark), var(--dark-2))',
-        borderRadius: 'var(--radius-md)', padding: 'var(--space-4) var(--space-6)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: 'var(--space-6)', flexWrap: 'wrap', gap: 'var(--space-3)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <i className="fas fa-shield-halved" style={{ fontSize: '1.4rem', color: 'var(--success)' }}></i>
-          <div>
-            <div style={{ color: '#fff', fontWeight: '700', fontSize: '1rem' }}>Secure Checkout</div>
-            <div style={{ color: 'rgba(255,255,255,.6)', fontSize: '.78rem' }}>256-bit SSL Encrypted</div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center', flexWrap: 'wrap' }}>
-          {['Paystack', 'Stripe', 'Bank Transfer', 'Cash on Delivery'].map(label => (
-            <div key={label} style={{
-              background: 'rgba(255,255,255,.12)', borderRadius: 'var(--radius-sm)',
-              padding: '4px 10px', fontSize: '.72rem', fontWeight: '700', color: 'rgba(255,255,255,.8)',
-            }}>{label}</div>
-          ))}
-        </div>
-      </div>
-
       <h1 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: 'var(--space-6)' }}>
         <i className="fas fa-shopping-bag" style={{ color: 'var(--primary)' }}></i> Checkout
       </h1>
 
+      {direct && <p role="status">Buying this product only. Your saved cart stays separate. Delivery is shown below.</p>}
       <p className="checkout-help">Need help with checkout? <a href="tel:+35795130549">Call +357 95 130549</a> or <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer">WhatsApp us</a>.</p>
       <style jsx global>{`
         .hilgod-checkout { align-items: start; overflow-anchor: none; }
@@ -652,7 +664,7 @@ export default function Checkout() {
                   <label
                     key={pm.id}
                     className={`payment-option ${selectedPayment === pm.id ? 'selected' : ''}`}
-                    style={pm.id === 'pod' && !codAvailable ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    style={(pm.id === 'bank_transfer' || (pm.id === 'stripe' && (!stripeEnabled || !stripePromise)) || (pm.id === 'pod' && !codAvailable)) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     title={pm.id === 'pod' && !codAvailable ? `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}` : undefined}
                     onChange={() => {
                       if (pm.id === 'bank_transfer' && !bankTransferEnabled) { setShowBankComingSoon(true); return; }
@@ -663,7 +675,7 @@ export default function Checkout() {
                       setSelectedPayment(pm.id);
                     }}
                   >
-                    <input type="radio" name="payment" value={pm.id} checked={selectedPayment === pm.id} onChange={() => {}} />
+                    <input type="radio" name="payment" value={pm.id} disabled={pm.id === 'bank_transfer' || (pm.id === 'stripe' && (!stripeEnabled || !stripePromise)) || (pm.id === 'pod' && !codAvailable)} checked={selectedPayment === pm.id} onChange={() => {}} />
                     <div style={{
                       background: pm.color, color: '#fff', fontSize: '.75rem',
                       padding: '4px 12px', borderRadius: '4px', fontWeight: '700', whiteSpace: 'nowrap',
@@ -863,7 +875,7 @@ export default function Checkout() {
                 Accepted Payments
               </div>
               <div className="payment-logos">
-                {['Paystack', 'Stripe', 'Bank Transfer', 'Cash'].map(logo => (
+                {['Paystack', ...(stripeEnabled && stripePromise ? ['Stripe'] : []), 'Cash on Delivery'].map(logo => (
                   <div key={logo} className="payment-logo" style={{
                     background: 'var(--gray-6)', border: '1px solid var(--gray-4)',
                     padding: '4px 8px', borderRadius: '4px', fontSize: '.7rem', fontWeight: '700', color: 'var(--gray-1)',

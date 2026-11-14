@@ -341,7 +341,7 @@ router.post('/', verifyToken, async (req, res, next) => {
             total_amount,
             currency: 'NGN',
             status: initialStatus,
-            shipping_address: shippingAddress,
+            shipping_address: { ...shippingAddress, checkout_mode: req.body.checkoutMode === 'buy_now' ? 'buy_now' : 'cart' },
             payment_method: paymentMethod,
         };
         let orderRows, orderErr;

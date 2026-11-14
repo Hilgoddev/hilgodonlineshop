@@ -78,10 +78,9 @@ jobs:
 
       - name: Deploy to Vercel (production)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        working-directory: frontend
+        working-directory: .
         run: |
           npm install -g vercel --prefer-offline
-          rm -rf ../.git
           vercel deploy --prod --yes --token=$VERCEL_TOKEN
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

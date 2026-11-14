@@ -149,7 +149,7 @@ async function handlePaymentSuccess(order_id, user_id) {
 async function markOrderPaid({ orderId, reference, paidAmount, currency, provider }) {
   const { data: order, error } = await supabase
     .from('orders')
-    .select('id, user_id, total_amount, currency, status, payment_reference')
+    .select('id, user_id, total_amount, currency, status, payment_reference, shipping_address')
     .eq('id', orderId)
     .maybeSingle();
   if (error) throw error;
@@ -186,8 +186,18 @@ async function markOrderPaid({ orderId, reference, paidAmount, currency, provide
   }
 
   // Use the order's own user, never a user id from provider metadata.
-  if (order.user_id) {
-    await supabase.from('cart_items').delete().eq('user_id', order.user_id);
+  if (order.user_id && order.shipping_address?.checkout_mode !== 'buy_now') {
+    const { variantKey } = require('../lib/variants');
+    const { data: purchased, error: linesError } = await supabase.from('order_items')
+      .select('product_id, quantity, selected_options').eq('order_id', orderId);
+    if (linesError) console.error('[CART] Could not read purchased lines', linesError.message);
+    for (const item of purchased || []) {
+      // Preserve other products/variants and quantities edited since checkout.
+      const { error: cartError } = await supabase.from('cart_items').delete()
+        .eq('user_id', order.user_id).eq('product_id', item.product_id)
+        .eq('variant_key', variantKey(item.selected_options)).eq('quantity', item.quantity);
+      if (cartError) console.error('[CART] Could not clear purchased line', cartError.message);
+    }
   }
   await handlePaymentSuccess(orderId, order.user_id);
   // Paid → ready to ship: hand the delivery details to GIG Logistics. Bounded

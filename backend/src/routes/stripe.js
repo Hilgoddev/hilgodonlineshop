@@ -64,7 +64,7 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
         currency: stripeCurrency,
         automatic_payment_methods: { enabled: true },
         metadata: { order_id, user_id: req.user.id },
-      }),
+      }, { idempotencyKey: 'hilgod-order-' + order_id }),
       8000,
     );
 
@@ -162,6 +162,26 @@ router.post('/webhook', async (req, res) => {
   }
 
   res.sendStatus(200);
+});
+
+
+// Verify redirect/inline results with Stripe; query parameters never prove payment.
+router.get('/verify/:intentId', verifyToken, async (req, res) => {
+  try {
+    if (!/^pi_[A-Za-z0-9]+$/.test(req.params.intentId)) return res.status(400).json({ success: false, message: 'Invalid payment reference.' });
+    const intent = await withTimeout(() => stripe.paymentIntents.retrieve(req.params.intentId), 8000);
+    const orderId = intent.metadata?.order_id;
+    const { data: order, error } = await supabase.from('orders').select('id, user_id').eq('id', orderId).eq('user_id', req.user.id).maybeSingle();
+    if (error) throw error;
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found.' });
+    if (intent.status !== 'succeeded') return res.json({ success: true, data: { status: intent.status, orderId } });
+    const applied = await markOrderPaid({ orderId, reference: intent.id, paidAmount: Number(intent.amount_received) / 100, currency: intent.currency, provider: 'stripe-verify' });
+    if (!applied.ok) return res.status(409).json({ success: false, message: 'Payment needs review. Please contact Hilgod support before paying again.' });
+    return res.json({ success: true, data: { status: 'success', orderId } });
+  } catch (err) {
+    console.error('[STRIPE] verification failed:', err?.message);
+    return res.status(502).json({ success: false, message: 'Could not confirm payment. If charged, do not pay again; check your order or contact support.' });
+  }
 });
 
 module.exports = router;

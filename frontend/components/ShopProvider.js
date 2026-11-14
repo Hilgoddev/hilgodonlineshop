@@ -47,6 +47,8 @@ export default function ShopProvider({ children }) {
   // been read from it — otherwise the empty initial state (while auth is still
   // loading) overwrote the saved cart on every page load.
   const guestLoaded = useRef(false);
+  const cartAdds = useRef(new Set());
+  const guestMerge = useRef(null);
 
   const loadGuestData = useCallback(() => {
     guestLoaded.current = true;
@@ -87,6 +89,8 @@ export default function ShopProvider({ children }) {
   }, []);
 
   const mergeGuestDataToServer = useCallback(async () => {
+    if (guestMerge.current) return guestMerge.current;
+    guestMerge.current = (async () => {
     try {
       const guestCart = JSON.parse(localStorage.getItem(GUEST_CART_KEY) || '[]');
       const guestWishlist = JSON.parse(localStorage.getItem(GUEST_WISHLIST_KEY) || '[]');
@@ -114,6 +118,8 @@ export default function ShopProvider({ children }) {
     } catch (err) {
       console.error('Failed to merge guest data into server', err);
     }
+    })();
+    try { await guestMerge.current; } finally { guestMerge.current = null; }
   }, []);
 
   useEffect(() => {
@@ -152,6 +158,10 @@ export default function ShopProvider({ children }) {
       return false;
     }
     const key = variantKey(opts);
+    const requestKey = product._id + '::' + key;
+    if (cartAdds.current.has(requestKey)) return false;
+    cartAdds.current.add(requestKey);
+    try {
     if (isAuthenticated) {
       try {
         const res = await apiFetch('/api/cart', {
@@ -181,6 +191,7 @@ export default function ShopProvider({ children }) {
     }
     showToast('Added to cart!', 'success');
     return true;
+    } finally { cartAdds.current.delete(requestKey); }
   };
 
   const removeFromCart = async (productId, key = '') => {
@@ -322,6 +333,7 @@ export default function ShopProvider({ children }) {
     <ShopContext.Provider
       value={{
         cart,
+        refreshCart: loadServerData,
         addToCart,
         removeFromCart,
         updateCartQty,
