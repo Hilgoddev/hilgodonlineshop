@@ -40,10 +40,10 @@ const PAYMENT_METHODS = [
 ];
 
 
-function StripePaymentForm({ amount, onSuccess }) {
+function StripePaymentForm({ amount, currency = 'NGN', onSuccess }) {
   const stripe = useStripe();
   const elements = useElements();
-  const { formatPrice } = useCurrency();
+  const formatPrice = amount => new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(amount);
   const [stripeError, setStripeError] = useState('');
   const [processing, setProcessing] = useState(false);
   const [formComplete, setFormComplete] = useState(false);
@@ -128,7 +128,7 @@ export default function Checkout() {
   const clearCheckout = () => { if (!direct) return clearCart(); };
   const placingOrder = useRef(false);
   useEffect(() => { refreshCart(); }, [refreshCart]);
-  const { formatPrice } = useCurrency();
+
 
   const [currentStep, setCurrentStep] = useState(1);
   const [view, setView] = useState('checkout'); // 'checkout' | 'stripe' | 'bank_transfer' | 'success'
@@ -152,6 +152,22 @@ export default function Checkout() {
     firstName: '', lastName: '', email: '', phone: '', altPhone: '',
     country: 'Nigeria', state: '', city: '', street: '', landmark: '', postalCode: '', instructions: '',
   });
+
+  const [rateData, setRateData] = useState(null);
+  useEffect(() => {
+    apiFetch('/api/exchange-rates').then(safeJson).then(result => {
+      if (result.success && !result.fallback && result.source !== 'database-stale' && result.rates?.EUR > 0 && result.rates?.NGN > 0) setRateData(result.rates);
+    }).catch(() => {});
+  }, []);
+  const checkoutCurrency = formData.country === 'Cyprus' ? 'EUR' : 'NGN';
+  const moneyRound = value => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+  const toNGN = (amount, source = 'NGN') => source === 'NGN' ? moneyRound(amount) : moneyRound(amount / Number(rateData?.[source]) * Number(rateData?.NGN));
+  const ratesReady = (checkoutCurrency === 'NGN' && cart.every(i => (i.product.currency || 'NGN') === 'NGN')) || !!rateData;
+  const formatPrice = (amount, source = 'NGN') => {
+    const ngn = toNGN(amount, source);
+    const value = checkoutCurrency === 'EUR' ? moneyRound(ngn * Number(rateData?.EUR) / Number(rateData?.NGN)) : ngn;
+    return Number.isFinite(value) ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: checkoutCurrency }).format(value) : 'Loading quote…';
+  };
 
   // GEO_DATA is bundled locally — no external API call needed
 
@@ -204,7 +220,8 @@ export default function Checkout() {
     const { name, value } = e.target;
     if (name === 'country') {
       setFormData(prev => ({ ...prev, country: value, state: '', city: '' }));
-      if (selectedPayment === 'pod' && !COD_COUNTRIES.includes(value)) setSelectedPayment('paystack');
+      if (value === 'Cyprus') setSelectedPayment('stripe');
+      else if (selectedPayment === 'pod' && !COD_COUNTRIES.includes(value)) setSelectedPayment('paystack');
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -214,7 +231,7 @@ export default function Checkout() {
     let subtotal = 0;
     cart.forEach(item => {
       const itemPricing = normalizePricing(item.product || {});
-      subtotal += itemPricing.price * (item.quantity || 1);
+      subtotal += toNGN(itemPricing.price, item.product.currency || 'NGN') * (item.quantity || 1);
     });
     const deliveryFee = cart.length ? computeDeliveryFee(subtotal) : 0;
     return { subtotal, deliveryFee, total: subtotal + deliveryFee };
@@ -229,7 +246,7 @@ export default function Checkout() {
   const codReady = codAvailable && filled('landmark');
 
   const handlePlaceOrder = async () => {
-    if (placingOrder.current || !cart.length) return;
+    if (placingOrder.current || !cart.length || !ratesReady) return;
     if (!isFormValid) { showToast('Please fill in all required fields.', 'error'); return; }
     if (selectedPayment === 'pod' && !codReady) {
       showToast(codAvailable ? 'Pay on Delivery needs a nearest landmark.' : `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}.`, 'error');
@@ -263,6 +280,7 @@ export default function Checkout() {
           shippingAddress: { ...formData },
           paymentMethod: selectedPayment,
           checkoutMode: direct ? 'buy_now' : 'cart',
+          expectedPaymentAmount: checkoutCurrency === 'EUR' ? moneyRound(snapshot.total * rateData.EUR / rateData.NGN) : snapshot.total,
         }),
       });
       const orderResult = await safeJson(orderRes);
@@ -276,7 +294,7 @@ export default function Checkout() {
 
       const orderId = orderResult.data._id;
       setPlacedOrderId(orderId);
-      setOrderTotals({ ...snapshot, total: Number(orderResult.data.totalAmount) || snapshot.total });
+      setOrderTotals({ ...snapshot, total: Number(orderResult.data.totalAmount) || snapshot.total, paymentQuote: orderResult.data.shippingAddress?.payment_quote });
       // NOTE: clearCart() is called only on each payment's SUCCESS path below,
       // so if payment fails the user still has their cart and can retry.
 
@@ -412,7 +430,8 @@ export default function Checkout() {
               }}
             >
               <StripePaymentForm
-                amount={displayTotals.total}
+                amount={displayTotals.paymentQuote?.amount ?? displayTotals.total}
+                currency={displayTotals.paymentQuote?.currency || 'NGN'}
                 onSuccess={(id) => id ? verifyPayment('stripe', id) : (setPaymentMessage('Please check My Orders for the payment status.'), setView('payment_pending'))}
               />
             </Elements>
@@ -549,6 +568,8 @@ export default function Checkout() {
       </h1>
 
       {direct && <p role="status">Buying this product only. Your saved cart stays separate. Delivery is shown below.</p>}
+      <p role="status">You will be charged in <strong>{checkoutCurrency}</strong>{checkoutCurrency === 'EUR' ? ' through Stripe. The EUR quote includes delivery; your bank may apply its own fees.' : '. Delivery is included in the final total.'}</p>
+      {!ratesReady && <p role="alert">A current exchange quote is required. Refresh checkout if the quote does not load.</p>}
       <p className="checkout-help">Need help with checkout? <a href="tel:+35795130549">Call +357 95 130549</a> or <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer">WhatsApp us</a>.</p>
       <style jsx global>{`
         .hilgod-checkout { align-items: start; overflow-anchor: none; }
@@ -650,7 +671,7 @@ export default function Checkout() {
                 <textarea className="form-textarea" placeholder="e.g. Leave at gate, call before delivery..." id="checkout-instructions" name="instructions" value={formData.instructions} onChange={handleInputChange}></textarea>
               </div>
               {!isFormValid && <p role="status" style={{ marginBottom: 12 }}>Complete every field marked * with a valid email and phone number to continue.</p>}
-              <button type="button" className="btn btn-primary btn-lg btn-full" onClick={() => setCurrentStep(2)} disabled={!isFormValid}>
+              <button type="button" className="btn btn-primary btn-lg btn-full" onClick={() => setCurrentStep(2)} disabled={!isFormValid || !ratesReady}>
                 Continue to Payment <i className="fas fa-arrow-right"></i>
               </button>
             </div>
@@ -665,7 +686,7 @@ export default function Checkout() {
                   <label
                     key={pm.id}
                     className={`payment-option ${selectedPayment === pm.id ? 'selected' : ''}`}
-                    style={(pm.id === 'bank_transfer' || (pm.id === 'stripe' && (!stripeEnabled || !stripePromise)) || (pm.id === 'pod' && !codAvailable)) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                    style={(pm.id === 'bank_transfer' || (pm.id === 'paystack' && checkoutCurrency === 'EUR') || (pm.id === 'stripe' && (!stripeEnabled || !stripePromise)) || (pm.id === 'pod' && !codAvailable)) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     title={pm.id === 'pod' && !codAvailable ? `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}` : undefined}
                     onChange={() => {
                       if (pm.id === 'bank_transfer' && !bankTransferEnabled) { setShowBankComingSoon(true); return; }

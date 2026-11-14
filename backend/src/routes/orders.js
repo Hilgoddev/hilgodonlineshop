@@ -1,4 +1,5 @@
 const express = require('express');
+const { convertAmount, getCheckoutRates, settlementQuote, roundMoney } = require('../lib/settlement');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
@@ -220,7 +221,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 withTimeout(
                     (signal) => supabase
                         .from('products')
-                        .select('id, name, images, price, stock, is_active, status, seller_id, size_options, color_options')
+                        .select('id, name, images, price, currency, stock, is_active, status, seller_id, size_options, color_options')
                         .in('id', productIds)
                         .abortSignal(signal),
                     8 * 1000,
@@ -239,6 +240,11 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         const productMap = new Map((products || []).map((p) => [p.id, p]));
 
+        let checkoutRates = null;
+        if (shippingAddress.country === 'Cyprus' || products.some(p => (p.currency || 'NGN') !== 'NGN')) {
+            try { checkoutRates = await getCheckoutRates(); }
+            catch (err) { return res.status(503).json({ success: false, error: err.message }); }
+        }
         // Recompute totals from DB and validate stock.
         let total_amount = 0;
         const orderItems = [];
@@ -281,7 +287,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 });
             }
 
-            unitPriceMap.set(productId, serverUnitPrice);
+            unitPriceMap.set(productId, convertAmount(serverUnitPrice, String(p.currency || 'NGN').toUpperCase(), 'NGN', checkoutRates));
         }
 
         // Check each line's variant against its product (a product with colours
@@ -329,7 +335,13 @@ router.post('/', verifyToken, async (req, res, next) => {
 
         // Add delivery fee server-side (free for orders strictly above the threshold).
         const deliveryFee = computeDeliveryFee(total_amount);
-        total_amount += deliveryFee;
+        total_amount = roundMoney(total_amount + deliveryFee);
+        let paymentQuote;
+        try { paymentQuote = settlementQuote(total_amount, shippingAddress.country, paymentMethod, checkoutRates); }
+        catch (err) { return res.status(400).json({ success: false, error: err.message }); }
+        if (paymentQuote && (!Number.isFinite(Number(req.body.expectedPaymentAmount)) || Math.abs(Number(req.body.expectedPaymentAmount) - paymentQuote.amount) > 0.01)) {
+            return res.status(409).json({ success: false, code: 'QUOTE_CHANGED', error: 'The EUR exchange quote changed. Refresh checkout and review the total before paying.' });
+        }
 
         // Create order with server-computed total (products + delivery fee).
         // All new orders start 'pending' (awaiting payment). 'processing' now means
@@ -341,7 +353,7 @@ router.post('/', verifyToken, async (req, res, next) => {
             total_amount,
             currency: 'NGN',
             status: initialStatus,
-            shipping_address: { ...shippingAddress, checkout_mode: req.body.checkoutMode === 'buy_now' ? 'buy_now' : 'cart' },
+            shipping_address: { ...shippingAddress, checkout_mode: req.body.checkoutMode === 'buy_now' ? 'buy_now' : 'cart', ...(paymentQuote ? { payment_quote: paymentQuote } : {}) },
             payment_method: paymentMethod,
         };
         let orderRows, orderErr;
@@ -409,7 +421,7 @@ router.post('/', verifyToken, async (req, res, next) => {
         sendEmail({
             to: req.user.email,
             subject: `Order Confirmed — ${itemSummary} (Hilgod #${order.id.slice(0,8).toUpperCase()})`,
-            html: orderConfirmationHtml(order.id, responseItems, total_amount, order.currency),
+            html: orderConfirmationHtml(order.id, paymentQuote ? responseItems.map(i => ({ ...i, price: roundMoney(i.price * paymentQuote.ngn_to_eur) })) : responseItems, paymentQuote?.amount ?? total_amount, paymentQuote?.currency || order.currency),
             emailType: 'order_confirmation',
             orderId: order.id,
             userId: req.user.id,

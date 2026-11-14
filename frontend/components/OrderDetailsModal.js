@@ -1,3 +1,4 @@
+import PaymentQuote from './PaymentQuote';
 import { useEffect, useState } from 'react';
 import ShipmentTracking, { GigStatus } from './ShipmentTracking';
 import { apiFetch } from '@/lib/apiClient';
@@ -140,7 +141,7 @@ export default function OrderDetailsModal({ order, isOpen, onClose }) {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <strong>Items ({order.items?.length || 0})</strong>
-            <strong>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</strong>
+            <strong>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</strong><PaymentQuote order={order} />
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

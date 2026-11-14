@@ -29,7 +29,7 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       ({ data: order, error } = await withTimeout(
         (signal) => supabase
           .from('orders')
-          .select('id, total_amount, user_id, currency, status')
+          .select('id, total_amount, user_id, currency, status, shipping_address')
           .eq('id', order_id)
           .eq('user_id', req.user.id)
           .abortSignal(signal)
@@ -47,7 +47,8 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
     }
 
-    const amount = Number(order.total_amount);
+    const quote = order.shipping_address?.payment_quote;
+    const amount = Number(quote?.amount ?? order.total_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid order amount' });
     }
@@ -55,7 +56,7 @@ router.post('/create-payment-intent', verifyToken, async (req, res, next) => {
     // Always charge in the order's own currency (stored at checkout; NGN today).
     // The amount is in that currency's units, so charging any other currency
     // would bill the wrong sum — and the webhook would then refuse to apply it.
-    const stripeCurrency = String(order.currency || 'ngn').toLowerCase();
+    const stripeCurrency = String(quote?.currency || order.currency || 'ngn').toLowerCase();
 
     // amount is in major units; *100 gives minor units (kobo/cents).
     const paymentIntent = await withTimeout(

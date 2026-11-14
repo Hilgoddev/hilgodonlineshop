@@ -1,3 +1,4 @@
+import PaymentQuote from '@/components/PaymentQuote';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -371,6 +372,7 @@ export default function Account() {
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '.88rem' }}>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</div>
+<PaymentQuote order={order} />
                             <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', textTransform: 'capitalize', background: order.status === 'delivered' ? '#dcfce7' : order.status === 'shipped' ? '#ede9fe' : '#fef3c7', color: order.status === 'delivered' ? '#15803d' : order.status === 'shipped' ? '#6d28d9' : '#92400e' }}>{orderStatusLabel(order.status, order.paymentMethod)}</span>
                           </div>
                         </div>
@@ -508,6 +510,7 @@ export default function Account() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '.95rem' }}>{formatPrice(order.totalAmount || 0, orderCurrency, false)}</div>
+<PaymentQuote order={order} />
                                 <span style={{ fontSize: '.7rem', fontWeight: 700, padding: '2px 9px', borderRadius: '999px', background: statusBg, color: statusColor }}>{orderStatusLabel(order.status, order.paymentMethod)}</span>
                               </div>
                               <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'}`} style={{ color: 'var(--gray-2)', fontSize: '.75rem', flexShrink: 0 }}></i>

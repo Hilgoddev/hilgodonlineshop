@@ -351,3 +351,18 @@ describe('checkout cart isolation', () => {
     expect(db.cartDeletes.every(f => f.product_id && f.quantity && 'variant_key' in f)).toBe(true);
   });
 });
+
+describe('EUR settlement keeps NGN seller accounting',()=>{
+  it('accepts only the saved EUR amount and currency',async()=>{
+    db.order.shipping_address={payment_quote:{currency:'EUR',amount:3.13,ngn_to_eur:0.000626}};
+    const wrong=await markOrderPaid({orderId:ORDER_ID,reference:'eur-1',paidAmount:5000,currency:'NGN',provider:'stripe'});
+    expect(wrong.ok).toBe(false);
+    const right=await markOrderPaid({orderId:ORDER_ID,reference:'eur-1',paidAmount:3.13,currency:'EUR',provider:'stripe'});
+    expect(right.ok).toBe(true); expect(db.order.total_amount).toBe(5000); expect(db.order.currency).toBe('NGN');
+  });
+  it('rejects the right numeric amount in the wrong currency',async()=>{
+    db.order.shipping_address={payment_quote:{currency:'EUR',amount:3.13}};
+    const result=await markOrderPaid({orderId:ORDER_ID,reference:'eur-2',paidAmount:3.13,currency:'NGN',provider:'stripe'});
+    expect(result).toMatchObject({ok:false,reason:'currency_mismatch'});
+  });
+});

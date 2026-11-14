@@ -27,7 +27,7 @@ const mapLocaleToCurrency = (locale = '') => {
     const lower = String(locale).toLowerCase();
     if (lower.includes('ng')) return 'NGN';
     if (lower.includes('gb')) return 'GBP';
-    if (lower.includes('fr') || lower.includes('de') || lower.includes('it') || lower.includes('es') || lower.includes('nl')) return 'EUR';
+    if (lower.includes('cy') || lower.includes('fr') || lower.includes('de') || lower.includes('it') || lower.includes('es') || lower.includes('nl')) return 'EUR';
     return 'USD';
 };
 
@@ -35,6 +35,7 @@ const mapTimeZoneToCurrency = (timeZone = '') => {
     const tz = String(timeZone).toLowerCase();
     if (tz.includes('africa/lagos')) return 'NGN';
     if (tz.includes('europe/london')) return 'GBP';
+    if (tz === 'asia/nicosia' || tz === 'asia/famagusta') return 'EUR';
     if (tz.startsWith('europe/')) return 'EUR';
     if (tz.startsWith('america/')) return 'USD';
     return 'USD';

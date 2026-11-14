@@ -7,7 +7,7 @@ async function handlePaymentSuccess(order_id, user_id) {
     // Fetch order and verify it hasn't been processed already (guard against duplicate webhook calls)
     const { data: order, error: orderCheckErr } = await supabase
       .from('orders')
-      .select('total_amount, status, currency, created_at')
+      .select('total_amount, status, currency, created_at, shipping_address')
       .eq('id', order_id)
       .single();
 
@@ -79,7 +79,7 @@ async function handlePaymentSuccess(order_id, user_id) {
         sendEmail({
           to: buyerEmail,
           subject: `Payment Confirmed — Order #${String(order_id).slice(0, 8).toUpperCase()}`,
-          html: paymentConfirmedHtml(order_id, emailItems, order?.total_amount || 0, buyerName, order?.currency),
+          html: paymentConfirmedHtml(order_id, order.shipping_address?.payment_quote ? emailItems.map(i => ({ ...i, price: Math.round(i.price * order.shipping_address.payment_quote.ngn_to_eur * 100) / 100 })) : emailItems, order.shipping_address?.payment_quote?.amount ?? order.total_amount ?? 0, buyerName, order.shipping_address?.payment_quote?.currency || order.currency),
           emailType: 'payment_confirmed',
           orderId: order_id,
           userId: user_id,
@@ -155,13 +155,15 @@ async function markOrderPaid({ orderId, reference, paidAmount, currency, provide
   if (error) throw error;
   if (!order) return { ok: false, reason: 'order_not_found' };
 
-  const expected = Number(order.total_amount || 0);
+  const paymentQuote = order.shipping_address?.payment_quote;
+  const expected = Number(paymentQuote?.amount ?? order.total_amount ?? 0);
+  const paymentCurrency = paymentQuote?.currency || order.currency;
   const paid = Number(paidAmount);
   if (!Number.isFinite(paid) || Math.abs(paid - expected) > 0.01) {
     console.error(`[PAYMENT_TAMPERING] ${provider} amount mismatch for order ${orderId}: paid=${paidAmount}, expected=${expected}`);
     return { ok: false, reason: 'amount_mismatch' };
   }
-  if (currency && order.currency && String(currency).toUpperCase() !== String(order.currency).toUpperCase()) {
+  if (currency && paymentCurrency && String(currency).toUpperCase() !== String(paymentCurrency).toUpperCase()) {
     console.error(`[PAYMENT_TAMPERING] ${provider} currency mismatch for order ${orderId}: paid=${currency}, expected=${order.currency}`);
     return { ok: false, reason: 'currency_mismatch' };
   }

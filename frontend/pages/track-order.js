@@ -1,3 +1,4 @@
+import PaymentQuote from '@/components/PaymentQuote';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -134,6 +135,7 @@ function TrackOrderPage() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontWeight: 800 }}>{formatPrice(o.totalAmount || 0, o.currency || 'NGN', false)}</div>
+<PaymentQuote order={o} />
                       <div style={{ fontSize: '.78rem', color: 'var(--primary)', fontWeight: 700 }}>{statusLabel}</div>
                     </div>
                   </div>

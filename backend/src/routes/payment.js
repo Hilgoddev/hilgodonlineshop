@@ -45,7 +45,8 @@ const initializePayment = async (req, res, next) => {
             return res.status(409).json({ success: false, message: 'This order is not awaiting payment.' });
         }
 
-        const amount = Number(order.total_amount);
+        if (order.shipping_address?.payment_quote?.currency === 'EUR') return res.status(400).json({ success: false, message: 'This order is charged in EUR. Please use Stripe.' });
+    const amount = Number(order.total_amount);
         if (!Number.isFinite(amount) || amount <= 0) {
             return res.status(400).json({ success: false, message: 'Order has invalid total amount' });
         }
