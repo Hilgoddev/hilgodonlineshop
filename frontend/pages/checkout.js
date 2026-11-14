@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/Layout';
 import AuthGuard from '@/components/AuthGuard';
@@ -114,6 +114,16 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [showBankComingSoon, setShowBankComingSoon] = useState(false);
 
+  const stepFocusReady = useRef(false);
+  useEffect(() => {
+    if (!stepFocusReady.current) { stepFocusReady.current = true; return; }
+    const target = document.getElementById('checkout-active-step');
+    if (target) {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: 'start', behavior: 'instant' });
+    } else { window.scrollTo({ top: 0, behavior: 'instant' }); }
+  }, [currentStep, view]);
+
   // Everything GIG Logistics needs to deliver: who, how to reach them, and
   // where (country → state → city → address + landmark).
   const [formData, setFormData] = useState({
@@ -205,7 +215,7 @@ export default function Checkout() {
   const totals = calculateTotals();
   const displayTotals = orderTotals || totals;
   const filled = (k) => String(formData[k] || '').trim().length > 0;
-  const isFormValid = ['firstName', 'lastName', 'email', 'phone', 'country', 'state', 'city', 'street'].every(filled);
+  const isFormValid = ['firstName', 'lastName', 'email', 'phone', 'country', 'state', 'city', 'street'].every(filled) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim()) && formData.phone.replace(/\D/g, '').length >= 7;
   // Pay on Delivery: GIG collects cash, so the country must be supported and
   // the rider needs a landmark to find the door.
   const codReady = codAvailable && filled('landmark');
@@ -526,6 +536,26 @@ export default function Checkout() {
         <i className="fas fa-shopping-bag" style={{ color: 'var(--primary)' }}></i> Checkout
       </h1>
 
+      <p className="checkout-help">Need help with checkout? <a href="tel:+35795130549">Call +357 95 130549</a> or <a href="https://wa.me/35795130549" target="_blank" rel="noopener noreferrer">WhatsApp us</a>.</p>
+      <style jsx global>{`
+        .hilgod-checkout { align-items: start; overflow-anchor: none; }
+        #checkout-active-step { scroll-margin-top: 160px; outline-offset: 5px; }
+        .hilgod-checkout .btn { min-height: 48px; white-space: normal; line-height: 1.4; }
+        .hilgod-checkout .form-input, .hilgod-checkout .form-textarea { font-size: 16px; min-height: 46px; }
+        .hilgod-checkout .payment-option { min-height: 64px; flex-wrap: wrap; gap: 12px; cursor: pointer; }
+        .hilgod-checkout .payment-option:focus-within { outline: 3px solid #2563eb; outline-offset: 3px; }
+        .checkout-help { margin-bottom: 24px; line-height: 1.8; }
+        .checkout-help a { text-decoration: underline; display: inline-block; padding: 6px 0; }
+        .hilgod-checkout .order-summary-details { min-width: 0; overflow-wrap: anywhere; }
+        @media (max-width: 768px) {
+          .hilgod-checkout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+          .hilgod-checkout > div { min-width: 0; }
+          .hilgod-checkout .cart-summary { position: static !important; }
+          .hilgod-checkout .checkout-section { padding: 20px 16px; }
+          .hilgod-checkout .form-row { grid-template-columns: minmax(0, 1fr); }
+          #checkout-active-step { scroll-margin-top: 100px; }
+        }
+      `}</style>
       {/* Step indicators */}
       <div className="checkout-steps" style={{ marginBottom: 'var(--space-8)' }}>
         {['Address', 'Payment', 'Review'].map((label, idx) => (
@@ -541,72 +571,73 @@ export default function Checkout() {
         ))}
       </div>
 
-      <div className="checkout-layout">
+      <div className="checkout-layout hilgod-checkout">
         <div>
 
           {/* ── Step 1: Address ─────────────────────────────── */}
           {currentStep === 1 && (
             <div className="checkout-section">
-              <h3><i className="fas fa-map-marker-alt" style={{ color: 'var(--primary)' }}></i> Delivery Address</h3>
+              <h3 id="checkout-active-step" tabIndex={-1}><i className="fas fa-map-marker-alt" style={{ color: 'var(--primary)' }}></i> Delivery Address</h3>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">First Name *</label>
-                  <input className="form-input" type="text" placeholder="First name" name="firstName" value={formData.firstName} onChange={handleInputChange} />
+                  <label className="form-label" htmlFor="checkout-firstName">First Name *</label>
+                  <input className="form-input" type="text" placeholder="First name" id="checkout-firstName" name="firstName" autoComplete="given-name" required value={formData.firstName} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Last Name *</label>
-                  <input className="form-input" type="text" placeholder="Last name" name="lastName" value={formData.lastName} onChange={handleInputChange} />
+                  <label className="form-label" htmlFor="checkout-lastName">Last Name *</label>
+                  <input className="form-input" type="text" placeholder="Last name" id="checkout-lastName" name="lastName" autoComplete="family-name" required value={formData.lastName} onChange={handleInputChange} />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Email Address *</label>
-                  <input className="form-input" type="email" placeholder="your@email.com" name="email" value={formData.email} onChange={handleInputChange} />
+                  <label className="form-label" htmlFor="checkout-email">Email Address *</label>
+                  <input className="form-input" type="email" placeholder="your@email.com" id="checkout-email" name="email" autoComplete="email" required value={formData.email} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Phone Number *</label>
-                  <input className="form-input" type="tel" placeholder="+234 800 0000000" name="phone" value={formData.phone} onChange={handleInputChange} />
+                  <label className="form-label" htmlFor="checkout-phone">Phone Number *</label>
+                  <input className="form-input" type="tel" placeholder="+234 800 0000000" id="checkout-phone" name="phone" autoComplete="tel" required value={formData.phone} onChange={handleInputChange} />
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Alternative Phone (optional)</label>
-                <input className="form-input" type="tel" placeholder="Another number the rider can call" name="altPhone" value={formData.altPhone} onChange={handleInputChange} />
+                <label className="form-label" htmlFor="checkout-altPhone">Alternative Phone (optional)</label>
+                <input className="form-input" type="tel" placeholder="Another number the rider can call" id="checkout-altPhone" name="altPhone" autoComplete="tel" value={formData.altPhone} onChange={handleInputChange} />
               </div>
               <div className="form-group">
-                <label className="form-label">Country *</label>
-                <select className="form-select form-input" name="country" value={formData.country} onChange={handleInputChange}>
+                <label className="form-label" htmlFor="checkout-country">Country *</label>
+                <select className="form-select form-input" id="checkout-country" name="country" autoComplete="country-name" required value={formData.country} onChange={handleInputChange}>
                   {countries.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">State / Region *</label>
-                  <input className="form-input" type="text" placeholder="e.g. Lagos" name="state" value={formData.state} onChange={handleInputChange} autoComplete="address-level1" />
+                  <label className="form-label" htmlFor="checkout-state">State / Region *</label>
+                  <input className="form-input" type="text" placeholder="e.g. Lagos" id="checkout-state" name="state" required value={formData.state} onChange={handleInputChange} autoComplete="address-level1" />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">City / Town *</label>
-                  <input className="form-input" type="text" placeholder="e.g. Ikeja" name="city" value={formData.city} onChange={handleInputChange} autoComplete="address-level2" />
+                  <label className="form-label" htmlFor="checkout-city">City / Town *</label>
+                  <input className="form-input" type="text" placeholder="e.g. Ikeja" id="checkout-city" name="city" required value={formData.city} onChange={handleInputChange} autoComplete="address-level2" />
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Delivery Address *</label>
-                <input className="form-input" type="text" placeholder="House number, street name, area" name="street" value={formData.street} onChange={handleInputChange} autoComplete="street-address" />
+                <label className="form-label" htmlFor="checkout-street">Delivery Address *</label>
+                <input className="form-input" type="text" placeholder="House number, street name, area" id="checkout-street" name="street" required value={formData.street} onChange={handleInputChange} autoComplete="street-address" />
               </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Nearest Landmark {selectedPayment === 'pod' ? '*' : '(required for Pay on Delivery)'}</label>
-                  <input className="form-input" type="text" placeholder="e.g. Opposite GTBank" name="landmark" value={formData.landmark} onChange={handleInputChange} />
+                  <input className="form-input" type="text" placeholder="e.g. Opposite GTBank" aria-label="Nearest landmark" name="landmark" value={formData.landmark} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Postal Code (optional)</label>
-                  <input className="form-input" type="text" placeholder="Postal / ZIP code" name="postalCode" value={formData.postalCode} onChange={handleInputChange} autoComplete="postal-code" />
+                  <label className="form-label" htmlFor="checkout-postalCode">Postal Code (optional)</label>
+                  <input className="form-input" type="text" placeholder="Postal / ZIP code" id="checkout-postalCode" name="postalCode" value={formData.postalCode} onChange={handleInputChange} autoComplete="postal-code" />
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Delivery Instructions (optional)</label>
-                <textarea className="form-textarea" placeholder="e.g. Leave at gate, call before delivery..." name="instructions" value={formData.instructions} onChange={handleInputChange}></textarea>
+                <label className="form-label" htmlFor="checkout-instructions">Delivery Instructions (optional)</label>
+                <textarea className="form-textarea" placeholder="e.g. Leave at gate, call before delivery..." id="checkout-instructions" name="instructions" value={formData.instructions} onChange={handleInputChange}></textarea>
               </div>
-              <button className="btn btn-primary btn-lg btn-full" onClick={() => setCurrentStep(2)} disabled={!isFormValid}>
+              {!isFormValid && <p role="status" style={{ marginBottom: 12 }}>Complete every field marked * with a valid email and phone number to continue.</p>}
+              <button type="button" className="btn btn-primary btn-lg btn-full" onClick={() => setCurrentStep(2)} disabled={!isFormValid}>
                 Continue to Payment <i className="fas fa-arrow-right"></i>
               </button>
             </div>
@@ -615,7 +646,7 @@ export default function Checkout() {
           {/* ── Step 2: Payment Method ───────────────────────── */}
           {currentStep === 2 && (
             <div className="checkout-section">
-              <h3><i className="fas fa-credit-card" style={{ color: 'var(--primary)' }}></i> Payment Method</h3>
+              <h3 id="checkout-active-step" tabIndex={-1}><i className="fas fa-credit-card" style={{ color: 'var(--primary)' }}></i> Payment Method</h3>
               <div className="payment-methods">
                 {PAYMENT_METHODS.map(pm => (
                   <label
@@ -623,7 +654,7 @@ export default function Checkout() {
                     className={`payment-option ${selectedPayment === pm.id ? 'selected' : ''}`}
                     style={pm.id === 'pod' && !codAvailable ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
                     title={pm.id === 'pod' && !codAvailable ? `Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}` : undefined}
-                    onClick={() => {
+                    onChange={() => {
                       if (pm.id === 'bank_transfer' && !bankTransferEnabled) { setShowBankComingSoon(true); return; }
                       if (pm.id === 'pod' && !codAvailable) {
                         showToast(`Pay on Delivery is only available in ${COD_COUNTRIES.join(', ')}.`, 'warning');
@@ -650,7 +681,7 @@ export default function Checkout() {
                   <p>GIG delivers your order and collects <strong>{formatPrice(displayTotals.total || 0, 'NGN', false)}</strong> when it arrives. Please have the exact amount ready.</p>
                   <div className="form-group" style={{ marginBottom: 8 }}>
                     <label className="form-label">Nearest Landmark *</label>
-                    <input className="form-input" type="text" placeholder="e.g. Opposite GTBank" name="landmark" value={formData.landmark} onChange={handleInputChange} />
+                    <input className="form-input" type="text" placeholder="e.g. Opposite GTBank" aria-label="Nearest landmark" name="landmark" value={formData.landmark} onChange={handleInputChange} />
                   </div>
                   <p className="cod-box__check">The rider will call <strong>{formData.phone || 'your phone number'}</strong>{formData.altPhone ? ` or ${formData.altPhone}` : ''} before delivery.</p>
                 </div>
@@ -676,10 +707,11 @@ export default function Checkout() {
               )}
 
               <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
-                <button className="btn btn-outline" onClick={() => setCurrentStep(1)}>
+                <button type="button" className="btn btn-outline" onClick={() => setCurrentStep(1)}>
                   <i className="fas fa-arrow-left"></i> Back
                 </button>
                 <button
+                  type="button"
                   className="btn btn-primary btn-lg"
                   style={{ flex: 1 }}
                   onClick={() => setCurrentStep(3)}
@@ -694,7 +726,7 @@ export default function Checkout() {
           {/* ── Step 3: Review & Place ───────────────────────── */}
           {currentStep === 3 && (
             <div className="checkout-section">
-              <h3><i className="fas fa-clipboard-check" style={{ color: 'var(--primary)' }}></i> Review Your Order</h3>
+              <h3 id="checkout-active-step" tabIndex={-1}><i className="fas fa-clipboard-check" style={{ color: 'var(--primary)' }}></i> Review Your Order</h3>
 
               {/* Address summary */}
               <div style={{
@@ -763,10 +795,11 @@ export default function Checkout() {
               </div>
 
               <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)' }}>
-                <button className="btn btn-outline" onClick={() => setCurrentStep(2)}>
+                <button type="button" className="btn btn-outline" onClick={() => setCurrentStep(2)}>
                   <i className="fas fa-arrow-left"></i> Back
                 </button>
                 <button
+                  type="button"
                   className="btn btn-primary btn-lg"
                   style={{ flex: 1 }}
                   onClick={handlePlaceOrder}
@@ -848,7 +881,7 @@ export default function Checkout() {
           <div className="modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
             <div className="modal__header">
               <span className="modal__title">Bank Transfer</span>
-              <button className="modal__close" onClick={() => setShowBankComingSoon(false)}>
+              <button type="button" className="modal__close" onClick={() => setShowBankComingSoon(false)}>
                 <i className="fas fa-xmark"></i>
               </button>
             </div>
