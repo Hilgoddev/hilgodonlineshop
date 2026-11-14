@@ -697,7 +697,7 @@ export default function Checkout() {
                       setSelectedPayment(pm.id);
                     }}
                   >
-                    <input type="radio" name="payment" value={pm.id} disabled={pm.id === 'bank_transfer' || (pm.id === 'stripe' && (!stripeEnabled || !stripePromise)) || (pm.id === 'pod' && !codAvailable)} checked={selectedPayment === pm.id} onChange={() => {}} />
+                    <input type="radio" name="payment" value={pm.id} disabled={pm.id === 'bank_transfer' || (pm.id === 'paystack' && checkoutCurrency === 'EUR') || (pm.id === 'stripe' && (!stripeEnabled || !stripePromise)) || (pm.id === 'pod' && !codAvailable)} checked={selectedPayment === pm.id} onChange={() => {}} />
                     <div style={{
                       background: pm.color, color: '#fff', fontSize: '.75rem',
                       padding: '4px 12px', borderRadius: '4px', fontWeight: '700', whiteSpace: 'nowrap',
@@ -854,7 +854,7 @@ export default function Checkout() {
           <div className="cart-summary" style={{ position: 'sticky', top: '144px' }}>
             <h3><i className="fas fa-receipt" style={{ color: 'var(--primary)' }}></i> Order Summary</h3>
             <div style={{ fontSize: '.85rem', color: 'var(--gray-1)', marginBottom: 'var(--space-3)' }}>
-              {cart.reduce((sum, item) => sum + item.quantity, 0)} items in your order
+              {cart.reduce((sum, item) => sum + item.quantity, 0)} {cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? 'item' : 'items'} in your order
             </div>
             <div className="summary-row">
               <span className="label">Subtotal</span>
@@ -897,7 +897,7 @@ export default function Checkout() {
                 Accepted Payments
               </div>
               <div className="payment-logos">
-                {['Paystack', ...(stripeEnabled && stripePromise ? ['Stripe'] : []), 'Cash on Delivery'].map(logo => (
+                {[...(checkoutCurrency === 'NGN' ? ['Paystack'] : []), ...(stripeEnabled && stripePromise ? ['Stripe'] : []), ...(codAvailable ? ['Cash on Delivery'] : [])].map(logo => (
                   <div key={logo} className="payment-logo" style={{
                     background: 'var(--gray-6)', border: '1px solid var(--gray-4)',
                     padding: '4px 8px', borderRadius: '4px', fontSize: '.7rem', fontWeight: '700', color: 'var(--gray-1)',
