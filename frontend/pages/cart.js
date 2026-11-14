@@ -63,7 +63,7 @@ export default function Cart() {
       totalItems += item.quantity;
     });
     
-    const deliveryFee = computeDeliveryFee(subtotal);
+    const deliveryFee = cart.length ? computeDeliveryFee(subtotal) : 0;
     const total = subtotal + deliveryFee;
 
     return { subtotal, total, deliveryFee, totalItems };
@@ -78,6 +78,13 @@ export default function Cart() {
       title="Shopping Cart — Hilgod Online Store"
       description="Review your cart and proceed to checkout. Secure payment methods accepted."
     >
+      <style jsx global>{`
+        .cart-qty-control button, button.cart-remove { min-height: 44px; min-width: 44px; font: inherit; cursor: pointer; }
+        .cart-qty-control button { border: 0; background: transparent; }
+        button.cart-remove { border: 0; background: transparent; }
+        .cart-qty-control button:disabled { opacity: .4; cursor: not-allowed; }
+        .cart-qty-control button:focus-visible, button.cart-remove:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+      `}</style>
       <nav className="breadcrumb">
         <Link href="/">Home</Link>
         <i className="fas fa-chevron-right sep"></i>
@@ -189,20 +196,21 @@ export default function Cart() {
 
                     {/* Quantity Control */}
                     <div className="cart-qty-control">
-                      <div 
+                      <button type="button" aria-label={`Decrease quantity of ${item.product.name}`}
                         className="cart-qty-btn" 
                         onClick={() => updateQuantity(item, item.quantity - 1)}
-                        style={item.quantity <= 1 ? { opacity: 0.4, pointerEvents: 'none' } : {}}
+                        disabled={item.quantity <= 1}
                       >
                         −
-                      </div>
+                      </button>
                       <div className="cart-qty-num">{item.quantity}</div>
-                      <div 
-                        className="cart-qty-btn" 
+                      <button type="button" aria-label={`Increase quantity of ${item.product.name}`}
+                        className="cart-qty-btn"
+                        disabled={item.quantity >= Math.min(20, Number(item.product.stock) || 20)}
                         onClick={() => updateQuantity(item, item.quantity + 1)}
                       >
                         +
-                      </div>
+                      </button>
                     </div>
                     
                     {/* Subtotal */}
@@ -211,13 +219,13 @@ export default function Cart() {
                     </div>
                     
                     {/* Remove */}
-                    <div 
+                    <button type="button" aria-label={`Remove ${item.product.name} from cart`}
                       className="cart-remove" 
                       onClick={() => removeItem(item)}
                       title="Remove item"
                     >
-                      <i className="fas fa-trash-can"></i>
-                    </div>
+                      <i className="fas fa-trash-can" aria-hidden="true"></i>
+                    </button>
                   </div>
                 );})}
               </div>
@@ -273,7 +281,7 @@ export default function Cart() {
                 <div style={{
                   fontSize: '.78rem', color: 'var(--gray-2)', marginBottom: '10px', fontStyle: 'italic'
                 }}>
-                  Add {formatPrice(FREE_DELIVERY_THRESHOLD - totals.subtotal, 'NGN', false)} more for free delivery
+                  {totals.subtotal === FREE_DELIVERY_THRESHOLD ? 'Free delivery applies to orders above ' : 'Spend more than '} {formatPrice(totals.subtotal === FREE_DELIVERY_THRESHOLD ? FREE_DELIVERY_THRESHOLD : FREE_DELIVERY_THRESHOLD - totals.subtotal, 'NGN', false)}{totals.subtotal === FREE_DELIVERY_THRESHOLD ? '.' : ' more for free delivery.'}
                 </div>
               )}
 

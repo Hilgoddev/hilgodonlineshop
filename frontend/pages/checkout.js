@@ -127,6 +127,7 @@ export default function Checkout() {
   }, [router.isReady, router.query.buy, router.query.quantity, router.query.size, router.query.color]);
   const clearCheckout = () => { if (!direct) return clearCart(); };
   const placingOrder = useRef(false);
+  useEffect(() => { refreshCart(); }, [refreshCart]);
   const { formatPrice } = useCurrency();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -832,7 +833,7 @@ export default function Checkout() {
           <div className="cart-summary" style={{ position: 'sticky', top: '144px' }}>
             <h3><i className="fas fa-receipt" style={{ color: 'var(--primary)' }}></i> Order Summary</h3>
             <div style={{ fontSize: '.85rem', color: 'var(--gray-1)', marginBottom: 'var(--space-3)' }}>
-              {cart.length} {cart.length === 1 ? 'item' : 'items'} in your order
+              {cart.reduce((sum, item) => sum + item.quantity, 0)} items in your order
             </div>
             <div className="summary-row">
               <span className="label">Subtotal</span>
