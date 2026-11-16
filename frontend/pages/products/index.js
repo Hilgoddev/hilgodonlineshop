@@ -5,6 +5,7 @@ import Layout from '@/components/Layout';
 import ProductCard from '@/components/ProductCard';
 import { categoriesData } from '@/pages/categories';
 import { fetchJsonWithTimeout } from '@/lib/catalogApi';
+import { categorySuggestions } from '@/lib/catalogSearch';
 import { resolveServerApiBase } from '@/lib/env';
 
 const PAGE_SIZE = 32;
@@ -25,6 +26,8 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   const [products, setProducts] = useState(initialProducts || []);
   const [total, setTotal] = useState(initialTotal || 0);
   const [loading, setLoading] = useState(false);
+  const [mobileFiltersOpen,setMobileFiltersOpen]=useState(false);
+  const [loadError,setLoadError]=useState(false);
 
   const initCategory = router.query.category ? [router.query.category] : [];
   const initSubs = router.query.subcategory ? router.query.subcategory.split(',') : [];
@@ -92,6 +95,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
 
     let cancelled = false;
     setLoading(true);
+    setLoadError(false);
     fetchJsonWithTimeout(`${apiBase}/products?${buildParams(PAGE_SIZE, currentPage).toString()}`, 15000)
       .then((data) => {
         if (cancelled) return;
@@ -99,7 +103,9 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
           setProducts(data.data);
           setTotal(data.pagination?.total ?? data.meta?.total ?? data.data.length);
         } else {
-          setProducts([]); // failed/empty response — show the empty state, never hang
+          setProducts([]);
+          setTotal(0);
+          setLoadError(true);
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -116,9 +122,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   };
 
   const toggleCategory = (cat) => {
-    const next = selectedCategories.includes(cat)
-      ? selectedCategories.filter(c => c !== cat)
-      : [...selectedCategories, cat];
+    const next = selectedCategories.includes(cat) ? [] : [cat];
     setSelectedCategories(next);
     setSelectedSubcategories([]);
     router.push(
@@ -178,6 +182,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
   };
 
   const currentFilters = getSidebarFilters();
+  const suggestedCategories=searchTerm?categorySuggestions(searchTerm):[];
 
   // Pagination buttons (max 5 visible)
   const paginationButtons = () => {
@@ -229,27 +234,23 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
       <div className="show-mobile" style={{ marginBottom: 'var(--space-3)' }}>
         <button
           className="btn btn-outline btn-sm btn-mobile-full"
-          onClick={() => {
-            document.querySelector('.filters-sidebar')?.classList.toggle('mobile-open');
-            document.querySelector('.filters-overlay')?.classList.toggle('mobile-open');
-          }}
+          aria-expanded={mobileFiltersOpen} aria-controls="catalog-filters" onClick={()=>setMobileFiltersOpen(v=>!v)}
         >
           <i className="fas fa-filter"></i> Filter
         </button>
       </div>
 
+      {suggestedCategories.length>0&&<nav aria-label="Suggested categories" style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:20}}>{suggestedCategories.map(c=><Link key={c.href} href={c.href} className="btn btn-outline btn-sm" style={{minHeight:44,whiteSpace:'normal'}}>{c.name}</Link>)}</nav>}
       <div className="products-page">
         {/* Mobile Sidebar Overlay */}
         <div
-          className="filters-overlay"
-          onClick={() => {
-            document.querySelector('.filters-sidebar')?.classList.remove('mobile-open');
-            document.querySelector('.filters-overlay')?.classList.remove('mobile-open');
-          }}
+          className={`filters-overlay ${mobileFiltersOpen ? 'mobile-open' : ''}`}
+          onClick={()=>setMobileFiltersOpen(false)}
         ></div>
 
         {/* Sidebar */}
-        <aside className="filters-sidebar">
+        <aside id="catalog-filters" className={`filters-sidebar ${mobileFiltersOpen ? 'mobile-open' : ''}`}>
+          <button type="button" className="btn btn-outline show-mobile" style={{minHeight:44,marginBottom:12}} onClick={()=>setMobileFiltersOpen(false)}>Show results / Close filters</button>
           <div className="filter-header">
             <h3><i className="fas fa-sliders"></i> Filters</h3>
             <span className="filter-clear" onClick={() => { setSelectedCategories([]); setSelectedSubcategories([]); setInStockOnly(false); setOnSaleOnly(false); setSortBy('default'); router.push('/products'); }}>
@@ -346,7 +347,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
             <div className="sort-controls">
               <span className="sort-label hide-mobile">Sort by:</span>
               <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-                <option value="default">Featured</option>
+                <option value="default">{searchTerm ? 'Newest matches' : 'Featured'}</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
                 <option value="rating">Top Rated</option>
@@ -380,8 +381,9 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
             <div className="no-products" style={{ textAlign: 'center', padding: '40px' }}>
               <i className="fas fa-box-open" style={{ fontSize: '3rem', color: 'var(--gray-2)' }}></i>
               <p style={{ marginTop: '16px', fontSize: '1.1rem', color: 'var(--gray-1)' }}>
-                No products found in this category.
+                {loadError ? 'Products could not be loaded. Please try again.' : searchTerm ? 'No products match your search and filters. Try a shorter name or browse a suggested category.' : 'No products in this section yet. Explore another category or check back soon.'}
               </p>
+              <Link href="/categories" className="btn btn-outline" style={{marginTop:16}}>Browse all categories</Link>
             </div>
           )}
 

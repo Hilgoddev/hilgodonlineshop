@@ -7,6 +7,7 @@ const { withTimeout, makeCache } = require('../lib/resilience');
 const { isUuid } = require('../lib/validate');
 const { getSetting } = require('../lib/settings');
 const { sanitizeImages, sanitizeColors, sanitizeColorImages } = require('../lib/variants');
+const { applySearch, scoreProduct, categorySuggestions } = require('../lib/catalogSearch');
 const allCache = makeCache({ ttlMs: 30 * 1000 });
 
 // Canonical category ids — must match the frontend taxonomy (pages/categories.js).
@@ -250,21 +251,7 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
         query = applyCategory(query, category);
         if (subcategory) query = query.in('subcategory', subcategoryValues(subcategory));
         if (seller_id)   query = query.eq('seller_id', seller_id);
-        if (search) {
-            // Match name OR brand OR description (users search by any of them).
-            // Escape LIKE wildcards (%, _) so they're literal, and strip chars that
-            // would break PostgREST's or() grammar (commas, parens, quotes).
-            const term = String(search)
-                .slice(0, 100)
-                .replace(/[%_\\]/g, (m) => `\\${m}`)
-                .replace(/[(),"]/g, ' ')
-                .trim();
-            if (term) {
-                // Include category so a category name (e.g. "shoes") returns that
-                // category's products, not just items with the word in their name.
-                query = query.or(`name.ilike.%${term}%,brand.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`);
-            }
-        }
+        if (search) query = applySearch(query, search);
         if (in_stock)    query = query.gt('stock', 0);
 
         // On-sale filter: restrict to products in an active campaign or marked down.
@@ -506,49 +493,15 @@ router.get('/suggest', async (req, res, next) => {
         const limit = Math.min(10, Math.max(1, Number(req.query.limit) || 8));
         if (q.length < 2) return res.json({ success: true, data: [] });
 
-        // Escape LIKE wildcards (%, _, \) and strip chars that break PostgREST or().
-        const term = q.replace(/[%_\\]/g, (m) => `\\${m}`).replace(/[(),"]/g, ' ').trim();
-        if (!term) return res.json({ success: true, data: [] });
-
-        // Pull a candidate pool (name/brand matches), then rank in-process. 40 is
-        // plenty to find the best few without over-fetching.
-        // Also match the product's category, so typing a category name (e.g.
-        // "shoe"/"shoes") surfaces items from that category even when the term
-        // isn't in the product's own name.
-        const { data, error } = await withTimeout(
-            (signal) => supabase
-                .from('products')
-                .select('id, name, brand, category, price, currency, images, original_price')
-                .eq('is_active', true)
-                .eq('status', 'approved')
-                .or(`name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`)
-                .limit(60)
-                .abortSignal(signal),
-            6000,
-        );
-        if (error) throw error;
-
-        const lc = q.toLowerCase();
-        const singular = (s) => s.replace(/s$/, '');       // crude shoe/shoes match
-        const esc = lc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // safe for the word-boundary regex
-        const wordRe = new RegExp(`\\b${esc}`);
-        const scored = (data || []).map((p) => {
-            const name = String(p.name || '').toLowerCase();
-            const brand = String(p.brand || '').toLowerCase();
-            const cat = String(p.category || '').toLowerCase();
-            let score = 0;
-            if (name === lc) score = 100;
-            else if (name.startsWith(lc)) score = 85;
-            else if (wordRe.test(name)) score = 65;
-            else if (cat && (cat === lc || singular(cat) === singular(lc))) score = 55; // exact category hit
-            else if (name.includes(lc)) score = 45;
-            else if (cat && (cat.includes(lc) || lc.includes(cat))) score = 35;         // partial category hit
-            else if (brand.startsWith(lc)) score = 30;
-            else if (brand.includes(lc)) score = 20;
-            return { p, score, len: name.length };
-        }).sort((a, b) => b.score - a.score || a.len - b.len); // best match, then shorter (more specific) name
-
-        const top = scored.slice(0, limit).map((s) => s.p);
+        const category = normalizeCategory(req.query.category) || '';
+        let candidateQuery = supabase.from('products')
+            .select('id, name, brand, category, subcategory, is_unisex, stock, price, currency, images, original_price')
+            .eq('is_active', true).eq('status', 'approved');
+        candidateQuery = applyCategory(candidateQuery, category);
+        candidateQuery = applySearch(candidateQuery, q, {description:false});
+        const {data,error} = await withTimeout(signal => candidateQuery.order('created_at',{ascending:false}).limit(120).abortSignal(signal),6000);
+        if(error)throw error;
+        const top=(data||[]).sort((a,b)=>scoreProduct(b,q)-scoreProduct(a,q)||String(a.name).localeCompare(String(b.name))).slice(0,limit);
 
         let flashSaleMap = new Map();
         try { flashSaleMap = await getActiveFlashSaleMap(top.map((p) => p.id)); } catch {}
@@ -567,7 +520,7 @@ router.get('/suggest', async (req, res, next) => {
         });
 
         res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=40');
-        res.json({ success: true, data: out });
+        res.json({ success: true, data: out, categories: categorySuggestions(q, category) });
     } catch (err) {
         next(err);
     }

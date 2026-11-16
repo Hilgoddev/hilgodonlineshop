@@ -6,6 +6,7 @@ import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 import styles from '../css/fix.module.css';
 import taxonomy from '../lib/taxonomy.json';
+import CatalogSearch from './CatalogSearch';
 
 // Category icons keyed by lowercased category NAME (DB categories have no icon,
 // and their slugs are messy — names are clean). Drives icons everywhere a
@@ -99,9 +100,6 @@ export default function Navbar() {
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [allCatsMenuOpen, setAllCatsMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
   const { data: session, status } = useSession();
   const router = useRouter();
   const { cart, wishlist } = useShop();
@@ -111,20 +109,6 @@ export default function Navbar() {
   const isSeller = session?.user?.role === 'seller';
   const isAdminPage = router.pathname.startsWith('/admin');
   const isLoggedIn = status !== 'loading' && !!session;
-
-  useEffect(() => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) { setSearchResults([]); return; }
-    const fetchResults = async () => {
-      try {
-        const res = await fetch(`/api/products/suggest?q=${encodeURIComponent(searchQuery.trim())}&limit=8`);
-        const data = await res.json();
-        if (data.success) { setSearchResults(data.data || []); setIsSearching(true); }
-        else { setSearchResults([]); } // endpoint failed — never show a stale/blank dropdown
-      } catch (err) { console.error('Error fetching search suggestions', err); setSearchResults([]); }
-    };
-    const debounce = setTimeout(fetchResults, 300);
-    return () => clearTimeout(debounce);
-  }, [searchQuery]);
 
   const handleLogout = async () => {
     if (session?.user?.id) localStorage.removeItem(`hilgod_cart_${session.user.id}`);
@@ -254,31 +238,7 @@ export default function Navbar() {
             <Link href="/" className="header-logo">
               <img src="/logo.png" alt="Hilgod" />
             </Link>
-            <div className="header-search-wrap" style={{ position: 'relative' }}>
-              <form className="header-search" id="search-form" onSubmit={(e) => { e.preventDefault(); if (searchQuery.trim()) { router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`); setIsSearching(false); } }}>
-                <select className="search-category" id="search-cat" aria-label="Category">
-                  <option value="">All Categories</option>
-                  {categories.map((cat) => (<option key={cat.slug} value={cat.slug}>{cat.name}</option>))}
-                </select>
-                <input type="text" id="search-input" className="search-input" placeholder="Search for products, brands and more..." autoComplete="off" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onFocus={() => searchQuery.trim() && setIsSearching(true)} onBlur={() => setTimeout(() => setIsSearching(false), 200)} />
-                <button type="submit" className="search-btn" aria-label="Search"><i className="fas fa-magnifying-glass"></i></button>
-              </form>
-              {isSearching && searchResults.length > 0 && (
-                <div className="search-suggestions open" id="search-suggestions" style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px', overflow: 'hidden', boxSizing: 'border-box' }}>
-                  {searchResults.map(p => (
-                    <div key={p._id} className="suggestion-item" onClick={() => router.push(`/products/${p._id}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}>
-                      <i className="fas fa-search" style={{ color: 'var(--gray-2)' }}></i>
-                      <span style={{ fontSize: '.9rem', fontWeight: '600', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                      <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700', whiteSpace: 'nowrap' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
-                    </div>
-                  ))}
-                  <div className="suggestion-item" onClick={() => router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'var(--primary-xlight)' }}>
-                    <i className="fas fa-search" style={{ color: 'var(--primary)' }}></i>
-                    <span style={{ color: 'var(--primary)', fontWeight: '600', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>See all results for &quot;{searchQuery}&quot;</span>
-                  </div>
-                </div>
-              )}
-            </div>
+            <div className="header-search-wrap"><CatalogSearch /></div>
             <div className="header-actions">
               <div className="header-currency-wrap">
                 <select
@@ -371,52 +331,7 @@ export default function Navbar() {
             </div>
           </div>
         </div>
-        {mobileSearchOpen && (
-          <div className="mobile-search-bar">
-            <div className="container">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (searchQuery.trim()) {
-                    router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
-                    setMobileSearchOpen(false);
-                    setIsSearching(false);
-                  }
-                }}
-                style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}
-              >
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => searchQuery.trim() && setIsSearching(true)}
-                  onBlur={() => setTimeout(() => setIsSearching(false), 200)}
-                  autoFocus
-                  className="mobile-search-input"
-                />
-                <button type="submit" className="btn btn-primary btn-sm" aria-label="Search" style={{ borderRadius: '6px', flexShrink: 0, minHeight: '44px', minWidth: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <i className="fas fa-magnifying-glass"></i>
-                </button>
-              </form>
-              {isSearching && searchResults.length > 0 && (
-                <div className="search-suggestions open" id="mobile-search-suggestions" style={{ position: 'absolute', top: '100%', left: '16px', right: '16px', width: 'auto', background: 'white', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-md)', zIndex: 1000, marginTop: '8px', overflow: 'hidden', boxSizing: 'border-box' }}>
-                  {searchResults.map(p => (
-                    <div key={p._id} className="suggestion-item" onClick={() => router.push(`/products/${p._id}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', borderBottom: '1px solid var(--gray-4)' }}>
-                      <i className="fas fa-search" style={{ color: 'var(--gray-2)' }}></i>
-                      <span style={{ fontSize: '.9rem', fontWeight: '600', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                      <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: '.85rem', color: 'var(--primary)', fontWeight: '700', whiteSpace: 'nowrap' }}>{formatPrice(p.price || 0, p.currency || 'NGN', false)}</span>
-                    </div>
-                  ))}
-                  <div className="suggestion-item" onClick={() => router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`)} style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: 'var(--primary-xlight)' }}>
-                    <i className="fas fa-search" style={{ color: 'var(--primary)' }}></i>
-                    <span style={{ color: 'var(--primary)', fontWeight: '600', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>See all results for "{searchQuery}"</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {mobileSearchOpen && <div className="mobile-search-bar"><div className="container"><CatalogSearch mobile onNavigate={()=>setMobileSearchOpen(false)} /></div></div>}
         <nav className="category-nav" id="category-nav">
           <div className="container">
             <div className="cat-nav-item all-cats-wrap" id="all-cats-wrap" onMouseEnter={() => setAllCatsMenuOpen(true)} onMouseLeave={() => setAllCatsMenuOpen(false)} onClick={() => { if (window.innerWidth <= 900) setAllCatsMenuOpen(!allCatsMenuOpen); }}>
@@ -451,35 +366,7 @@ export default function Navbar() {
             <button className="mobile-menu-close" id="mobile-menu-close" onClick={closeMobileMenu}><i className="fas fa-xmark"></i></button>
           </div>
           <div className="mobile-menu-body">
-            {/* Mobile Search */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (searchQuery.trim()) {
-                  router.push(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
-                  closeMobileMenu();
-                  setIsSearching(false);
-                }
-              }}
-              style={{ display: 'flex', gap: '8px', marginBottom: 'var(--space-4)' }}
-            >
-              {/* minWidth: 0 lets the field shrink. Without it a flex input keeps its
-                  intrinsic ~20-character width and pushes the submit button outside
-                  the drawer (9px past the panel edge at 390px). */}
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{ flex: 1, minWidth: 0, padding: '10px 14px', borderRadius: 'var(--radius)', border: '1px solid var(--gray-4)', fontSize: '.9rem', outline: 'none' }}
-              />
-              {/* width:auto overrides the global `.btn-primary { width: 100% }` that
-                  css/pages.css applies below 768px, which would otherwise make this
-                  icon button take the whole row. */}
-              <button type="submit" className="btn btn-primary btn-sm" style={{ padding: '10px 14px', flexShrink: 0, width: 'auto' }}>
-                <i className="fas fa-magnifying-glass"></i>
-              </button>
-            </form>
+            <div style={{marginBottom:16}}><CatalogSearch mobile onNavigate={closeMobileMenu} /></div>
             {/* User panel */}
             <div className="mobile-menu-user">
               {session ? (
