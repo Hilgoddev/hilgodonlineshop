@@ -13,16 +13,7 @@ const allCache = makeCache({ ttlMs: 30 * 1000 });
 // A product's category MUST be one of these (lowercase) so listing filters and
 // homepage sections line up; anything else (e.g. "Electronics" with a capital E,
 // or a free-text value) silently disappears from its category page.
-const VALID_CATEGORIES = new Set([
-    'accessories', 'beauty', 'collectibles', 'electronics', 'gaming', 'herbs',
-    'home', 'kitchen', 'menswear', 'shoes', 'sports', 'toys', 'womenswear',
-]);
-// Normalise + validate a submitted category. Returns the canonical value or null.
-function normalizeCategory(value) {
-    if (typeof value !== 'string') return null;
-    const v = value.trim().toLowerCase();
-    return VALID_CATEGORIES.has(v) ? v : null;
-}
+const { normalizeCategory, applyCategory, subcategoryValues } = require('../lib/catalogFilters');
 
 // Validate the money/stock fields a seller can send. Returns an error message
 // or null. Only fields present in `body` are checked (PUT is a partial update).
@@ -62,7 +53,7 @@ async function storeBelongsTo(storeId, userId) {
 // Edits to these fields change what buyers see, so a seller editing an already
 // approved product sends it back for review (unless auto-approve is on).
 // Stock and price edits don't — price is validated by validateProductNumbers.
-const REVIEWED_FIELDS = ['name', 'description', 'images', 'category', 'subcategory', 'brand', 'size_options', 'color_options', 'color_images'];
+const REVIEWED_FIELDS = ['name', 'description', 'images', 'category', 'subcategory', 'brand', 'size_options', 'color_options', 'color_images', 'is_unisex'];
 
 // Clean the media/variant fields of a create or update body onto `out`.
 // Images and colours have no count limit; colour photos must be product images.
@@ -150,7 +141,7 @@ const getStoreInfo = (p) => {
             logo_url: p.store.logo_url
         };
     }
-    
+
     // If product has seller info, try to get seller's store
     if (p.seller_info) {
         // Check if seller has a store (from the seller_stores join)
@@ -173,7 +164,7 @@ const getStoreInfo = (p) => {
             };
         }
     }
-    
+
     // Only show "Hilgod Shop" if we have no other info (true admin products)
     return {
         name: 'Hilgod Shop',
@@ -256,9 +247,8 @@ async function buildProductsPayload({ category, subcategory, search, seller_id, 
 
         // 'fashion' is a combined alias: show menswear + womenswear together
         // (used by the homepage Fashion banner). Not a stored category value.
-        if (category === 'fashion') query = query.in('category', ['menswear', 'womenswear']);
-        else if (category)          query = query.eq('category', category);
-        if (subcategory) query = query.eq('subcategory', subcategory);
+        query = applyCategory(query, category);
+        if (subcategory) query = query.in('subcategory', subcategoryValues(subcategory));
         if (seller_id)   query = query.eq('seller_id', seller_id);
         if (search) {
             // Match name OR brand OR description (users search by any of them).
@@ -682,6 +672,7 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         if (!normalizedCategory) {
             return res.status(400).json({ success: false, error: 'A valid product category is required.' });
         }
+        if (req.body.is_unisex !== undefined && typeof req.body.is_unisex !== 'boolean') return res.status(400).json({ success: false, error: 'Unisex must be true or false.' });
         const numberError = validateProductNumbers(req.body, { requirePrice: true });
         if (numberError) return res.status(400).json({ success: false, error: numberError });
         const media = {};
@@ -701,6 +692,7 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             name, description, price,
             currency: currency || 'NGN',
             category: normalizedCategory, subcategory,
+            is_unisex: normalizedCategory === 'unisex' || req.body.is_unisex === true,
             category_id: category_id || null,
             stock, status,
             is_active: true,
@@ -729,6 +721,10 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         const { name, description, price, currency, category, subcategory, category_id, store_id, stock, is_active, brand, original_price, size_options } = req.body;
 
         const updateData = {};
+        if (req.body.is_unisex !== undefined) {
+            if (typeof req.body.is_unisex !== 'boolean') return res.status(400).json({ success: false, error: 'Unisex must be true or false.' });
+            updateData.is_unisex = req.body.is_unisex;
+        }
         if (name           !== undefined) updateData.name           = name;
         if (description    !== undefined) updateData.description    = description;
         if (price          !== undefined) updateData.price          = price;
@@ -739,6 +735,7 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
                 return res.status(400).json({ success: false, error: 'A valid product category is required.' });
             }
             updateData.category = normalizedCategory;
+            if (normalizedCategory === 'unisex') updateData.is_unisex = true;
         }
         if (subcategory    !== undefined) updateData.subcategory    = subcategory;
         if (stock          !== undefined) updateData.stock          = stock;

@@ -174,3 +174,11 @@ describe('makeCache', () => {
     expect(c.get('c').value).toBe(3);
   });
 });
+
+describe('catalogue audience', () => {
+ const base={name:'Joggers',category:'menswear',subcategory:'Joggers',price:5000,stock:3,images:['https://example.com/joggers.jpg']};
+ it('persists unisex while keeping the original category and one stock record',async()=>{const r=await request(app).post('/api/products').send({...base,is_unisex:true});expect(r.statusCode).toBe(201);expect(r.body.data.is_unisex).toBe(true);expect(r.body.data.category).toBe('menswear');expect(fake.calls.filter(c=>c.table==='products'&&c.op==='insert')).toHaveLength(1);});
+ it('accepts kids and unisex categories',async()=>{for(const category of ['kids','unisex']){const r=await request(app).post('/api/products').send({...base,category});expect(r.statusCode).toBe(201);if(category==='unisex')expect(r.body.data.is_unisex).toBe(true);}});
+ it('rejects ambiguous unisex strings',async()=>{expect((await request(app).post('/api/products').send({...base,is_unisex:'false'})).statusCode).toBe(400);});
+ it('allows unisex to be removed and re-reviews changed audience',async()=>{world({product:{is_unisex:true,status:'approved'}});const r=await request(app).put('/api/products/'+PRODUCT_ID).send({is_unisex:false});expect(r.statusCode).toBe(200);const c=fake.calls.find(c=>c.table==='products'&&c.op==='update');expect(c.payload.is_unisex).toBe(false);expect(c.payload.status).toBe('pending');});
+});

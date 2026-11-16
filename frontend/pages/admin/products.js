@@ -6,6 +6,7 @@ import { adminJson, errorMessage } from '../../lib/adminApi';
 import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import ConfirmModal from '@/components/ConfirmModal';
 import { categoriesData } from '@/pages/categories';
+import ProductAudienceField from '@/components/product-form/ProductAudienceField';
 import ProductSizesField from '@/components/product-form/ProductSizesField';
 import { parseSizeInput } from '../../lib/parseSizes';
 import styles from '@/css/fix.module.css';
@@ -21,6 +22,7 @@ const emptyForm = () => ({
   originalPrice: '',
   category: '',
   subcategory: '',
+  is_unisex: false,
   brand: '',
   stock: '',
   images: emptyImageSlots(),
@@ -46,7 +48,7 @@ export default function AdminProducts() {
   const setImages = useCallback((update) => setForm((f) => ({ ...f, images: update(f.images) })), []);
   const showImageError = useCallback((text) => setMessage({ type: 'error', text }), []);
 
-  const subcategoryOptions = categoriesData.find(c => c.id === form.category)?.subs || [];
+  const subcategoryOptions = [...new Set([...(categoriesData.find(c => c.id === form.category)?.subs || []), ...(form.subcategory ? [form.subcategory] : [])])];
 
   const fetchProducts = async () => {
     try {
@@ -75,6 +77,7 @@ export default function AdminProducts() {
       originalPrice: product.originalPrice || '',
       category: product.category || 'electronics',
       subcategory: product.subcategory || '',
+      is_unisex: product.is_unisex === true,
       brand: product.brand || '',
       stock: product.stock ?? '',
       images,
@@ -110,7 +113,8 @@ export default function AdminProducts() {
         currency: form.currency,
         original_price: form.originalPrice ? Number(form.originalPrice) : undefined,
         category: form.category,
-        subcategory: form.subcategory || undefined,
+        subcategory: form.subcategory || null,
+        is_unisex: form.category === 'unisex' || form.is_unisex,
         brand: form.brand || undefined,
         stock: Number(form.stock),
         images: uploadedImages,
@@ -275,6 +279,7 @@ export default function AdminProducts() {
             {/* Row 4: Sizes */}
             <div className="form-group" style={{ marginBottom: '12px' }}>
               <label className="form-label">Sizes (optional)</label>
+              <ProductAudienceField category={form.category} checked={form.is_unisex} onChange={is_unisex=>setForm(f=>({...f,is_unisex}))} />
               <ProductSizesField value={form.sizes} onChange={sizes => setForm(f => ({...f,sizes}))} />
               <div style={{ fontSize: '.72rem', color: 'var(--gray-2)', marginTop: '4px' }}>Comma-separated</div>
             </div>
@@ -341,7 +346,7 @@ export default function AdminProducts() {
                 {filtered.map(product => (
                   <tr key={product._id} style={{ borderBottom: '1px solid var(--gray-5)' }} onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     <td style={{ padding: '12px'}}>
-                      <div 
+                      <div
                       className={styles['image-and-item-description']}
                       // style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start'}}
                       >

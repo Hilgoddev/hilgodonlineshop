@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { useShop } from './ShopProvider';
 import { useCurrency } from '../contexts/CurrencyContext';
 import styles from '../css/fix.module.css';
+import taxonomy from '../lib/taxonomy.json';
 
 // Category icons keyed by lowercased category NAME (DB categories have no icon,
 // and their slugs are messy — names are clean). Drives icons everywhere a
@@ -34,7 +35,7 @@ const iconForCategory = (c) =>
   c.icon || ICON_BY_NAME[(c.name || '').toLowerCase()] || ICON_BY_NAME[(c.slug || '').toLowerCase()] || 'fa-tags';
 
 // Preferred lead order; everything else follows alphabetically by name.
-const CATEGORY_ORDER = ['womenswear', 'menswear', 'shoes', 'herbs'];
+const CATEGORY_ORDER = ['womenswear', 'menswear', 'unisex', 'kids', 'shoes', 'herbs'];
 const orderRank = (c) => {
   const name = (c.name || '').toLowerCase();
   const slug = (c.slug || '').toLowerCase();
@@ -145,45 +146,7 @@ export default function Navbar() {
   }, []);
 
 
-  const [categories, setCategories] = useState([]);
-
-  useEffect(() => {
-    const FALLBACK_CATS = sortCategories([
-      { name: 'Accessories', slug: 'accessories', icon: 'fa-glasses' },
-      { name: 'Beauty & Care', slug: 'beauty', icon: 'fa-wand-magic-sparkles' },
-      { name: 'Collectibles', slug: 'collectibles', icon: 'fa-gem' },
-      { name: 'Electronics', slug: 'electronics', icon: 'fa-mobile-screen' },
-      { name: 'Gaming', slug: 'gaming', icon: 'fa-gamepad' },
-      { name: 'Herbs', slug: 'herbs', icon: 'fa-leaf' },
-      { name: 'Home Supplies', slug: 'home', icon: 'fa-house' },
-      { name: 'Kitchenware', slug: 'kitchen', icon: 'fa-kitchen-set' },
-      { name: 'Ladies', slug: 'ladies-bag', icon: 'fa-bag-shopping' },
-      { name: 'Menswear', slug: 'menswear', icon: 'fa-person' },
-      { name: 'Shoes', slug: 'shoes', icon: 'fa-shoe-prints' },
-      { name: 'Sports', slug: 'sports', icon: 'fa-basketball' },
-      { name: 'Toys', slug: 'toys', icon: 'fa-child' },
-      { name: 'Womenswear', slug: 'womenswear', icon: 'fa-person-dress' },
-    ]);
-    const fetchCategories = async () => {
-      try {
-        const res = await fetch('/api/categories');
-        if (!res.ok) { setCategories(FALLBACK_CATS); return; }
-        const text = await res.text();
-        if (!text || text.trimStart().startsWith('<')) { setCategories(FALLBACK_CATS); return; }
-        const data = JSON.parse(text);
-        if (data.success && data.data?.length > 0) {
-          const mapped = data.data.map(c => ({ name: c.name, slug: c.slug, icon: iconForCategory(c) }));
-          setCategories(sortCategories(mapped));
-        } else {
-          setCategories(FALLBACK_CATS);
-        }
-      } catch (err) {
-        console.error('Failed to fetch categories:', err);
-        setCategories(FALLBACK_CATS);
-      }
-    };
-    fetchCategories();
-  }, []);
+  const categories = sortCategories(taxonomy.map(c=>({...c,slug:c.id})));
 
   // ─── ADMIN NAVBAR ───
   if (isAdmin && isAdminPage) {
@@ -466,6 +429,8 @@ export default function Navbar() {
             <Link href="/" className="cat-nav-item"><i className="fas fa-house"></i> Home</Link>
             <Link href="/products?category=womenswear" className="cat-nav-item">Womenswear</Link>
             <Link href="/products?category=menswear" className="cat-nav-item">Menswear</Link>
+            <Link href="/products?category=kids" className="cat-nav-item">Kids &amp; Baby</Link>
+            <Link href="/products?category=unisex" className="cat-nav-item">Unisex</Link>
             <Link href="/products?category=shoes" className="cat-nav-item">Shoes</Link>
             <Link href="/products?category=herbs" className="cat-nav-item">Herbs</Link>
             <Link href="/products?category=beauty" className="cat-nav-item">Beauty</Link>

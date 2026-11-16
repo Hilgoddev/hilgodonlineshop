@@ -50,7 +50,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     const params = new URLSearchParams({ limit: String(limit), page: String(page) });
     if (searchTerm) params.set('search', searchTerm);
     if (selectedCategories[0]) params.set('category', selectedCategories[0]);
-    if (selectedSubcategories.length === 1) params.set('subcategory', selectedSubcategories[0]);
+    if (selectedSubcategories.length) params.set('subcategory', selectedSubcategories.join(','));
     const sort = SORT_MAP[sortBy];
     if (sort) params.set('sort', sort);
     if (inStockOnly) params.set('in_stock', 'true');
@@ -122,7 +122,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
     setSelectedCategories(next);
     setSelectedSubcategories([]);
     router.push(
-      { pathname: '/products', query: next.length > 0 ? { category: next[0] } : {} },
+      { pathname: '/products', query: { ...(searchTerm ? {search: searchTerm} : {}), ...(next.length ? {category: next[0]} : {}) } },
       undefined, { shallow: true }
     );
   };
@@ -132,7 +132,7 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
       ? selectedSubcategories.filter(s => s !== sub)
       : [...selectedSubcategories, sub];
     setSelectedSubcategories(next);
-    const q = {};
+    const q = searchTerm ? { search: searchTerm } : {};
     if (selectedCategories.length > 0) q.category = selectedCategories[0];
     if (next.length > 0) q.subcategory = next.join(',');
     router.push({ pathname: '/products', query: q }, undefined, { shallow: true });
@@ -240,8 +240,8 @@ export default function ProductsPage({ initialProducts = [], initialTotal = 0 })
 
       <div className="products-page">
         {/* Mobile Sidebar Overlay */}
-        <div 
-          className="filters-overlay" 
+        <div
+          className="filters-overlay"
           onClick={() => {
             document.querySelector('.filters-sidebar')?.classList.remove('mobile-open');
             document.querySelector('.filters-overlay')?.classList.remove('mobile-open');
@@ -410,7 +410,7 @@ export async function getServerSideProps({ query, req, res }) {
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: '1' });
     if (query.search) params.set('search', String(query.search));
     if (query.category) params.set('category', query.category);
-    if (query.subcategory && !String(query.subcategory).includes(',')) {
+    if (query.subcategory) {
       params.set('subcategory', String(query.subcategory));
     }
     const sort = SORT_MAP[query.sort];

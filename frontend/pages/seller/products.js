@@ -7,6 +7,7 @@ import { categoriesData } from '@/pages/categories';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { colorName } from '../../lib/colorName';
 import { parseSizeInput } from '../../lib/parseSizes';
+import ProductAudienceField from '@/components/product-form/ProductAudienceField';
 import ProductSizesField from '@/components/product-form/ProductSizesField';
 import ProductImagesField, { emptyImageSlots, DEFAULT_IMAGE_SLOTS } from '@/components/product-form/ProductImagesField';
 import ProductColorsField from '@/components/product-form/ProductColorsField';
@@ -20,6 +21,7 @@ const emptyForm = () => ({
   originalPrice: '',
   category: '',
   subcategory: '',
+  is_unisex: false,
   brand: '',
   stock: '',
   images: emptyImageSlots(),
@@ -42,7 +44,7 @@ export default function SellerProducts() {
   const setImages = useCallback((update) => setForm((f) => ({ ...f, images: update(f.images) })), []);
   const showImageError = useCallback((text) => setMessage({ type: 'error', text }), []);
 
-  const subcategoryOptions = categoriesData.find(c => c.id === form.category)?.subs || [];
+  const subcategoryOptions = [...new Set([...(categoriesData.find(c => c.id === form.category)?.subs || []), ...(form.subcategory ? [form.subcategory] : [])])];
 
   const load = async () => {
     setLoading(true);
@@ -112,6 +114,7 @@ export default function SellerProducts() {
       originalPrice: p.original_price || '',
       category: p.category || '',
       subcategory: p.subcategory || '',
+      is_unisex: p.is_unisex === true,
       brand: p.brand || '',
       stock: p.stock ?? '',
       images,
@@ -140,7 +143,8 @@ export default function SellerProducts() {
         currency: form.currency,
         original_price: form.originalPrice ? Number(form.originalPrice) : undefined,
         category: form.category,
-        subcategory: form.subcategory || undefined,
+        subcategory: form.subcategory || null,
+        is_unisex: form.category === 'unisex' || form.is_unisex,
         brand: form.brand || undefined,
         stock: Number(form.stock),
         images: uploadedImages,
@@ -264,6 +268,7 @@ export default function SellerProducts() {
                 <option value="EUR">EUR — Euro (€)</option>
               </select>
               <input className="form-input" type="number" min="0" placeholder="Stock" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} required />
+              <ProductAudienceField category={form.category} checked={form.is_unisex} onChange={is_unisex=>setForm(f=>({...f,is_unisex}))} />
               <ProductSizesField value={form.sizes} onChange={sizes => setForm(f => ({...f,sizes}))} />
             </div>
 

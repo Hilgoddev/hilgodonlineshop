@@ -1,0 +1,237 @@
+[
+  {
+    "id": "accessories",
+    "name": "Accessories",
+    "icon": "fa-glasses",
+    "subs": [
+      "Watches",
+      "Jewelry",
+      "Sunglasses",
+      "Hats & Caps",
+      "Belts",
+      "Scarves",
+      "Bags & Wallets"
+    ]
+  },
+  {
+    "id": "beauty",
+    "name": "Beauty & Care",
+    "icon": "fa-sparkles",
+    "subs": [
+      "Skincare",
+      "Makeup",
+      "Haircare",
+      "Bath & Body Care",
+      "Fragrance & Perfumes",
+      "Personal Care Appliances"
+    ]
+  },
+  {
+    "id": "collectibles",
+    "name": "Collectibles",
+    "icon": "fa-gem",
+    "subs": [
+      "Antiques",
+      "Art & Crafts",
+      "Coins & Currency",
+      "Trading Cards",
+      "Memorabilia",
+      "Vintage Items"
+    ]
+  },
+  {
+    "id": "electronics",
+    "name": "Electronics",
+    "icon": "fa-mobile-screen",
+    "subs": [
+      "Mobile Phones",
+      "Laptops & Computers",
+      "Smart TVs",
+      "Cameras & Photography",
+      "Audio & Video",
+      "Tech Accessories",
+      "Earphones & Earbuds",
+      "Headphones",
+      "Bluetooth Speakers",
+      "Smartwatches & Wearables",
+      "Tablets",
+      "Chargers & Cables",
+      "Power Banks",
+      "Computer Accessories"
+    ]
+  },
+  {
+    "id": "gaming",
+    "name": "Gaming",
+    "icon": "fa-gamepad",
+    "subs": [
+      "Gaming Consoles",
+      "PlayStation 5",
+      "Xbox",
+      "Video Games",
+      "Gaming Accessories",
+      "PC Gaming",
+      "Gaming Chairs",
+      "Gaming Headsets"
+    ]
+  },
+  {
+    "id": "herbs",
+    "name": "Herbs",
+    "icon": "fa-leaf",
+    "subs": [
+      "Fresh Herbs",
+      "Dried Herbs",
+      "Herbal Teas",
+      "Herbal Supplements",
+      "Spices & Seasonings",
+      "Herbal Oils",
+      "Cancer Cure",
+      "Diabetics Cure",
+      "Ulcer Cure"
+    ]
+  },
+  {
+    "id": "home",
+    "name": "Home Supplies",
+    "icon": "fa-house",
+    "subs": [
+      "Bedding",
+      "Bath Supplies",
+      "Home Decor",
+      "Storage & Organization",
+      "Cleaning Supplies",
+      "Furniture"
+    ]
+  },
+  {
+    "id": "kitchen",
+    "name": "Kitchenware",
+    "icon": "fa-kitchen-set",
+    "subs": [
+      "Cookware",
+      "Bakeware",
+      "Kitchen Utensils",
+      "Drinkware",
+      "Cutlery & Tableware",
+      "Kitchen Appliances"
+    ]
+  },
+  {
+    "id": "menswear",
+    "name": "Menswear",
+    "icon": "fa-person",
+    "subs": [
+      "Men's Tops",
+      "Men's Bottoms",
+      "Men's Suits & Sets",
+      "Men's Underwear",
+      "Men's Sleepwear",
+      "Men's Traditional Wear",
+      "T-Shirts & Polos",
+      "Shirts",
+      "Jeans",
+      "Joggers",
+      "Shorts",
+      "Hoodies & Sweatshirts",
+      "Jackets & Coats",
+      "Activewear",
+      "Knitwear"
+    ]
+  },
+  {
+    "id": "shoes",
+    "name": "Shoes",
+    "icon": "fa-shoe-prints",
+    "subs": [
+      "Men's Shoes",
+      "Women's Shoes",
+      "Sneakers",
+      "Boots",
+      "Sandals & Slippers",
+      "Shoe Accessories"
+    ]
+  },
+  {
+    "id": "sports",
+    "name": "Sports",
+    "icon": "fa-basketball",
+    "subs": [
+      "Gym Equipment",
+      "Outdoor Sports",
+      "Team Sports",
+      "Sportswear",
+      "Sports Footwear",
+      "Fitness Accessories"
+    ]
+  },
+  {
+    "id": "toys",
+    "name": "Toys",
+    "icon": "fa-child",
+    "subs": [
+      "Action Figures",
+      "Board Games",
+      "Educational Toys",
+      "Outdoor Play",
+      "Baby Toys",
+      "Remote Control Toys"
+    ]
+  },
+  {
+    "id": "womenswear",
+    "name": "Womenswear",
+    "icon": "fa-person-dress",
+    "subs": [
+      "Women's Dresses",
+      "Women's Tops",
+      "Women's Bottoms",
+      "Women's Sleepwear",
+      "Women's Suits & Sets",
+      "Women's Traditional Wear",
+      "T-Shirts & Polos",
+      "Shirts & Blouses",
+      "Jeans",
+      "Joggers",
+      "Skirts & Shorts",
+      "Hoodies & Sweatshirts",
+      "Jackets & Coats",
+      "Activewear",
+      "Lingerie"
+    ]
+  },
+  {
+    "id": "kids",
+    "name": "Kids & Baby",
+    "icon": "fa-baby",
+    "subs": [
+      "Kids Clothing",
+      "Kids Shoes & Accessories",
+      "Kids Tech",
+      "Baby Essentials",
+      "Toys & Learning"
+    ]
+  },
+  {
+    "id": "unisex",
+    "name": "Unisex",
+    "icon": "fa-people-group",
+    "subs": [
+      "T-Shirts & Polos",
+      "Shirts",
+      "Jeans",
+      "Joggers",
+      "Shorts",
+      "Hoodies & Sweatshirts",
+      "Jackets & Coats",
+      "Activewear",
+      "Knitwear",
+      "Sleepwear",
+      "Traditional Wear",
+      "Shoes",
+      "Bags & Wallets",
+      "Hats & Caps",
+      "Tech Accessories"
+    ]
+  }
+]

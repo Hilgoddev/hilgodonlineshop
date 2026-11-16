@@ -1,7 +1,8 @@
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_ROWS = 500;
-const fields = ['name','description','price','stock','category','currency','images','sizes','colors','brand'];
+const fields = ['name','description','price','stock','category','currency','images','sizes','colors','brand','subcategory','unisex'];
 const aliases = {
+ subcategory:['subcategory','subtype'], unisex:['unisex','isunisex'],
  name:['name','title','productname','itemname'], description:['description','bodyhtml','productdescription'],
  price:['price','variantprice','standardprice','sellingprice','saleprice'], stock:['stock','quantity','quantityavailable','variantinventoryqty'],
  category:['category','type','producttype'], currency:['currency','currencycode'], images:['images','image','imageurl','imagesrc','mainimageurl','pictureurl'],
