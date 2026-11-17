@@ -167,11 +167,14 @@ export default function Footer() {
               <span>hilgodonline@gmail.com</span>
             </div>
             <div className="social-links">
-              <a href="https://www.facebook.com/share/18iNr4b2oi/?mibextid=wwXIfr" className="social-link" aria-label="Facebook" target="_blank" rel="noopener noreferrer">
+              <a href="https://www.facebook.com/profile.php?id=61595641877827" className="social-link" aria-label="Facebook" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-facebook-f"></i>
               </a>
-              <a href="https://www.instagram.com/hilgodhub_ng" className="social-link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
+              <a href="https://www.instagram.com/hilg.od?vrfl=MXV2eTlwd3BubTk3" className="social-link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-instagram"></i>
+              </a>
+              <a href="https://www.tiktok.com/@hilgodshoppinghub?_r=1&amp;_t=ZN-9BPN4cricWE" className="social-link" aria-label="TikTok" target="_blank" rel="noopener noreferrer">
+                <i className="fab fa-tiktok" aria-hidden="true"></i>
               </a>
               <a href="https://x.com/Hilgodhub" className="social-link" aria-label="X (Twitter)" target="_blank" rel="noopener noreferrer">
                 <i className="fab fa-x-twitter"></i>
