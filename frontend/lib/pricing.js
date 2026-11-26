@@ -26,7 +26,9 @@ export function normalizePricing(source = {}) {
   const price = firstNumber(source.price, source.sale_price, source.salePrice);
   const originalPrice = firstNumber(source.originalPrice, source.original_price);
   const resolvedPrice = price ?? 0;
-  const resolvedOriginalPrice = originalPrice ?? null;
+  // A "was" price is only shown when it is really higher than today's price —
+  // otherwise the page would strike through a lower number.
+  const resolvedOriginalPrice = originalPrice != null && originalPrice > resolvedPrice ? originalPrice : null;
   const discountPercent = resolvedOriginalPrice && resolvedPrice < resolvedOriginalPrice
     ? Math.round(((resolvedOriginalPrice - resolvedPrice) / resolvedOriginalPrice) * 100)
     : 0;

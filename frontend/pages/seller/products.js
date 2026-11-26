@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Layout from '@/components/Layout';
 import SellerGuard from '@/components/SellerGuard';
 import { apiFetch } from '../../lib/apiClient';
@@ -222,6 +223,9 @@ export default function SellerProducts() {
         <div className="card" style={{ padding: '20px', marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
             <h3 style={{ fontWeight: 700 }}>{editingId ? `Edit: ${form.name || 'Product'}` : 'Upload Product'}</h3>
+            {!editingId && (
+              <Link href="/seller/guide" className="btn btn-outline btn-sm"><i className="fas fa-book-open"></i> Step-by-step guide</Link>
+            )}
             {editingId && (
               <button type="button" className="btn btn-outline btn-sm" onClick={resetForm}>
                 <i className="fas fa-times"></i> Cancel edit
