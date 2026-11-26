@@ -12,4 +12,14 @@ function subcategoryValues(value) {
  const pairs = [["Men's Tops", "Women's Tops"], ["Men's Bottoms", "Women's Bottoms"], ["Men's Suits & Sets", "Women's Suits & Sets"], ["Men's Sleepwear", "Women's Sleepwear", 'Sleepwear'], ["Men's Traditional Wear", "Women's Traditional Wear", 'Traditional Wear'], ['Shirts', 'Shirts & Blouses'], ['Shorts', 'Skirts & Shorts']];
  return [...new Set(selected.flatMap(s => pairs.find(p=>p.includes(s)) || [s]))];
 }
-module.exports = { taxonomy, normalizeCategory, applyCategory, subcategoryValues };
+// A product's subcategory must be one of its category's subcategories (spelled
+// as in taxonomy.json), or shoppers filtering by subcategory never see it.
+// Returns { value } — the canonical spelling, or null for none — or { error }.
+function normalizeSubcategory(category, value) {
+ if (value == null || String(value).trim() === '') return { value: null };
+ const subs = taxonomy.find(c => c.id === category)?.subs || [];
+ const want = String(value).trim().toLowerCase();
+ const match = subs.find(s => String(s).toLowerCase() === want);
+ return match ? { value: match } : { error: `"${String(value).trim()}" is not a subcategory of ${category}. Choose one from the list.` };
+}
+module.exports = { taxonomy, normalizeCategory, normalizeSubcategory, applyCategory, subcategoryValues };

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Layout from '@/components/Layout';
 import SellerGuard from '@/components/SellerGuard';
 import { apiFetch, safeJson } from '../../lib/apiClient';
@@ -97,9 +98,14 @@ export default function SellerPayouts() {
       )}
 
       <div style={{ maxWidth: '860px', margin: '0 auto', padding: 'var(--space-8) 0' }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginBottom: 'var(--space-6)' }}>
-          <i className="fas fa-wallet" style={{ color: 'var(--primary)', marginRight: 10 }}></i>My Earnings
-        </h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 'var(--space-6)' }}>
+          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>
+            <i className="fas fa-wallet" style={{ color: 'var(--primary)', marginRight: 10 }}></i>My Earnings
+          </h1>
+          <Link href="/seller/how-payouts-work" className="btn btn-outline btn-sm">
+            <i className="fas fa-circle-question"></i> How it works
+          </Link>
+        </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px' }}>

@@ -51,6 +51,15 @@ export default function SellerDashboard() {
           </div>
         ) : (
           <>
+            <Link href="/seller/guide" className="learn-card">
+              <div className="learn-card__icon"><i className="fas fa-graduation-cap"></i></div>
+              <div className="learn-card__text">
+                <strong>Learn how to upload products</strong>
+                <span>A step-by-step guide with pictures — photos, colours, sizes and prices in about 5 minutes.</span>
+              </div>
+              <span className="learn-card__cta">Open guide <i className="fas fa-arrow-right"></i></span>
+            </Link>
+
             <div className="seller-metrics-grid">
               <div className="card" style={{ padding: '20px' }}>
                 <div style={{ color: 'var(--gray-1)', fontSize: '.85rem' }}>Products</div>
@@ -150,6 +159,9 @@ const SellerQuickLinks = () => (
       </Link>
       <Link href="/seller/payouts" className="btn btn-outline btn-sm">
         <i className="fas fa-wallet"></i> My Earnings
+      </Link>
+      <Link href="/seller/guide" className="btn btn-outline btn-sm">
+        <i className="fas fa-book-open"></i> Upload Guide
       </Link>
     </div>
   </div>

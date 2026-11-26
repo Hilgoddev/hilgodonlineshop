@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { signOut, useSession } from '../../contexts/AuthContext';
 import Layout from '@/components/Layout';
 import ShipmentTracking from '@/components/ShipmentTracking';
+import BecomeSellerPrompt from '@/components/BecomeSellerPrompt';
 import AuthGuard from '@/components/AuthGuard';
 import { apiFetch } from '../../lib/apiClient';
 import ConfirmModal from '@/components/ConfirmModal';
@@ -312,6 +313,8 @@ export default function Account() {
                   <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '6px' }}>Welcome back, {user?.firstName}! 👋</h2>
                   <p style={{ opacity: .8, fontSize: '.9rem' }}>Manage your orders, wishlist, and account settings here.</p>
                 </div>
+
+                <BecomeSellerPrompt />
 
                 <div className="acct-stats-grid">
                   {[

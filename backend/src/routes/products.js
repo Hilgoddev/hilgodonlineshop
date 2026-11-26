@@ -14,7 +14,7 @@ const allCache = makeCache({ ttlMs: 30 * 1000 });
 // A product's category MUST be one of these (lowercase) so listing filters and
 // homepage sections line up; anything else (e.g. "Electronics" with a capital E,
 // or a free-text value) silently disappears from its category page.
-const { normalizeCategory, applyCategory, subcategoryValues } = require('../lib/catalogFilters');
+const { normalizeCategory, normalizeSubcategory, applyCategory, subcategoryValues } = require('../lib/catalogFilters');
 
 // Validate the money/stock fields a seller can send. Returns an error message
 // or null. Only fields present in `body` are checked (PUT is a partial update).
@@ -30,6 +30,11 @@ function validateProductNumbers(body, { requirePrice = false } = {}) {
     if (original_price !== undefined && original_price !== null && original_price !== '') {
         const n = Number(original_price);
         if (!Number.isFinite(n) || n < 0 || n > MAX_PRICE) return 'Original price must be a positive number.';
+        // The original price is the "was" price shown crossed out, so it must
+        // be higher than the selling price (leave it empty for no discount).
+        if (price !== undefined && price !== null && price !== '' && n <= Number(price)) {
+            return 'Original price must be higher than the price (it shows as the "was" price). Leave it empty if there is no discount.';
+        }
     }
     if (stock !== undefined) {
         const n = Number(stock);
@@ -626,6 +631,8 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'A valid product category is required.' });
         }
         if (req.body.is_unisex !== undefined && typeof req.body.is_unisex !== 'boolean') return res.status(400).json({ success: false, error: 'Unisex must be true or false.' });
+        const sub = normalizeSubcategory(normalizedCategory, subcategory);
+        if (sub.error) return res.status(400).json({ success: false, error: sub.error });
         const numberError = validateProductNumbers(req.body, { requirePrice: true });
         if (numberError) return res.status(400).json({ success: false, error: numberError });
         const media = {};
@@ -644,7 +651,7 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             store_id: store_id || null,
             name, description, price,
             currency: currency || 'NGN',
-            category: normalizedCategory, subcategory,
+            category: normalizedCategory, subcategory: sub.value,
             is_unisex: normalizedCategory === 'unisex' || req.body.is_unisex === true,
             category_id: category_id || null,
             stock, status,
@@ -690,7 +697,19 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             updateData.category = normalizedCategory;
             if (normalizedCategory === 'unisex') updateData.is_unisex = true;
         }
-        if (subcategory    !== undefined) updateData.subcategory    = subcategory;
+        if (subcategory    !== undefined) {
+            // Checked against the new category when it changes too; a partial
+            // update that leaves the category alone is checked against the stored one.
+            let cat = updateData.category;
+            if (!cat) {
+                const { data: stored, error: storedErr } = await supabase.from('products').select('category').eq('id', req.params.id).maybeSingle();
+                if (storedErr) throw storedErr;
+                cat = stored?.category;
+            }
+            const sub = normalizeSubcategory(cat, subcategory);
+            if (sub.error) return res.status(400).json({ success: false, error: sub.error });
+            updateData.subcategory = sub.value;
+        }
         if (stock          !== undefined) updateData.stock          = stock;
         if (category_id    !== undefined) updateData.category_id    = category_id;
         if (store_id       !== undefined) updateData.store_id       = store_id;
