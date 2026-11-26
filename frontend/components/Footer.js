@@ -249,6 +249,14 @@ export default function Footer() {
                 <span style={{ fontSize: '.78rem' }}>Start your online shop today</span>
               </div>
             </Link>
+            <Link href="/seller/how-payouts-work" className="footer-cta-link">
+              <i className="fas fa-money-bill-transfer"></i>
+              <div>
+                <strong>How Payments Work</strong>
+                <br />
+                <span style={{ fontSize: '.78rem' }}>Commission, payouts &amp; timing</span>
+              </div>
+            </Link>
             {/* Delivery Partner CTA — hidden for now (program paused)
             <Link href="/delivery" className="footer-cta-link">
               <i className="fas fa-motorcycle"></i>
