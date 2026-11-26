@@ -121,7 +121,7 @@ export default function SellerGuide() {
           <details><summary>Do my products need approval?</summary><p>No. Your seller account is approved once, when you apply. After that, everything you upload goes live straight away.</p></details>
           <details><summary>Can I upload many products at once?</summary><p>Yes — at the top of the Upload Product page, <strong>Bring your catalogue to Hilgod</strong> lets you add products from a spreadsheet, a pasted list or your online store.</p></details>
           <details><summary>How do I change a price or stock later?</summary><p>Click ✏️ next to the product in My Product List, change it and click Save Changes. Price and stock changes go live straight away.</p></details>
-          <details><summary>How do I get paid?</summary><p>Hilgod keeps 5% of items up to €100 and 10% above; the rest is yours to withdraw from <Link href="/seller/payouts">My Earnings</Link> by bank transfer, crypto or another service. See <Link href="/seller/how-payouts-work">How payouts work</Link>.</p></details>
+          <details><summary>How do I get paid?</summary><p>Hilgod keeps 5% of items up to $100 and 10% above; the rest is yours to withdraw from <Link href="/seller/payouts">My Earnings</Link> by bank transfer, crypto or another service. See <Link href="/seller/how-payouts-work">How payouts work</Link>.</p></details>
         </section>
 
         <div className="guide-cta">

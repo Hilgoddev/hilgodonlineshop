@@ -3,39 +3,38 @@
 
 const supabase = require('../config/supabase');
 
-// Commission: 5% of an item's price for items up to €100, 10% for items above
-// €100. The rate is decided when the order is placed (at that day's exchange
+// Commission: 5% of an item's price for items up to $100, 10% for items above
+// $100. The rate is decided when the order is placed (at that day's exchange
 // rate) and stored on the order line, so a seller's earnings never change
 // afterwards when rates move.
 const LOW_COMMISSION_RATE = 0.05;
 const HIGH_COMMISSION_RATE = 0.10;
-const HIGH_RATE_ABOVE_EUR = 100;
+const HIGH_RATE_ABOVE_USD = 100;
 // Lines sold before per-line rates existed were charged the old flat 10%.
 const LEGACY_COMMISSION_RATE = 0.10;
 
-// Prices are in Naira; the €100 threshold is converted with the stored rates
-// (USD-based rows in exchange_rates), falling back to a recent fixed rate.
-const FALLBACK_NGN_PER_EUR = 1425.2 / 0.911369;
+// Prices are in Naira; the $100 threshold is converted with the stored
+// USD→NGN rate (exchange_rates), falling back to a recent fixed rate.
+const FALLBACK_NGN_PER_USD = 1425.2;
 
-async function getNgnPerEur() {
+async function getNgnPerUsd() {
   try {
     const { data, error } = await supabase
       .from('exchange_rates')
-      .select('target_currency, rate')
+      .select('rate')
       .eq('source_currency', 'USD')
-      .in('target_currency', ['NGN', 'EUR']);
-    if (error || !data) return FALLBACK_NGN_PER_EUR;
-    const ngn = Number(data.find((r) => r.target_currency === 'NGN')?.rate);
-    const eur = Number(data.find((r) => r.target_currency === 'EUR')?.rate);
-    return ngn > 0 && eur > 0 ? ngn / eur : FALLBACK_NGN_PER_EUR;
+      .eq('target_currency', 'NGN')
+      .maybeSingle();
+    const ngn = Number(data?.rate);
+    return !error && ngn > 0 ? ngn : FALLBACK_NGN_PER_USD;
   } catch {
-    return FALLBACK_NGN_PER_EUR;
+    return FALLBACK_NGN_PER_USD;
   }
 }
 
 // Commission rate for one item at `unitPriceNgn`.
-function commissionRateFor(unitPriceNgn, ngnPerEur) {
-  return Number(unitPriceNgn) > HIGH_RATE_ABOVE_EUR * ngnPerEur ? HIGH_COMMISSION_RATE : LOW_COMMISSION_RATE;
+function commissionRateFor(unitPriceNgn, ngnPerUsd) {
+  return Number(unitPriceNgn) > HIGH_RATE_ABOVE_USD * ngnPerUsd ? HIGH_COMMISSION_RATE : LOW_COMMISSION_RATE;
 }
 
 // A stored line's rate; lines sold before rates were stored used the flat 10%.
@@ -95,9 +94,9 @@ const SUPPORT_PHONE = process.env.SUPPORT_PHONE?.trim() || '+357 95 130549';
 module.exports = {
   LOW_COMMISSION_RATE,
   HIGH_COMMISSION_RATE,
-  HIGH_RATE_ABOVE_EUR,
+  HIGH_RATE_ABOVE_USD,
   LEGACY_COMMISSION_RATE,
-  getNgnPerEur,
+  getNgnPerUsd,
   commissionRateFor,
   lineRate,
   PAYOUT_METHODS,

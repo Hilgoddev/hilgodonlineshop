@@ -21,13 +21,13 @@ const app = require('../src/index');
 const { commissionRateFor, cleanPayoutDetails, lineRate } = require('../src/lib/payouts');
 const { getSellerBalance } = require('../src/lib/sellerBalance');
 
-const NGN_PER_EUR = 1600; // €100 = ₦160,000
+const NGN_PER_USD = 1600; // $100 = ₦160,000
 
 describe('commission tiers', () => {
-  it('takes 5% on items up to €100 and 10% above', () => {
-    expect(commissionRateFor(50000, NGN_PER_EUR)).toBe(0.05);
-    expect(commissionRateFor(160000, NGN_PER_EUR)).toBe(0.05); // exactly €100
-    expect(commissionRateFor(160001, NGN_PER_EUR)).toBe(0.10);
+  it('takes 5% on items up to $100 and 10% above', () => {
+    expect(commissionRateFor(50000, NGN_PER_USD)).toBe(0.05);
+    expect(commissionRateFor(160000, NGN_PER_USD)).toBe(0.05); // exactly $100
+    expect(commissionRateFor(160001, NGN_PER_USD)).toBe(0.10);
   });
   it('treats lines sold before tiers existed as the old flat 10%', () => {
     expect(lineRate({})).toBe(0.10);
@@ -112,5 +112,17 @@ describe('payout request + admin payment', () => {
     payoutRow.amount = 20000;
     const res = await request(app).put('/api/admin/payouts/p1').set('x-test-user', 'admin-1').send({ status: 'approved' });
     expect(res.statusCode).toBe(409);
+  });
+});
+
+describe('commission threshold currency', () => {
+  it('uses the live USD→NGN rate for the $100 line', async () => {
+    fake.reset();
+    fake.handler = ({ table }) => (table === 'exchange_rates' ? { data: { rate: 1425.2 }, error: null } : { data: null, error: null });
+    const { getNgnPerUsd } = require('../src/lib/payouts');
+    const ngnPerUsd = await getNgnPerUsd();
+    expect(ngnPerUsd).toBe(1425.2);
+    expect(commissionRateFor(142520, ngnPerUsd)).toBe(0.05); // exactly $100
+    expect(commissionRateFor(142521, ngnPerUsd)).toBe(0.10);
   });
 });
