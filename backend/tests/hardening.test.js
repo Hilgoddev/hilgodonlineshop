@@ -146,13 +146,13 @@ describe('admin safeguards', () => {
 
   it('refuses to mark a rejected payout as paid', async () => {
     world({ role: 'admin', payoutStatus: 'rejected' });
-    const res = await request(app).put('/api/admin/payouts/p1').send({ status: 'paid' });
+    const res = await request(app).put('/api/admin/payouts/p1').send({ status: 'paid', payment_reference: 'TRX-778812' });
     expect(res.statusCode).toBe(409);
   });
 
   it('marks an approved payout as paid', async () => {
     world({ role: 'admin', payoutStatus: 'approved' });
-    const res = await request(app).put('/api/admin/payouts/p1').send({ status: 'paid' });
+    const res = await request(app).put('/api/admin/payouts/p1').send({ status: 'paid', payment_reference: 'TRX-778812' });
     expect(res.statusCode).toBe(200);
   });
 });

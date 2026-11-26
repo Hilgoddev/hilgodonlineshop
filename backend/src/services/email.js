@@ -296,21 +296,49 @@ function newOrderAdminHtml(orderId, items, total, buyerName, orderDate = '', cur
   </div>`;
 }
 
-function payoutRequestAdminHtml({ sellerName, sellerEmail, amount, bankName, accountName, accountNumber, currency = 'NGN' }) {
+const PAYOUT_METHOD_LABELS = { bank_transfer: 'Bank transfer', crypto: 'Crypto', other: 'Other method' };
+
+function payoutRequestAdminHtml({ sellerName, sellerEmail, amount, method = 'bank_transfer', details = {}, currency = 'NGN' }) {
   const row = (label, val) => val ? `<tr><td style="padding:6px 8px;color:#64748b">${escapeHtml(label)}</td><td style="padding:6px 8px;font-weight:600">${escapeHtml(String(val))}</td></tr>` : '';
+  const d = details || {};
+  const methodRows = method === 'crypto'
+    ? row('Coin', d.asset) + row('Network', d.network) + row('Wallet address', d.walletAddress)
+    : method === 'other'
+      ? row('Service', d.provider) + row('Account', d.account) + row('Note', d.note)
+      : row('Bank', d.bankName) + row('Account name', d.accountName) + row('Account number', d.accountNumber);
   return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto">
     <h2 style="color:#E31C1C">New Payout Request</h2>
-    <p>A seller has requested a payout and submitted their bank details.</p>
+    <p>A seller has requested a payout. Check the details carefully before paying.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
       ${row('Seller', sellerName)}
       ${row('Seller email', sellerEmail)}
       <tr><td style="padding:6px 8px;color:#64748b">Amount</td><td style="padding:6px 8px;font-weight:800;color:#E31C1C">${formatMoney(Number(amount || 0), currency)}</td></tr>
-      ${row('Bank', bankName)}
-      ${row('Account name', accountName)}
-      ${row('Account number', accountNumber)}
+      ${row('Pay by', PAYOUT_METHOD_LABELS[method] || method)}
+      ${methodRows}
     </table>
     <a href="${BASE_URL}/admin/payouts" style="display:inline-block;margin-top:8px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Review in Admin</a>
   </div>`;
 }
 
-module.exports = { sendEmail, escapeHtml, formatMoney, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml, payoutRequestAdminHtml };
+// Tells the seller their payout was approved, paid or rejected. A paid payout
+// carries the transfer reference and the "not received in N hours" notice.
+function payoutStatusSellerHtml({ sellerName, amount, status, method, reference, adminNotes, arrivalHours, supportPhone, currency = 'NGN' }) {
+  const heading = { approved: 'Payout approved', paid: 'Payout sent 🎉', rejected: 'Payout not approved' }[status] || 'Payout update';
+  const intro = {
+    approved: 'Your payout request has been approved and will be sent shortly.',
+    paid: `We’ve sent your payout by ${escapeHtml(PAYOUT_METHOD_LABELS[method] || 'your chosen method')}.`,
+    rejected: 'Your payout request was not approved. The amount is back in your available balance.',
+  }[status] || '';
+  const phoneLink = escapeHtml(String(supportPhone || '').replace(/[^+0-9]/g, ''));
+  return `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;color:#1e293b">
+    <h2 style="color:#E31C1C">${heading}</h2>
+    <p>Hi ${escapeHtml(sellerName || 'there')}, ${intro}</p>
+    <p style="font-size:1.4rem;font-weight:800;margin:12px 0">${formatMoney(Number(amount || 0), currency)}</p>
+    ${reference ? `<p>Transfer reference: <strong>${escapeHtml(reference)}</strong></p>` : ''}
+    ${adminNotes ? `<p style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px">${escapeHtml(adminNotes)}</p>` : ''}
+    ${status === 'paid' ? `<p style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">If the money hasn’t reached you within <strong>${arrivalHours} hours</strong>, contact us on <a href="tel:${phoneLink}">${escapeHtml(supportPhone)}</a> (call or WhatsApp) and report a discrepancy, quoting the reference above.</p>` : ''}
+    <a href="${BASE_URL}/seller/payouts" style="display:inline-block;margin-top:8px;padding:12px 24px;background:#E31C1C;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">View My Earnings</a>
+  </div>`;
+}
+
+module.exports = { sendEmail, escapeHtml, formatMoney, getEmailFooter, orderConfirmationHtml, orderStatusHtml, sellerApprovedHtml, newsletterConfirmHtml, paymentConfirmedHtml, newOrderSellerHtml, newOrderAdminHtml, payoutRequestAdminHtml, payoutStatusSellerHtml };

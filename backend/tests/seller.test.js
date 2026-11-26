@@ -143,7 +143,7 @@ describe('seller balance', () => {
       if (q.table === 'seller_payouts' && q.op === 'insert') return { data: null, error: { code: '23505' } };
       return balanceScenario(q);
     };
-    const res = await request(app).post('/api/seller/payouts/request').send({ amount: 500 });
+    const res = await request(app).post('/api/seller/payouts/request').send({ amount: 500, payment_method: 'bank_transfer', payment_details: { bankName: 'GTBank', accountName: 'Ada Obi', accountNumber: '0123456789' } });
     expect(res.statusCode).toBe(409);
   });
 });

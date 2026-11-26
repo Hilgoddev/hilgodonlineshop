@@ -156,11 +156,11 @@ export default function ApprovalsPage() {
           <section style={{ marginBottom: '24px' }}>
             <div className="card" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontWeight: 700, color: '#0f172a' }}>Auto-approve seller products</div>
+                <div style={{ fontWeight: 700, color: '#0f172a' }}>Approved sellers’ products go live automatically</div>
                 <div style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '2px' }}>
                   {autoApprove
-                    ? 'Seller uploads go live immediately without review.'
-                    : 'Seller uploads require admin approval before going live.'}
+                    ? 'On (recommended): sellers are reviewed once, when they apply. Their uploads and edits go live straight away — you can still reject or deactivate any product in Products.'
+                    : 'Off: every new product and change waits for your approval below.'}
                 </div>
               </div>
               <button

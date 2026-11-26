@@ -7,7 +7,8 @@ const { writeLimiter } = require('../middleware/rateLimit');
 const { getEmailMap } = require('../lib/resilience');
 const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder, stockWasTaken } = require('../lib/orderStatus');
 const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
-const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
+const { getSellerBalance } = require('../lib/sellerBalance');
+const { LOW_COMMISSION_RATE, HIGH_COMMISSION_RATE, HIGH_RATE_ABOVE_EUR, cleanPayoutDetails, describePayoutDetails, PAYOUT_ARRIVAL_HOURS, SUPPORT_PHONE } = require('../lib/payouts');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
 
@@ -30,32 +31,6 @@ async function getPaidOrderIdSet(orderIds = []) {
   return new Set((data || []).filter((o) => isRevenueOrder(o.status, o.payment_method)).map((o) => o.id));
 }
 
-// A seller's balance: 90% of their payable sales minus approved/paid payouts.
-// Keyed on order_items.seller_id (who sold the line at the time), not current
-// product ownership, and cancelled lines never count.
-async function getSellerBalance(sellerId) {
-  const { data: items, error: itemsErr } = await supabase
-    .from('order_items')
-    .select('quantity, unit_price, fulfillment_status, order:orders(status, payment_method)')
-    .eq('seller_id', sellerId);
-  if (itemsErr) throw itemsErr;
-  const grossSales = (items || [])
-    .filter(i => i.fulfillment_status !== 'cancelled')
-    .filter(i => isPayableOrder(i.order?.status, i.order?.payment_method))
-    .reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
-  const commission = grossSales * PLATFORM_COMMISSION_RATE;
-  const netEarnings = grossSales - commission;
-
-  const { data: payouts, error: payoutsErr } = await supabase
-    .from('seller_payouts')
-    .select('amount')
-    .eq('seller_id', sellerId)
-    .in('status', ['approved', 'paid']);
-  if (payoutsErr) throw payoutsErr;
-  const withdrawn = (payouts || []).reduce((s, p) => s + Number(p.amount), 0);
-
-  return { grossSales, commission, netEarnings, withdrawn, available: Math.max(0, netEarnings - withdrawn) };
-}
 
 const requireSellerOrAdmin = async (req, res, next) => {
   try {
@@ -455,30 +430,28 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
 // GET /api/seller/earnings — available balance (total sales minus total withdrawn/approved)
 router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
   try {
-    // Platform takes 10% per sale; the seller's earnings are the net 90%.
-    const { grossSales, commission, netEarnings, withdrawn, available } = await getSellerBalance(req.user.id);
+    // Commission is 5% per item up to €100 and 10% above; the seller keeps the rest.
+    const { grossSales, commission, byRate, netEarnings, withdrawn, available } = await getSellerBalance(req.user.id);
 
-    const { data: allPayouts } = await supabase
-      .from('seller_payouts')
-      .select('id, amount, status, payment_method, payment_details, requested_at, processed_at, admin_notes')
-      .eq('seller_id', req.user.id)
-      .order('requested_at', { ascending: false });
+    const payoutCols = 'id, amount, status, payment_method, payment_details, requested_at, processed_at, admin_notes';
+    let { data: allPayouts, error: payoutsErr } = await supabase
+      .from('seller_payouts').select(`${payoutCols}, payment_reference, paid_at`)
+      .eq('seller_id', req.user.id).order('requested_at', { ascending: false });
+    if (payoutsErr) {
+      ({ data: allPayouts } = await supabase.from('seller_payouts').select(payoutCols)
+        .eq('seller_id', req.user.id).order('requested_at', { ascending: false }));
+    }
 
-    // Saved bank details (reused to prefill the payout form). Tolerates the
-    // columns not existing yet (before migration 009 is applied).
-    let bankDetails = null;
+    // Saved payout details per method, used to prefill the form. Bank details
+    // also live in the older bank_* columns (migration 009).
+    const saved = { default: 'bank_transfer' };
     try {
-      const { data: prof, error: profErr } = await supabase
-        .from('profiles')
-        .select('bank_name, bank_account_name, bank_account_number')
-        .eq('id', req.user.id)
-        .maybeSingle();
-      if (!profErr && prof && (prof.bank_name || prof.bank_account_number)) {
-        bankDetails = {
-          bankName: prof.bank_name || '',
-          accountName: prof.bank_account_name || '',
-          accountNumber: prof.bank_account_number || '',
-        };
+      let { data: prof, error: profErr } = await supabase
+        .from('profiles').select('bank_name, bank_account_name, bank_account_number, payout_details').eq('id', req.user.id).maybeSingle();
+      if (profErr) ({ data: prof } = await supabase.from('profiles').select('bank_name, bank_account_name, bank_account_number').eq('id', req.user.id).maybeSingle());
+      Object.assign(saved, prof?.payout_details || {});
+      if (!saved.bank_transfer && (prof?.bank_name || prof?.bank_account_number)) {
+        saved.bank_transfer = { bankName: prof.bank_name || '', accountName: prof.bank_account_name || '', accountNumber: prof.bank_account_number || '' };
       }
     } catch (_) { /* columns may not exist yet — non-fatal */ }
 
@@ -488,11 +461,15 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
         netEarnings,
         grossSales,
         commission,
-        commissionRate: PLATFORM_COMMISSION_RATE,
+        commissionBreakdown: Object.entries(byRate).map(([rate, sales]) => ({ rate: Number(rate), sales, commission: sales * Number(rate) })),
+        commissionRule: { lowRate: LOW_COMMISSION_RATE, highRate: HIGH_COMMISSION_RATE, thresholdEur: HIGH_RATE_ABOVE_EUR },
         withdrawn,
         available,
         payouts: allPayouts || [],
-        bankDetails,
+        payoutDetails: saved,
+        bankDetails: saved.bank_transfer || null,
+        payoutArrivalHours: PAYOUT_ARRIVAL_HOURS,
+        supportPhone: SUPPORT_PHONE,
       },
     });
   } catch (err) { next(err); }
@@ -501,11 +478,15 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
 // POST /api/seller/payouts/request — seller requests a withdrawal
 router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
   try {
-    const { amount, payment_method = 'bank_transfer', payment_details } = req.body;
+    const { amount } = req.body;
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) {
       return res.status(400).json({ success: false, error: 'A valid amount is required' });
     }
+    // Bank transfer is the main method; crypto and other services are options.
+    const cleaned = cleanPayoutDetails(req.body.payment_method || 'bank_transfer', req.body.payment_details);
+    if (cleaned.error) return res.status(400).json({ success: false, error: cleaned.error });
+    const { method: payment_method, details: payment_details } = cleaned;
 
     // Block duplicate requests — one pending payout at a time prevents race-condition overdrafts
     const { data: pendingPayouts } = await supabase
@@ -518,7 +499,7 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
       return res.status(409).json({ success: false, error: 'You already have a pending payout request. Please wait for it to be reviewed before submitting another.' });
     }
 
-    // Verify sufficient available balance (net, after the 10% platform commission).
+    // Verify sufficient available balance (net, after commission).
     const { available } = await getSellerBalance(req.user.id);
 
     if (amt > available) {
@@ -527,7 +508,7 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
 
     const { data, error } = await supabase
       .from('seller_payouts')
-      .insert({ seller_id: req.user.id, amount: amt, payment_method, payment_details: payment_details || null })
+      .insert({ seller_id: req.user.id, amount: amt, payment_method, payment_details })
       .select().single();
     // Unique index seller_payouts_one_pending_per_seller (migration 020) catches
     // two simultaneous requests that both passed the pending check above.
@@ -536,29 +517,26 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
     }
     if (error) throw error;
 
-    // Persist bank details on the profile so future requests can reuse them.
-    // Best-effort: tolerates the columns not existing yet (migration 009).
-    if (payment_details && (payment_details.bankName || payment_details.accountNumber)) {
-      try {
-        await supabase
-          .from('profiles')
-          .update({
-            bank_name: payment_details.bankName || null,
-            bank_account_name: payment_details.accountName || null,
-            bank_account_number: payment_details.accountNumber || null,
-          })
-          .eq('id', req.user.id);
-      } catch (_) { /* columns may not exist yet — non-fatal */ }
-    }
+    // Remember these details (per method) to prefill the next request.
+    // Best-effort: tolerates the columns not existing yet (migrations 009/025).
+    try {
+      const { data: prof } = await supabase.from('profiles').select('payout_details').eq('id', req.user.id).maybeSingle();
+      const update = { payout_details: { ...(prof?.payout_details || {}), [payment_method]: payment_details, default: payment_method } };
+      if (payment_method === 'bank_transfer') {
+        Object.assign(update, { bank_name: payment_details.bankName, bank_account_name: payment_details.accountName, bank_account_number: payment_details.accountNumber });
+      }
+      const { error: saveErr } = await supabase.from('profiles').update(update).eq('id', req.user.id);
+      if (saveErr && payment_method === 'bank_transfer') {
+        await supabase.from('profiles').update({ bank_name: payment_details.bankName, bank_account_name: payment_details.accountName, bank_account_number: payment_details.accountNumber }).eq('id', req.user.id);
+      }
+    } catch (_) { /* non-fatal */ }
 
-    res.status(201).json({ success: true, data });
-
-    // Fire-and-forget: notify the admin inbox with the seller's bank details.
-    (async () => {
+    // Tell the admin inbox. Awaited (bounded) because serverless functions may
+    // stop once the response is sent.
+    const notify = (async () => {
       try {
         const { data: prof } = await supabase.from('profiles').select('full_name').eq('id', req.user.id).maybeSingle();
         const emailMap = await getEmailMap().catch(() => new Map());
-        const pd = payment_details || {};
         await sendEmail({
           to: PAYOUT_NOTIFY_EMAIL,
           subject: `New Payout Request — ₦${amt.toLocaleString()} (${prof?.full_name || 'Seller'})`,
@@ -566,15 +544,18 @@ router.post('/payouts/request', verifyToken, requireSellerOrAdmin, async (req, r
             sellerName: prof?.full_name || 'Seller',
             sellerEmail: emailMap.get(req.user.id) || '',
             amount: amt,
-            bankName: pd.bankName,
-            accountName: pd.accountName,
-            accountNumber: pd.accountNumber,
+            method: payment_method,
+            details: payment_details,
+            summary: describePayoutDetails(payment_method, payment_details),
           }),
           emailType: 'admin_alert',
           userId: req.user.id,
         });
       } catch (_) { /* non-fatal */ }
     })();
+    await Promise.race([notify, new Promise((r) => setTimeout(r, 4000))]);
+
+    res.status(201).json({ success: true, data });
   } catch (err) { next(err); }
 });
 

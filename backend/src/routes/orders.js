@@ -15,6 +15,7 @@ const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const { cleanOptions, variantKey, resolveOptionsForProduct } = require('../lib/variants');
 const { cleanShippingAddress } = require('../lib/deliveryAddress');
+const { getNgnPerEur, commissionRateFor } = require('../lib/payouts');
 const { dispatchOrderToGig } = require('../services/gig');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -245,6 +246,8 @@ router.post('/', verifyToken, async (req, res, next) => {
             try { checkoutRates = await getCheckoutRates(); }
             catch (err) { return res.status(503).json({ success: false, error: err.message }); }
         }
+        // For the commission tier (5% up to €100 per item, 10% above), locked in now.
+        const ngnPerEur = checkoutRates?.NGN && checkoutRates?.EUR ? checkoutRates.NGN / checkoutRates.EUR : await getNgnPerEur();
         // Recompute totals from DB and validate stock.
         let total_amount = 0;
         const orderItems = [];
@@ -320,6 +323,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 unit_price: serverUnitPrice,
                 seller_id: p.seller_id || null, // Include seller_id from product
                 selected_options: options,
+                commission_rate: commissionRateFor(serverUnitPrice, ngnPerEur),
             });
 
             responseItems.push({
@@ -387,9 +391,14 @@ router.post('/', verifyToken, async (req, res, next) => {
             unit_price: it.unit_price,
             seller_id:  it.seller_id,
         }));
-        const rowsWithOptions = orderItems.map((it, i) => ({ ...baseRows[i], selected_options: it.selected_options }));
+        const rowsWithOptions = orderItems.map((it, i) => ({ ...baseRows[i], selected_options: it.selected_options, commission_rate: it.commission_rate }));
 
         let { error: itemErr } = await supabase.from('order_items').insert(rowsWithOptions);
+        // Before migration 025 there is no commission_rate column: those lines
+        // fall back to the legacy flat rate, so retry without it.
+        if (itemErr && String(itemErr.message || '').includes('commission_rate')) {
+            ({ error: itemErr } = await supabase.from('order_items').insert(rowsWithOptions.map(({ commission_rate, ...r }) => r)));
+        }
         // Backward-compat: if the selected_options column hasn't been added yet
         // (migration 012), retry without it so order creation never breaks.
         if (itemErr && String(itemErr.message || '').includes('selected_options')) {
