@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Layout from '@/components/Layout';
 
 // How the money flows for sellers: sale → commission → balance → payout.
-// Numbers here must match backend/src/lib/payouts.js (5% up to €100 per item,
+// Numbers here must match backend/src/lib/payouts.js (5% up to $100 per item,
 // 10% above; payouts arrive within 5 hours of being marked paid).
 const SUPPORT_PHONE = '+357 95 130549';
 const WHATSAPP = 'https://wa.me/35795130549';
@@ -10,7 +10,7 @@ const WHATSAPP = 'https://wa.me/35795130549';
 const FLOW = [
   { icon: 'fa-cart-shopping', title: 'A buyer orders your product', body: 'They pay online (card, Paystack) or choose Pay on Delivery.' },
   { icon: 'fa-check-double', title: 'The sale is confirmed', body: 'Online payments count straight away. Pay on Delivery counts once the item is delivered and the cash is collected.' },
-  { icon: 'fa-percent', title: 'Hilgod’s commission comes off', body: '5% for items up to €100, 10% for items above €100. Delivery fees go to delivery, not from your earnings.' },
+  { icon: 'fa-percent', title: 'Hilgod’s commission comes off', body: '5% for items up to $100, 10% for items above $100. Delivery fees go to delivery, not from your earnings.' },
   { icon: 'fa-wallet', title: 'The rest is your balance', body: 'You see it under My Earnings → Available to withdraw.' },
   { icon: 'fa-money-bill-transfer', title: 'You request a payout', body: 'Choose an amount and how to be paid: bank transfer (main), crypto, or another service.' },
   { icon: 'fa-user-check', title: 'An admin approves and sends it', body: 'Once it’s sent, the payout shows “Paid” in your history with the transfer reference, and you get an email.' },
@@ -46,10 +46,10 @@ export default function HowPayoutsWork() {
         <section className="money-section">
           <h2><i className="fas fa-percent"></i> Commission</h2>
           <div className="commission-table">
-            <div><span>Item price up to <strong>€100</strong></span><strong className="commission-table__rate">5%</strong><span>e.g. ₦50,000 item → you keep ₦47,500</span></div>
-            <div><span>Item price above <strong>€100</strong></span><strong className="commission-table__rate">10%</strong><span>e.g. ₦250,000 item → you keep ₦225,000</span></div>
+            <div><span>Item price up to <strong>$100</strong></span><strong className="commission-table__rate">5%</strong><span>e.g. ₦50,000 item → you keep ₦47,500</span></div>
+            <div><span>Item price above <strong>$100</strong></span><strong className="commission-table__rate">10%</strong><span>e.g. ₦250,000 item → you keep ₦225,000</span></div>
           </div>
-          <p className="money-note">Each item is checked on its own, using that day’s exchange rate when the order is placed (€100 is about ₦155,000–₦160,000). The rate is then fixed for that sale, so your earnings never change later. Cancelled and returned items don’t count.</p>
+          <p className="money-note">Each item is checked on its own, using that day’s exchange rate when the order is placed ($100 is about ₦140,000–₦145,000 at current rates). The rate is then fixed for that sale, so your earnings never change later. Cancelled and returned items don’t count.</p>
         </section>
 
         <section className="money-section">

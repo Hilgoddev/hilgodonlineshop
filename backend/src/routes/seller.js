@@ -8,7 +8,7 @@ const { getEmailMap } = require('../lib/resilience');
 const { REVENUE_STATUSES, isRevenueOrder, isPayableOrder, stockWasTaken } = require('../lib/orderStatus');
 const { handlePaymentSuccess, takeOrderStock, restoreOrderStock } = require('../services/paymentSuccess');
 const { getSellerBalance } = require('../lib/sellerBalance');
-const { LOW_COMMISSION_RATE, HIGH_COMMISSION_RATE, HIGH_RATE_ABOVE_EUR, cleanPayoutDetails, describePayoutDetails, PAYOUT_ARRIVAL_HOURS, SUPPORT_PHONE } = require('../lib/payouts');
+const { LOW_COMMISSION_RATE, HIGH_COMMISSION_RATE, HIGH_RATE_ABOVE_USD, cleanPayoutDetails, describePayoutDetails, PAYOUT_ARRIVAL_HOURS, SUPPORT_PHONE } = require('../lib/payouts');
 const { sendEmail, payoutRequestAdminHtml } = require('../services/email');
 const { cleanEnv } = require('../lib/env');
 
@@ -430,7 +430,7 @@ router.patch('/order-items/:id/status', verifyToken, requireSellerOrAdmin, async
 // GET /api/seller/earnings — available balance (total sales minus total withdrawn/approved)
 router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next) => {
   try {
-    // Commission is 5% per item up to €100 and 10% above; the seller keeps the rest.
+    // Commission is 5% per item up to $100 and 10% above; the seller keeps the rest.
     const { grossSales, commission, byRate, netEarnings, withdrawn, available } = await getSellerBalance(req.user.id);
 
     const payoutCols = 'id, amount, status, payment_method, payment_details, requested_at, processed_at, admin_notes';
@@ -462,7 +462,7 @@ router.get('/earnings', verifyToken, requireSellerOrAdmin, async (req, res, next
         grossSales,
         commission,
         commissionBreakdown: Object.entries(byRate).map(([rate, sales]) => ({ rate: Number(rate), sales, commission: sales * Number(rate) })),
-        commissionRule: { lowRate: LOW_COMMISSION_RATE, highRate: HIGH_COMMISSION_RATE, thresholdEur: HIGH_RATE_ABOVE_EUR },
+        commissionRule: { lowRate: LOW_COMMISSION_RATE, highRate: HIGH_COMMISSION_RATE, thresholdUsd: HIGH_RATE_ABOVE_USD },
         withdrawn,
         available,
         payouts: allPayouts || [],

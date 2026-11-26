@@ -87,7 +87,7 @@ export default function SellerPayouts() {
 
   const payouts = earnings?.payouts || [];
   const hasPending = payouts.some((p) => p.status === 'pending');
-  const rule = earnings?.commissionRule || { lowRate: 0.05, highRate: 0.10, thresholdEur: 100 };
+  const rule = earnings?.commissionRule || { lowRate: 0.05, highRate: 0.10, thresholdUsd: 100 };
   const pct = (r) => `${Math.round(Number(r) * 100)}%`;
   const hours = earnings?.payoutArrivalHours || 5;
   const phone = earnings?.supportPhone || '+357 95 130549';
@@ -136,7 +136,7 @@ export default function SellerPayouts() {
             <div className="earnings-rule">
               <i className="fas fa-circle-info"></i>
               <div>
-                Hilgod keeps <strong>{pct(rule.lowRate)}</strong> of each item that costs up to <strong>€{rule.thresholdEur}</strong>, and <strong>{pct(rule.highRate)}</strong> of items above €{rule.thresholdEur}. You keep the rest. Only paid orders count (Pay on Delivery orders once delivered).
+                Hilgod keeps <strong>{pct(rule.lowRate)}</strong> of each item that costs up to <strong>${rule.thresholdUsd}</strong>, and <strong>{pct(rule.highRate)}</strong> of items above ${rule.thresholdUsd}. You keep the rest. Only paid orders count (Pay on Delivery orders once delivered).
                 {(earnings?.commissionBreakdown || []).length > 0 && (
                   <div className="earnings-rule__split">
                     {earnings.commissionBreakdown.map((b) => (

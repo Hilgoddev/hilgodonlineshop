@@ -15,7 +15,7 @@ const { computeDeliveryFee } = require('../lib/money');
 const { optionsSummary } = require('../utils/colorName');
 const { cleanOptions, variantKey, resolveOptionsForProduct } = require('../lib/variants');
 const { cleanShippingAddress } = require('../lib/deliveryAddress');
-const { getNgnPerEur, commissionRateFor } = require('../lib/payouts');
+const { getNgnPerUsd, commissionRateFor } = require('../lib/payouts');
 const { dispatchOrderToGig } = require('../services/gig');
 const ordersAllCache = makeCache({ ttlMs: 30 * 1000 });
 
@@ -246,8 +246,8 @@ router.post('/', verifyToken, async (req, res, next) => {
             try { checkoutRates = await getCheckoutRates(); }
             catch (err) { return res.status(503).json({ success: false, error: err.message }); }
         }
-        // For the commission tier (5% up to €100 per item, 10% above), locked in now.
-        const ngnPerEur = checkoutRates?.NGN && checkoutRates?.EUR ? checkoutRates.NGN / checkoutRates.EUR : await getNgnPerEur();
+        // For the commission tier (5% up to $100 per item, 10% above), locked in now.
+        const ngnPerUsd = checkoutRates?.NGN > 0 ? checkoutRates.NGN : await getNgnPerUsd();
         // Recompute totals from DB and validate stock.
         let total_amount = 0;
         const orderItems = [];
@@ -323,7 +323,7 @@ router.post('/', verifyToken, async (req, res, next) => {
                 unit_price: serverUnitPrice,
                 seller_id: p.seller_id || null, // Include seller_id from product
                 selected_options: options,
-                commission_rate: commissionRateFor(serverUnitPrice, ngnPerEur),
+                commission_rate: commissionRateFor(serverUnitPrice, ngnPerUsd),
             });
 
             responseItems.push({

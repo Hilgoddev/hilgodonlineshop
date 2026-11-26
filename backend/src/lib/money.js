@@ -3,7 +3,7 @@
 //   order.total_amount  = product sales + delivery fee
 //   admin revenue       = commission on product sales + the full delivery fee
 //   seller net earnings = product sales minus commission (no delivery cut)
-//   commission          = 5% per item up to €100, 10% above — see lib/payouts.js
+//   commission          = 5% per item up to $100, 10% above — see lib/payouts.js
 //                         (PLATFORM_COMMISSION_RATE is only the legacy flat rate)
 // Keep frontend/lib/pricing.js (DELIVERY_FEE / FREE_DELIVERY_THRESHOLD) in sync.
 

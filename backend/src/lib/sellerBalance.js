@@ -5,7 +5,7 @@ const { isPayableOrder } = require('./orderStatus');
 const { lineRate } = require('./payouts');
 
 // A seller's balance: payable sales minus commission (each line's own rate:
-// 5% up to €100 per item, 10% above, legacy lines 10%) minus approved/paid
+// 5% up to $100 per item, 10% above, legacy lines 10%) minus approved/paid
 // payouts. Keyed on order_items.seller_id (who sold the line at the time), not
 // current product ownership, and cancelled lines never count.
 async function getSellerBalance(sellerId) {
