@@ -643,7 +643,7 @@ router.post('/', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
         }
         // Admin uploads always go live. Seller uploads go live only when the
         // platform-wide auto-approve setting is on; otherwise they await approval.
-        const autoApprove = (await getSetting('auto_approve_products', false)) === true;
+        const autoApprove = (await getSetting('auto_approve_products', true)) === true;
         const status = (req.userRole === 'admin' || autoApprove) ? 'approved' : 'pending';
 
         const insertData = {
@@ -756,7 +756,7 @@ router.put('/:id', verifyToken, verifySellerOrAdmin, async (req, res, next) => {
             if (currentErr && !missingColumn) throw currentErr;
             const changed = missingColumn || current && reviewed.some((f) =>
                 updateData[f] !== undefined && JSON.stringify(updateData[f] ?? null) !== JSON.stringify(current[f] ?? null));
-            if (changed && (await getSetting('auto_approve_products', false)) !== true) {
+            if (changed && (await getSetting('auto_approve_products', true)) !== true) {
                 updateData.status = 'pending';
             }
         }

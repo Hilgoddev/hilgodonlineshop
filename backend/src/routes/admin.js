@@ -3,11 +3,12 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const { verifyToken } = require('./auth');
 const requireAdmin = require('../middleware/requireAdmin');
-const { sendEmail, escapeHtml, sellerApprovedHtml } = require('../services/email');
+const { sendEmail, escapeHtml, sellerApprovedHtml, payoutStatusSellerHtml } = require('../services/email');
+const { getSellerBalance } = require('../lib/sellerBalance');
 const { withTimeout, makeCache, getEmailMap } = require('../lib/resilience');
 const { getSetting, setSetting } = require('../lib/settings');
 const { REVENUE_STATUSES, isRevenueOrder } = require('../lib/orderStatus');
-const { PLATFORM_COMMISSION_RATE } = require('../lib/money');
+const { lineRate, cleanPayoutDetails, describePayoutDetails, PAYOUT_ARRIVAL_HOURS, SUPPORT_PHONE } = require('../lib/payouts');
 const { isUuid } = require('../lib/validate');
 const { dispatchOrderToGig, setManualWaybill } = require('../services/gig');
 const statsCache = makeCache({ ttlMs: 30 * 1000 });
@@ -101,16 +102,20 @@ router.get('/stats', verifyToken, requireAdmin, async (req, res, next) => {
         // ── Units sold + platform commission (delivery fee goes to admin too) ──
         let unitsSold = 0;
         let productSales = 0; // Σ(unit_price × qty) across confirmed revenue orders (excludes delivery fee)
+        let platformCommission = 0; // Σ line × its commission rate (5% / 10%)
         const revenueOrderIds = confirmedRevenueOrders.map((o) => o.id).filter(Boolean);
         if (revenueOrderIds.length) {
-            const { data: soldItems } = await supabase
+            let { data: soldItems, error: soldErr } = await supabase
                 .from('order_items')
-                .select('quantity, unit_price')
+                .select('quantity, unit_price, commission_rate')
                 .in('order_id', revenueOrderIds);
+            if (soldErr && String(soldErr.message || '').includes('commission_rate')) {
+                ({ data: soldItems } = await supabase.from('order_items').select('quantity, unit_price').in('order_id', revenueOrderIds));
+            }
             unitsSold = (soldItems || []).reduce((s, i) => s + Number(i.quantity || 0), 0);
             productSales = (soldItems || []).reduce((s, i) => s + Number(i.unit_price || 0) * Number(i.quantity || 0), 0);
+            platformCommission = (soldItems || []).reduce((s, i) => s + Number(i.unit_price || 0) * Number(i.quantity || 0) * lineRate(i), 0);
         }
-        const platformCommission = productSales * PLATFORM_COMMISSION_RATE;
 
         // ── Order status breakdown (ALL orders) ──────────────────────────────
         const ordersByStatus = allOrders.reduce((acc, o) => {
@@ -731,14 +736,14 @@ router.delete('/riders/:id', verifyToken, requireAdmin, async (req, res, next) =
 router.get('/payouts', verifyToken, requireAdmin, async (req, res, next) => {
   try {
     const { status } = req.query;
-    let query = supabase
-      .from('seller_payouts')
-      .select('id, seller_id, amount, status, payment_method, payment_details, admin_notes, requested_at, processed_at')
-      .order('requested_at', { ascending: false });
-    if (status && ['pending','approved','paid','rejected'].includes(status)) {
-      query = query.eq('status', status);
-    }
-    const { data, error } = await query;
+    const list = (cols) => {
+      let query = supabase.from('seller_payouts').select(cols).order('requested_at', { ascending: false });
+      if (status && ['pending','approved','paid','rejected'].includes(status)) query = query.eq('status', status);
+      return query;
+    };
+    const base = 'id, seller_id, amount, status, payment_method, payment_details, admin_notes, requested_at, processed_at';
+    let { data, error } = await list(`${base}, payment_reference, paid_at`);
+    if (error && /payment_reference|paid_at/.test(String(error.message || ''))) ({ data, error } = await list(base));
     if (error) throw error;
 
     // Attach seller emails
@@ -773,19 +778,65 @@ router.put('/payouts/:id', verifyToken, requireAdmin, async (req, res, next) => 
     if (!ALLOWED_FROM[status]) {
       return res.status(400).json({ success: false, error: 'status must be approved, paid, or rejected' });
     }
+    // "Paid" means the money has actually been sent: record the bank reference
+    // or transaction hash so the seller can trace it.
+    const reference = typeof req.body.payment_reference === 'string' ? req.body.payment_reference.trim().slice(0, 140) : '';
+    if (status === 'paid' && reference.length < 3) {
+      return res.status(400).json({ success: false, error: 'Enter the transfer reference (bank reference or transaction hash) before marking it paid.' });
+    }
+
+    const { data: payout } = await supabase.from('seller_payouts').select('id, seller_id, amount, status, payment_method').eq('id', req.params.id).maybeSingle();
+    if (!payout) return res.status(404).json({ success: false, error: 'Payout not found' });
+    // A pending request isn't counted against the balance yet; make sure the
+    // seller still has it (orders may have been cancelled since they asked).
+    if (payout.status === 'pending' && status !== 'rejected') {
+      const { available } = await getSellerBalance(payout.seller_id);
+      if (Number(payout.amount) > available + 0.01) {
+        return res.status(409).json({ success: false, error: `The seller’s available balance is now ₦${available.toLocaleString()}, less than this request. Reject it so they can request the right amount.` });
+      }
+    }
+
+    const now = new Date().toISOString();
+    const update = { status, admin_notes: admin_notes || null, processed_at: now, processed_by: req.user.id };
+    if (status === 'paid') Object.assign(update, { payment_reference: reference, paid_at: now });
     // The status filter makes the check-and-update atomic.
-    const { data, error } = await supabase
-      .from('seller_payouts')
-      .update({ status, admin_notes: admin_notes || null, processed_at: new Date().toISOString(), processed_by: req.user.id })
-      .eq('id', req.params.id)
-      .in('status', ALLOWED_FROM[status])
-      .select();
+    const run = (row) => supabase.from('seller_payouts').update(row).eq('id', req.params.id).in('status', ALLOWED_FROM[status]).select();
+    let { data, error } = await run(update);
+    if (error && /payment_reference|paid_at/.test(String(error.message || ''))) {
+      // Before migration 025: keep the reference in the notes instead.
+      const { payment_reference, paid_at, ...legacy } = update;
+      if (status === 'paid') legacy.admin_notes = [admin_notes, `Ref: ${reference}`].filter(Boolean).join(' · ');
+      ({ data, error } = await run(legacy));
+    }
     if (error) throw error;
     if (!data?.length) {
       const { data: existing } = await supabase.from('seller_payouts').select('status').eq('id', req.params.id).maybeSingle();
-      if (!existing) return res.status(404).json({ success: false, error: 'Payout not found' });
-      return res.status(409).json({ success: false, error: `A ${existing.status} payout cannot be changed to ${status}` });
+      return res.status(409).json({ success: false, error: `A ${existing?.status || 'changed'} payout cannot be changed to ${status}` });
     }
+
+    // Tell the seller (bounded, so a slow mail server can't hold the admin up).
+    const notify = (async () => {
+      try {
+        const [{ data: prof }, emailMap] = await Promise.all([
+          supabase.from('profiles').select('full_name').eq('id', payout.seller_id).maybeSingle(),
+          getEmailMap().catch(() => new Map()),
+        ]);
+        const to = emailMap.get(payout.seller_id);
+        if (!to) return;
+        await sendEmail({
+          to,
+          subject: { approved: 'Your payout was approved', paid: 'Your payout has been sent', rejected: 'Your payout request was not approved' }[status],
+          html: payoutStatusSellerHtml({
+            sellerName: prof?.full_name, amount: payout.amount, status, method: payout.payment_method,
+            reference: status === 'paid' ? reference : null, adminNotes: admin_notes, arrivalHours: PAYOUT_ARRIVAL_HOURS, supportPhone: SUPPORT_PHONE,
+          }),
+          emailType: 'payout_status',
+          userId: payout.seller_id,
+        });
+      } catch (_) { /* non-fatal */ }
+    })();
+    await Promise.race([notify, new Promise((r) => setTimeout(r, 4000))]);
+
     res.json({ success: true, data: data[0] });
   } catch (err) { next(err); }
 });
@@ -795,7 +846,7 @@ router.put('/payouts/:id', verifyToken, requireAdmin, async (req, res, next) => 
 // GET /api/admin/settings — current platform settings (admins).
 router.get('/settings', verifyToken, requireAdmin, async (req, res, next) => {
   try {
-    const autoApproveProducts = (await getSetting('auto_approve_products', false)) === true;
+    const autoApproveProducts = (await getSetting('auto_approve_products', true)) === true;
     res.json({ success: true, data: { autoApproveProducts } });
   } catch (err) { next(err); }
 });
@@ -806,7 +857,7 @@ router.put('/settings', verifyToken, requireAdmin, async (req, res, next) => {
     if (typeof req.body.autoApproveProducts === 'boolean') {
       await setSetting('auto_approve_products', req.body.autoApproveProducts);
     }
-    const autoApproveProducts = (await getSetting('auto_approve_products', false)) === true;
+    const autoApproveProducts = (await getSetting('auto_approve_products', true)) === true;
     res.json({ success: true, data: { autoApproveProducts } });
   } catch (err) { next(err); }
 });

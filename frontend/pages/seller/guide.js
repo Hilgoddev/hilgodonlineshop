@@ -46,9 +46,10 @@ const STEPS = [
     body: <>Write a short description: material, size details, what’s in the box. Then click <strong>Upload Product</strong>.</>,
   },
   {
-    title: 'Wait for approval',
-    img: 'step-8.jpg',
-    body: <>Your product appears in <strong>My Product List</strong> as <strong>Pending</strong> while our team checks it. Once approved it goes live in the shop. You can edit (✏️) or remove (🗑) it any time — big changes are checked again before going live.</>,
+    title: 'It’s live straight away',
+    img: 'live-desktop.jpg',
+    body: <>As an approved seller, your product goes live in the shop as soon as you upload it — no waiting. It also appears in <strong>My Product List</strong>, where you can edit (✏️) or remove (🗑) it any time; changes show straight away too.</>,
+    tip: 'Hilgod still checks the shop and can take down products that break the rules, so keep photos and descriptions honest.',
   },
 ];
 
@@ -117,10 +118,10 @@ export default function SellerGuide() {
 
         <section className="guide-faq">
           <h2>Good to know</h2>
-          <details><summary>How long does approval take?</summary><p>Our team reviews new products as quickly as possible, usually within a day. You’ll see the status change from Pending to Approved in My Product List.</p></details>
+          <details><summary>Do my products need approval?</summary><p>No. Your seller account is approved once, when you apply. After that, everything you upload goes live straight away.</p></details>
           <details><summary>Can I upload many products at once?</summary><p>Yes — at the top of the Upload Product page, <strong>Bring your catalogue to Hilgod</strong> lets you add products from a spreadsheet, a pasted list or your online store.</p></details>
           <details><summary>How do I change a price or stock later?</summary><p>Click ✏️ next to the product in My Product List, change it and click Save Changes. Price and stock changes go live straight away.</p></details>
-          <details><summary>How do I get paid?</summary><p>See <Link href="/seller/payouts">My Earnings</Link>. A full guide to how payouts work is coming soon.</p></details>
+          <details><summary>How do I get paid?</summary><p>Hilgod keeps 5% of items up to €100 and 10% above; the rest is yours to withdraw from <Link href="/seller/payouts">My Earnings</Link> by bank transfer, crypto or another service. See <Link href="/seller/how-payouts-work">How payouts work</Link>.</p></details>
         </section>
 
         <div className="guide-cta">

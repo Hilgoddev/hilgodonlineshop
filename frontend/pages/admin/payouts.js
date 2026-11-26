@@ -3,6 +3,31 @@ import AdminGuard from '@/components/AdminGuard';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { apiFetch, safeJson } from '../../lib/apiClient';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { methodLabel } from '../../lib/payouts';
+
+// Everything the admin needs to send the money, by payout method, each with a
+// copy button so account numbers and wallet addresses aren't retyped.
+function PayoutDetails({ method, details = {} }) {
+  const rows = method === 'crypto'
+    ? [['Coin', details.asset], ['Network', details.network], ['Wallet', details.walletAddress]]
+    : method === 'other'
+      ? [['Service', details.provider], ['Account', details.account], ['Note', details.note]]
+      : [['Bank', details.bankName], ['Name', details.accountName], ['Account no.', details.accountNumber]];
+  const copy = (v) => { try { navigator.clipboard.writeText(String(v)); } catch { /* ignore */ } };
+  return (
+    <div className="admin-payout-details">
+      <div className="admin-payout-details__method">{methodLabel(method)}</div>
+      {rows.filter(([, v]) => v).map(([k, v]) => (
+        <div key={k} className="admin-payout-details__row">
+          <span>{k}</span>
+          <strong>{v}</strong>
+          {k !== 'Note' && <button type="button" onClick={() => copy(v)} title={`Copy ${k}`} aria-label={`Copy ${k}`}><i className="far fa-copy"></i></button>}
+        </div>
+      ))}
+      {method === 'crypto' && <div className="admin-payout-details__warn">Send only {details.asset} on the {details.network} network.</div>}
+    </div>
+  );
+}
 
 const STATUS_STYLE = {
   pending:  { bg: '#fef3c7', color: '#92400e' },
@@ -19,6 +44,7 @@ export default function AdminPayouts() {
   const [updating, setUpdating] = useState(null);
   const [noteModal, setNoteModal] = useState(null); // { payout, action }
   const [note, setNote]         = useState('');
+  const [reference, setReference] = useState('');
   const [toast, setToast]       = useState({ type: '', text: '' });
 
   const showToast = (text, type = 'success') => {
@@ -43,16 +69,16 @@ export default function AdminPayouts() {
     try {
       const res  = await apiFetch(`/api/admin/payouts/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ status, admin_notes: note || null }),
+        body: JSON.stringify({ status, admin_notes: note || null, payment_reference: status === 'paid' ? reference : undefined }),
       });
       const json = await safeJson(res);
-      if (json.success) { showToast(`Payout marked as ${status}`); setNoteModal(null); setNote(''); load(); }
+      if (json.success) { showToast(`Payout marked as ${status} — the seller has been emailed`); setNoteModal(null); setNote(''); setReference(''); load(); }
       else showToast(json.error || 'Update failed', 'error');
     } catch { showToast('Network error', 'error'); }
     finally { setUpdating(null); }
   };
 
-  const openModal = (payout, action) => { setNoteModal({ payout, action }); setNote(''); };
+  const openModal = (payout, action) => { setNoteModal({ payout, action }); setNote(''); setReference(''); };
 
   return (
     <>
@@ -62,9 +88,12 @@ export default function AdminPayouts() {
         </div>
       )}
 
-      <p style={{ color: 'var(--gray-1)', marginBottom: '20px', fontSize: '.9rem' }}>
-        Review and process seller payout requests.
-      </p>
+      <div className="admin-payout-steps">
+        <span><b>1</b> Check the request and the seller’s details</span>
+        <span><b>2</b> Approve (or reject with a reason)</span>
+        <span><b>3</b> Send the money, then <strong>Mark paid</strong> with the transfer reference</span>
+        <span><b>4</b> The seller is emailed at each step and sees it in their payout history</span>
+      </div>
 
       {/* Filter tabs */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
@@ -100,11 +129,11 @@ export default function AdminPayouts() {
                     <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginTop: '4px' }}>
                       Requested {new Date(p.requested_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
-                    {p.payment_details && (
-                      <div style={{ marginTop: '8px', fontSize: '.78rem', background: 'var(--gray-6)', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--gray-4)' }}>
-                        <strong>Bank:</strong> {p.payment_details.bankName} &nbsp;·&nbsp;
-                        <strong>Name:</strong> {p.payment_details.accountName} &nbsp;·&nbsp;
-                        <strong>Acct:</strong> {p.payment_details.accountNumber}
+                    {p.payment_details && <PayoutDetails method={p.payment_method} details={p.payment_details} />}
+                    {p.status === 'paid' && (
+                      <div style={{ fontSize: '.78rem', color: '#15803d', marginTop: '6px' }}>
+                        <i className="fas fa-circle-check"></i> Sent {new Date(p.paid_at || p.processed_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {p.payment_reference && <> · Ref: <strong>{p.payment_reference}</strong></>}
                       </div>
                     )}
                     {p.admin_notes && (
@@ -124,9 +153,14 @@ export default function AdminPayouts() {
                       </div>
                     )}
                     {p.status === 'approved' && (
-                      <button className="btn btn-sm btn-primary" onClick={() => openModal(p, 'paid')} disabled={!!updating}>
-                        <i className="fas fa-money-bill-wave"></i> Mark Paid
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="btn btn-sm btn-primary" onClick={() => openModal(p, 'paid')} disabled={!!updating}>
+                          <i className="fas fa-money-bill-wave"></i> Mark Paid
+                        </button>
+                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }} onClick={() => openModal(p, 'rejected')} disabled={!!updating}>
+                          <i className="fas fa-xmark"></i> Reject
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -146,13 +180,21 @@ export default function AdminPayouts() {
             <p style={{ fontSize: '.88rem', color: 'var(--gray-1)', marginBottom: '16px' }}>
               {formatPrice(noteModal.payout.amount, 'NGN', false)} for {noteModal.payout.seller?.name}
             </p>
-            <div className="form-group">
-              <label className="form-label">Admin Note (optional)</label>
-              <textarea className="form-textarea" value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note visible to the seller..." style={{ minHeight: '80px' }} />
+            {noteModal.payout.payment_details && <PayoutDetails method={noteModal.payout.payment_method} details={noteModal.payout.payment_details} />}
+            {noteModal.action === 'paid' && (
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label className="form-label">Transfer reference <span style={{ color: 'var(--danger)' }}>*</span></label>
+                <input className="form-input" value={reference} onChange={e => setReference(e.target.value)} placeholder={noteModal.payout.payment_method === 'crypto' ? 'Transaction hash' : 'Bank / transfer reference'} maxLength={140} />
+                <div style={{ fontSize: '.75rem', color: 'var(--gray-1)', marginTop: 4 }}>Only mark paid once the money has actually been sent. The seller is told to contact support if it hasn’t arrived within 5 hours.</div>
+              </div>
+            )}
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label className="form-label">{noteModal.action === 'rejected' ? 'Reason (shown to the seller)' : 'Note to the seller (optional)'}</label>
+              <textarea className="form-textarea" value={note} onChange={e => setNote(e.target.value)} placeholder="Visible to the seller and included in their email" style={{ minHeight: '70px' }} />
             </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
               <button className="btn btn-outline" onClick={() => setNoteModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => handleAction(noteModal.payout.id, noteModal.action)} disabled={!!updating}>
+              <button className="btn btn-primary" onClick={() => handleAction(noteModal.payout.id, noteModal.action)} disabled={!!updating || (noteModal.action === 'paid' && reference.trim().length < 3)}>
                 {updating ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : 'Confirm'}
               </button>
             </div>

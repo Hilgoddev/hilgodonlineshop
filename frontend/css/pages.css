@@ -1769,3 +1769,106 @@ main { padding: 1rem; }
 .coming-soon-card h1 { font-size: 1.6rem; font-weight: 800; margin: 12px 0 8px; }
 .coming-soon-card p { color: var(--gray-1); max-width: 480px; margin: 0 auto 22px; line-height: 1.6; }
 @media (max-width: 1100px) { .guide-page { padding-left: 16px; padding-right: 16px; } }
+
+/* ── Seller: My Earnings ───────────────────────────────────────────────── */
+.earnings-page { max-width: 900px; margin: 0 auto; padding: var(--space-8) 0; }
+@media (max-width: 960px) { .earnings-page { padding-left: 16px; padding-right: 16px; } }
+.earnings-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: var(--space-6); }
+.earnings-head h1 { font-size: 1.6rem; font-weight: 800; margin: 0; }
+.earnings-head h1 i { color: var(--primary); margin-right: 10px; }
+.earnings-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.earnings-card { padding: 18px; }
+.earnings-card--main { border: 1.5px solid var(--primary); background: #fffafa; }
+.earnings-card__label { display: flex; align-items: center; gap: 10px; font-size: .8rem; color: var(--gray-1); font-weight: 500; margin-bottom: 10px; }
+.earnings-card__label span { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+.earnings-card__value { font-size: 1.4rem; font-weight: 800; overflow-wrap: anywhere; }
+.earnings-rule { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius); background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: .85rem; line-height: 1.55; margin-bottom: 22px; }
+.earnings-rule > i { margin-top: 3px; }
+.earnings-rule__split { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; font-size: .8rem; color: #1e40af; }
+.earnings-request { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+.earnings-request__note { font-size: .82rem; color: #92400e; font-weight: 600; }
+.earnings-request__note.muted { color: var(--gray-1); font-weight: 400; }
+
+.payout-form { padding: 22px; margin-bottom: 26px; }
+.payout-form h3, .payout-history h3 { font-weight: 700; font-size: 1.05rem; margin-bottom: 16px; }
+.payout-form h3 i { color: var(--primary); margin-right: 8px; }
+.payout-history h3 i { color: #8b5cf6; margin-right: 8px; }
+.payout-form__amount { display: flex; gap: 8px; }
+.payout-form__amount .form-input { flex: 1; min-width: 0; }
+.payout-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 6px 0 16px; }
+.payout-method { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px; border: 1.5px solid var(--gray-4); border-radius: var(--radius); background: var(--white); cursor: pointer; }
+.payout-method i { color: var(--gray-1); font-size: 1.1rem; }
+.payout-method strong { font-size: .9rem; display: flex; align-items: center; gap: 6px; }
+.payout-method span { font-size: .75rem; color: var(--gray-1); }
+.payout-method.is-on { border-color: var(--primary); background: #fffafa; box-shadow: 0 0 0 3px rgba(227, 28, 28, .08); }
+.payout-method.is-on i { color: var(--primary); }
+.payout-method__tag { font-size: .65rem !important; font-weight: 700; color: #15803d !important; background: #dcfce7; padding: 1px 7px; border-radius: 999px; }
+.payout-form__fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.payout-form__wide { grid-column: 1 / -1; }
+.payout-form__warn { padding: 10px 12px; border-radius: var(--radius); background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: .8rem; }
+@media (max-width: 600px) { .payout-methods { grid-template-columns: 1fr; } }
+
+.payout-history { padding: 20px; }
+.payout-history__empty { text-align: center; padding: 40px; color: var(--gray-1); }
+.payout-history__empty i { font-size: 2rem; display: block; margin-bottom: 12px; }
+.payout-history__list { display: flex; flex-direction: column; gap: 10px; }
+.payout-row { padding: 14px 16px; background: var(--gray-6); border-radius: 10px; border: 1px solid var(--gray-4); }
+.payout-row__main { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.payout-row__amount { font-weight: 800; font-size: 1rem; }
+.payout-row__status { padding: 4px 12px; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+.payout-row__meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .76rem; color: var(--gray-1); margin-top: 6px; overflow-wrap: anywhere; }
+.payout-row__note { font-size: .78rem; color: #475569; margin-top: 6px; font-style: italic; }
+.payout-row__notice { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: .8rem; line-height: 1.5; }
+.payout-row__notice > i { margin-top: 3px; }
+.payout-row__notice a { color: #92400e; font-weight: 700; }
+.payout-row__report { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; white-space: nowrap; }
+
+/* ── Admin: payouts ───────────────────────────────────────────────────── */
+.admin-payout-steps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.admin-payout-steps span { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: var(--gray-6); border: 1px solid var(--gray-4); font-size: .8rem; }
+.admin-payout-steps b { width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .7rem; }
+.admin-payout-details { margin-top: 8px; padding: 10px 12px; border-radius: 8px; background: var(--gray-6); border: 1px solid var(--gray-4); font-size: .8rem; max-width: 520px; }
+.admin-payout-details__method { font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+.admin-payout-details__row { display: grid; grid-template-columns: 90px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 2px 0; }
+.admin-payout-details__row span { color: var(--gray-1); }
+.admin-payout-details__row strong { overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
+.admin-payout-details__row button { border: none; background: transparent; color: var(--gray-1); cursor: pointer; padding: 4px 6px; border-radius: 4px; }
+.admin-payout-details__row button:hover { background: var(--gray-5); color: var(--dark); }
+.admin-payout-details__warn { margin-top: 6px; color: #92400e; font-size: .75rem; font-weight: 600; }
+
+/* ── How payouts work page ────────────────────────────────────────────── */
+.money-flow { list-style: none; padding: 0; margin: 28px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.money-flow li { display: flex; gap: 14px; padding: 16px; border-radius: var(--radius-md); background: var(--white); border: 1px solid var(--gray-4); }
+.money-flow__icon { position: relative; width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px; background: var(--primary-xlight); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+.money-flow__icon span { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: #fff; font-size: .7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.money-flow h2 { font-size: .98rem; font-weight: 800; margin-bottom: 4px; }
+.money-flow p { font-size: .85rem; color: var(--gray-1); line-height: 1.5; }
+.money-section { margin-top: 30px; }
+.money-section > h2 { font-size: 1.2rem; font-weight: 800; margin-bottom: 12px; }
+.money-section > h2 i { color: var(--primary); margin-right: 8px; }
+.money-note { font-size: .85rem; color: var(--gray-1); line-height: 1.6; margin-top: 10px; }
+.commission-table { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.commission-table > div { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--gray-4); background: var(--white); font-size: .88rem; }
+.commission-table__rate { font-size: 2rem; font-weight: 800; color: var(--primary); }
+.commission-table > div span:last-child { color: var(--gray-1); font-size: .8rem; }
+.method-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.method-card { padding: 16px; border-radius: var(--radius-md); border: 1px solid var(--gray-4); background: var(--white); }
+.method-card > i { font-size: 1.3rem; color: var(--gray-1); }
+.method-card h3 { font-size: 1rem; font-weight: 800; margin: 8px 0 6px; display: flex; align-items: center; gap: 8px; }
+.method-card h3 span { font-size: .68rem; font-weight: 700; color: #15803d; background: #dcfce7; padding: 2px 8px; border-radius: 999px; }
+.method-card p { font-size: .85rem; color: var(--gray-1); line-height: 1.55; }
+.method-card--main { border-color: var(--primary); background: #fffafa; }
+.method-card--main > i { color: var(--primary); }
+.money-steps { padding-left: 20px; line-height: 1.9; font-size: .92rem; }
+.payout-timeline { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.payout-timeline > div { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--radius); background: var(--gray-6); border: 1px solid var(--gray-4); font-size: .82rem; }
+.payout-timeline b { width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; margin-bottom: 4px; }
+.payout-timeline span { color: var(--gray-1); }
+@media (max-width: 600px) { .payout-timeline { grid-template-columns: 1fr; } }
+.money-alert { display: flex; gap: 16px; margin-top: 30px; padding: 20px; border-radius: var(--radius-md); background: #fffbeb; border: 1px solid #fde68a; color: #78350f; }
+.money-alert > i { font-size: 1.6rem; color: #d97706; margin-top: 4px; }
+.money-alert h2 { font-size: 1.1rem; font-weight: 800; margin-bottom: 6px; }
+.money-alert p { line-height: 1.6; margin-bottom: 12px; font-size: .9rem; }
+.money-alert a:not(.btn) { color: #78350f; font-weight: 700; }
+.money-steps { list-style: decimal; }
+.money-steps li { padding-left: 4px; }
